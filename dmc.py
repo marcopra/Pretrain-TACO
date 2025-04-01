@@ -1,5 +1,9 @@
 from collections import deque
 from typing import Any, NamedTuple
+# Force Mujoco to use OSMesa for headless rendering
+import os
+os.environ["MUJOCO_GL"] = "osmesa"
+
 
 import dm_env
 import numpy as np
