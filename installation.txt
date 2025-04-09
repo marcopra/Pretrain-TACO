@@ -1,0 +1,13 @@
+conda create -n metataco python=3.10
+conda activate metataco
+pip3 install torch torchvision torchaudio 
+pip install gym==0.25.2 termcolor==1.1.0 hydra-core==1.1.0 hydra-submitit-launcher==1.1.5
+pip install dm_control
+pip install metaworld@git+https://github.com/microsoft/PLEX-MetaWorld
+pip install wandb
+conda install -c conda-forge glew mesalib -y
+conda install -c menpo glfw3 osmesa
+pip install patchelf
+cp /usr/lib64/libGL.so.1 $CONDA_PREFIX/lib 
+ln -s $CONDA_PREFIX/lib/libGL.so.1 $CONDA_PREFIX/lib/libGL.so
+pip install tensorboard
