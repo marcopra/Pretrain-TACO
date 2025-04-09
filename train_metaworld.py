@@ -2,9 +2,8 @@ import warnings
 warnings.filterwarnings('ignore', category=DeprecationWarning)
 
 import os
-os.environ['MKL_SERVICE_FORCE_INTEL'] = '1'
-os.environ['MUJOCO_GL'] = 'egl'
-
+os.environ["MUJOCO_GL"] = "osmesa"
+print(os.environ["MUJOCO_GL"])
 from pathlib import Path
 
 import hydra
@@ -13,7 +12,7 @@ import numpy as np
 import torch
 from dm_env import specs
 
-import dmc
+import metaworld_env
 import wandb
 import utils
 from logger import Logger
@@ -39,9 +38,11 @@ class Workspace:
         self.device = torch.device(cfg.device)
         self.setup()
 
-        self.agent = make_agent(self.train_env.observation_spec(),
-                                self.train_env.action_spec(),
-                                self.cfg.agent)
+        # Get observation and action specs for the agent
+        obs_spec = metaworld_env.observation_spec(self.train_env)
+        action_spec = metaworld_env.action_spec(self.train_env)
+        
+        self.agent = make_agent(obs_spec, action_spec, self.cfg.agent)
         self.timer = utils.Timer()
         self._global_step = 0
         self._global_episode = 0
@@ -58,31 +59,63 @@ class Workspace:
             
 
     def setup(self):
-        # create logger
+        # Create logger
         self.logger = Logger(self.work_dir, use_tb=self.cfg.use_tb)
-        self.train_env = dmc.make(self.cfg.task_name, self.cfg.frame_stack,
-                                self.cfg.action_repeat, self.cfg.seed)
-        self.eval_env = dmc.make(self.cfg.task_name, self.cfg.frame_stack,
-                                self.cfg.action_repeat, self.cfg.seed)
-        # create replay buffer
-        data_specs = (self.train_env.observation_spec(),
-                      self.train_env.action_spec(),
-                      specs.Array((1,), np.float32, 'reward'),
-                      specs.Array((1,), np.float32, 'discount'))
+        
+        # Create environments
+        self.train_env = metaworld_env.make(
+            self.cfg.env_name, 
+            self.cfg.frame_stack,
+            self.cfg.action_repeat, 
+            self.cfg.seed,
+            resolution=self.cfg.resolution,
+            camera=self.cfg.camera
+        )
+        
+        self.eval_env = metaworld_env.make(
+            self.cfg.env_name, 
+            self.cfg.frame_stack,
+            self.cfg.action_repeat, 
+            self.cfg.seed,
+            resolution=self.cfg.resolution,
+            camera=self.cfg.camera
+        )
+        
+        # Create replay buffer specs
+        data_specs = (
+            metaworld_env.observation_spec(self.train_env),
+            metaworld_env.action_spec(self.train_env),
+            specs.Array((1,), np.float32, 'reward'),
+            specs.Array((1,), np.float32, 'discount')
+        )
 
-        self.replay_storage = ReplayBufferStorage(data_specs,
-                                                  self.work_dir / 'buffer')
+        # Create replay buffer
+        self.replay_storage = ReplayBufferStorage(
+            data_specs,
+            self.work_dir / 'buffer'
+        )
 
         self.replay_loader = make_replay_loader(
-            self.work_dir / 'buffer', self.cfg.replay_buffer_size,
-            self.cfg.batch_size, self.cfg.replay_buffer_num_workers,
-            self.cfg.save_snapshot, self.cfg.nstep, self.cfg.multistep, self.cfg.discount)
+            self.work_dir / 'buffer', 
+            self.cfg.replay_buffer_size,
+            self.cfg.batch_size, 
+            self.cfg.replay_buffer_num_workers,
+            self.cfg.save_snapshot, 
+            self.cfg.nstep, 
+            self.cfg.multistep, 
+            self.cfg.discount
+        )
+        
         self._replay_iter = None
 
+        # Setup video recorders
         self.video_recorder = VideoRecorder(
-            self.work_dir if self.cfg.save_video else None)
+            self.work_dir if self.cfg.save_video else None
+        )
+        
         self.train_video_recorder = TrainVideoRecorder(
-            self.work_dir if self.cfg.save_train_video else None)
+            self.work_dir if self.cfg.save_train_video else None
+        )
     
     def save_policy(self, policy_type):
         checkpoint_path = self.work_dir / f'{policy_type}_policy.pt'
@@ -156,6 +189,7 @@ class Workspace:
         self.train_video_recorder.init(time_step.observation)
         metrics = None
         self.save_policy('random')
+        
         while train_until_step(self.global_step):
             if time_step.last():
                 self._global_episode += 1
@@ -186,7 +220,10 @@ class Workspace:
                             'step': self.global_step
                         })
                     
-                    if episode_reward >= 400 and self.saved_medium_policy == False:
+                    # Save medium policy if we reach a certain reward threshold
+                    if hasattr(self.cfg, 'medium_reward_threshold') and \
+                       episode_reward >= self.cfg.medium_reward_threshold and \
+                       self.saved_medium_policy == False:
                         self.save_policy('medium')
                         self.saved_medium_policy = True
 
@@ -224,6 +261,7 @@ class Workspace:
             self.train_video_recorder.record(time_step.observation)
             episode_step += 1
             self._global_step += 1
+            
         self.save_policy('expert')
 
     def save_snapshot(self):
@@ -241,12 +279,12 @@ class Workspace:
             self.__dict__[k] = v
 
 
-@hydra.main(config_path='cfgs', config_name='config')
+@hydra.main(config_path='cfgs', config_name='config_metaworld')
 def main(cfg):
     from pathlib import Path
     if cfg.use_wandb:
         wandb.tensorboard.patch(root_logdir=str(Path.cwd()))
-    from train import Workspace as W
+    from train_metaworld import Workspace as W
     root_dir = Path.cwd()
     workspace = W(cfg)
     snapshot = root_dir / 'snapshot.pt'

@@ -10,7 +10,7 @@ frame_stack: 3
 action_repeat: 2
 discount: 0.99
 # train settings
-num_seed_frames: 4000
+num_seed_frames: 300 #4000
 # eval
 eval_every_frames: 10000
 num_eval_episodes: 10
@@ -24,9 +24,14 @@ batch_size: 256
 # misc
 seed: 1
 device: cuda
-save_video: false
-save_train_video: false
+save_video: False
+save_train_video: False
 use_tb: True
+use_wandb: True
+# wandb
+wandb_project: "taco"
+wandb_entity: "taco"
+wandb_run_name: ${now:%Y.%m.%d}_${now:%H%M}_prova
 # experiment
 experiment: exp
 # agent
