@@ -110,11 +110,13 @@ class Workspace:
 
         # Setup video recorders
         self.video_recorder = VideoRecorder(
-            self.work_dir if self.cfg.save_video else None
+            self.work_dir if self.cfg.save_video else None,
+            metaworld = True
         )
         
         self.train_video_recorder = TrainVideoRecorder(
-            self.work_dir if self.cfg.save_train_video else None
+            self.work_dir if self.cfg.save_train_video else None,
+            metaworld = True
         )
     
     def save_policy(self, policy_type):
@@ -174,6 +176,14 @@ class Workspace:
             log('episode', self.global_episode)
             log('step', self.global_step)
 
+        if self.cfg.use_wandb:
+            wandb.log({
+                'episode_reward': total_reward / episode,
+                'episode_length': step * self.cfg.action_repeat / episode,
+                'episode': self.global_episode,
+                'step': self.global_step
+            })
+
     def train(self):
         # predicates
         train_until_step = utils.Until(self.cfg.num_train_frames,
@@ -188,7 +198,7 @@ class Workspace:
         self.replay_storage.add(time_step)
         self.train_video_recorder.init(time_step.observation)
         metrics = None
-        self.save_policy('random')
+        # self.save_policy('random')
         
         while train_until_step(self.global_step):
             if time_step.last():

@@ -4,7 +4,7 @@ import numpy as np
 
 
 class VideoRecorder:
-    def __init__(self, root_dir, render_size=256, fps=20):
+    def __init__(self, root_dir, render_size=256, fps=20, metaworld=False):
         if root_dir is not None:
             self.save_dir = root_dir / 'eval_video'
             self.save_dir.mkdir(exist_ok=True)
@@ -14,6 +14,7 @@ class VideoRecorder:
         self.render_size = render_size
         self.fps = fps
         self.frames = []
+        self.metaworld = metaworld
 
     def init(self, env, enabled=True):
         self.frames = []
@@ -28,6 +29,8 @@ class VideoRecorder:
                                            camera_id=0)
             else:
                 frame = env.render()
+                if self.metaworld:
+                    frame = np.flipud(frame)
             self.frames.append(frame)
 
     def save(self, file_name):
@@ -37,7 +40,7 @@ class VideoRecorder:
 
 
 class TrainVideoRecorder:
-    def __init__(self, root_dir, render_size=256, fps=20):
+    def __init__(self, root_dir, render_size=256, fps=20, metaworld=False):
         if root_dir is not None:
             self.save_dir = root_dir / 'train_video'
             self.save_dir.mkdir(exist_ok=True)
@@ -47,6 +50,7 @@ class TrainVideoRecorder:
         self.render_size = render_size
         self.fps = fps
         self.frames = []
+        self.metaworld = metaworld
 
     def init(self, obs, enabled=True):
         self.frames = []
@@ -58,6 +62,8 @@ class TrainVideoRecorder:
             frame = cv2.resize(obs[-3:].transpose(1, 2, 0),
                                dsize=(self.render_size, self.render_size),
                                interpolation=cv2.INTER_CUBIC)
+            if self.metaworld:
+                frame = np.flipud(frame)
             self.frames.append(frame)
 
     def save(self, file_name):

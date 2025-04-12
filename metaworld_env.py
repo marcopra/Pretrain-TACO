@@ -2,11 +2,91 @@ from collections import deque
 from typing import Any, NamedTuple
 
 import numpy as np
-import gym
+import gymnasium as gym
 import metaworld
 import torch
 from dm_env import StepType, specs
 
+from PIL import Image
+
+class RandomizeInitialPositionWrapper(gym.Wrapper):
+    """A wrapper that randomizes the initial position and orientation of the hand and object in MetaWorld environments."""
+    
+    def __init__(self, env, randomize_hand_pos = True, randomize_goal_and_object_pos = True):
+        super().__init__(env)
+        self.randomize_hand_pos = randomize_hand_pos
+        self.randomize_goal_and_object_pos = randomize_goal_and_object_pos
+        # Get the actual SawyerXYZEnv instance
+        if hasattr(self.env, 'env'):
+            self.sawyer_env = self.env.env
+        else:
+            self.sawyer_env = self.env
+
+        
+    def reset(self, seed=None, options=None):
+        """Reset the environment and randomize hand position."""
+        if self.randomize_goal_and_object_pos:
+            if hasattr(self.sawyer_env, '_freeze_rand_vec'):
+                original_freeze = self.sawyer_env._freeze_rand_vec
+                original_seeded = self.sawyer_env.seeded_rand_vec
+                
+                self.sawyer_env._freeze_rand_vec = False  # Allow randomization
+                self.sawyer_env.seeded_rand_vec = True    # Use seeded randomization
+
+        # Reset environment
+        obs, info = self.env.reset(seed=seed, options=options)
+        
+        # Now let's randomize hand position
+        if hasattr(self.sawyer_env, 'hand_low') and hasattr(self.sawyer_env, 'hand_high') and self.randomize_hand_pos:
+            # Get hand position bounds
+            hand_low = self.sawyer_env.hand_low
+            hand_high = self.sawyer_env.hand_high
+            
+            # Generate random hand position within bounds
+            random_hand_pos = np.random.uniform(hand_low, hand_high)
+            
+            # Direct method to set hand position through mocap
+            mocap_id = self.sawyer_env.model.body_mocapid[self.sawyer_env.data.body("mocap").id]
+            self.sawyer_env.data.mocap_pos[mocap_id] = random_hand_pos
+            self.sawyer_env.data.mocap_quat[mocap_id] = np.array([1, 0, 1, 0])
+            
+            # Run simulation steps to apply the changes
+            for _ in range(10):
+                self.sawyer_env.do_simulation([-1, 1], self.sawyer_env.frame_skip)
+            
+            # Update the observation to reflect new hand position
+            obs = self.sawyer_env._get_obs()
+            
+        return obs, info
+    
+    def set_task(self, task):
+        """Set the task for the environment."""
+        # Set the task in the base environment
+        self.env.set_task(task)
+    
+
+class ResizeRendering(gym.Wrapper):
+
+    def __init__(self, env, resolution=84):
+        super().__init__(env)
+        self.resolution = resolution
+
+    def render(self):
+        img =  super().render()
+
+        # Convert numpy array to PIL Image
+        img = Image.fromarray(img.astype(np.uint8))
+        
+        # Resize the image
+        img_resized = img.resize((self.resolution, self.resolution), Image.LANCZOS)
+        
+        # Convert back to numpy array
+        return np.array(img_resized)
+    
+    def set_task(self, task):
+        """Set the task for the environment."""
+        # Set the task in the base environment
+        self.env.set_task(task)
 
 class ExtendedTimeStep(NamedTuple):
     step_type: Any
@@ -39,10 +119,18 @@ class ActionRepeatWrapper(gym.Wrapper):
     def step(self, action):
         reward = 0.0
         discount = 1.0
+        done = False
+        info = {}
+        
         for i in range(self._num_repeats):
-            obs, reward_step, done, info = self.env.step(action)
+            obs, reward_step, terminated, truncated, info = self.env.step(action)
+            # Handle success as a termination condition in MetaWorld
+            
+            done = terminated or truncated or int(info['success']) == 1
+            
             reward += reward_step * discount
             discount *= 0.99  # Standard discount factor
+            
             if done:
                 break
                 
@@ -51,23 +139,24 @@ class ActionRepeatWrapper(gym.Wrapper):
             step_type = StepType.LAST
         else:
             step_type = StepType.MID
-            
+        image_obs = self.env.render()
         return ExtendedTimeStep(
             step_type=step_type,
             reward=reward,
             discount=discount if not done else 0.0,
-            observation=obs['image'],  # Use only image observations
+            observation=image_obs,  # Use image observations
             action=action
         )
 
     def reset(self):
-        obs = self.env.reset()
+        obs, info = self.env.reset()
+        image_obs = self.env.render()
         # Convert gym reset to dm_env format
         return ExtendedTimeStep(
             step_type=StepType.FIRST,
             reward=0.0,
             discount=1.0,
-            observation=obs['image'],  # Use only image observations
+            observation=image_obs,  # Use image observations
             action=np.zeros(self.env.action_space.shape, dtype=np.float32)
         )
 
@@ -81,7 +170,12 @@ class FrameStackWrapper(gym.Wrapper):
         # Update observation space to include stacked frames
         obs = env.reset()
 
-        self.orig_obs_shape = obs.observation.shape
+        # Get the shape from the observation
+        if isinstance(obs.observation, np.ndarray):
+            self.orig_obs_shape = obs.observation.shape
+        else:
+            # Handle case where observation might be a different structure
+            raise ValueError("Expected observation to be a numpy array")
         
         # Create a new stacked observation space
         channels = self.orig_obs_shape[2] * num_frames
@@ -94,12 +188,16 @@ class FrameStackWrapper(gym.Wrapper):
 
     def _transform_observation(self, time_step):
         assert len(self._frames) == self._num_frames
+        # Stack frames along the channel dimension (axis 0 after transpose)
         obs = np.concatenate(list(self._frames), axis=0)
         return time_step._replace(observation=obs)
 
     def _extract_pixels(self, obs):
         # Transform HWC to CHW format
-        return obs.transpose(2, 0, 1).copy()
+        if isinstance(obs, np.ndarray):
+            return obs.transpose(2, 0, 1).copy()
+        else:
+            raise ValueError("Expected observation to be a numpy array")
 
     def reset(self):
         time_step = self.env.reset()
@@ -160,20 +258,26 @@ def make(env_name, frame_stack, action_repeat, seed, resolution=84, camera='corn
         A wrapped MetaWorld environment
     """
     # Create MetaWorld environment with image observations
-    env = metaworld.mw_gym_make(
-        env_name,
-        goal_cost_reward=True,
-        stop_at_goal=False,
-        cam_height=resolution,
-        cam_width=resolution,
-        depth=False,
-        cam_name=camera,    
-        )
+    mt10 = metaworld.MT10(seed=seed)  # Use the provided seed instead of hardcoded 42
+    task_number = 0
+    env_task_indices = [i for i, task in enumerate(mt10.train_tasks) if task.env_name == env_name]
+    if not env_task_indices:
+        raise ValueError(f"Environment {env_name} not found in MT10 tasks")
+    if task_number >= len(env_task_indices):
+        print(f"Task number {task_number} out of range. Available tasks: 0-{len(env_task_indices)-1}")
+        return
     
+    # Get the task index
+    task_idx = env_task_indices[task_number]
+    # Create environment with image observations using PLEX-MetaWorld
+    env = mt10.train_classes[env_name](render_mode="rgb_array", camera_name=camera)
+    env = RandomizeInitialPositionWrapper(env)
+    env = ResizeRendering(env, resolution=resolution)
+    env.set_task(mt10.train_tasks[task_idx])
+
     # Apply wrappers to match dm_control setup
     env = ActionDTypeWrapper(env, dtype=np.float32)
     env = ActionRepeatWrapper(env, action_repeat)
-    
     
     # Apply frame stacking
     env = FrameStackWrapper(env, frame_stack)
