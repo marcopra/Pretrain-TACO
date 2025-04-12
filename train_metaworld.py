@@ -178,10 +178,10 @@ class Workspace:
 
         if self.cfg.use_wandb:
             wandb.log({
-                'episode_reward': total_reward / episode,
-                'episode_length': step * self.cfg.action_repeat / episode,
-                'episode': self.global_episode,
-                'step': self.global_step
+                'eval/episode_reward': total_reward / episode,
+                'eval/episode_length': step * self.cfg.action_repeat / episode,
+                'eval/episode': self.global_episode,
+                'eval/step': self.global_step
             })
 
     def train(self):
