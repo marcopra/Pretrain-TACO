@@ -166,7 +166,9 @@ class Workspace:
                 self.video_recorder.record(self.eval_env)
                 total_reward += time_step.reward
                 step += 1
-
+                if time_step.last():
+                    success += time_step.success*1
+                    break
             episode += 1
             self.video_recorder.save(f'{self.global_frame}.mp4')
 
@@ -175,13 +177,15 @@ class Workspace:
             log('episode_length', step * self.cfg.action_repeat / episode)
             log('episode', self.global_episode)
             log('step', self.global_step)
+            log('success_rate', success / episode)
 
         if self.cfg.use_wandb:
             wandb.log({
                 'eval/episode_reward': total_reward / episode,
                 'eval/episode_length': step * self.cfg.action_repeat / episode,
                 'eval/episode': self.global_episode,
-                'eval/step': self.global_step
+                'eval/step': self.global_step,
+                'eval/success_rate': success / episode
             })
 
     def train(self):

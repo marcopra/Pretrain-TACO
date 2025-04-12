@@ -94,6 +94,7 @@ class ExtendedTimeStep(NamedTuple):
     discount: Any
     observation: Any
     action: Any
+    success: Any = None
 
     def first(self):
         return self.step_type == StepType.FIRST
@@ -145,7 +146,8 @@ class ActionRepeatWrapper(gym.Wrapper):
             reward=reward,
             discount=discount if not done else 0.0,
             observation=image_obs,  # Use image observations
-            action=action
+            action=action,
+            success= (int(info['success']) == 1)
         )
 
     def reset(self):
