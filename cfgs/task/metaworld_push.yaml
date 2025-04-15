@@ -1,5 +1,5 @@
 defaults:
-  - hard
+  - medium
   - _self_
 
 task_name: push-v2
