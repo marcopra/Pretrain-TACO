@@ -264,7 +264,7 @@ class TACOAgent:
             else:
                 reward_loss = torch.tensor(0.)
             
-            next_z = self.TACO.encode(self.aug(next_obs.float()), ema=True)
+            next_z = self.TACO.encode(self.aug(r_next_obs.float()), ema=True)
             curr_za = self.TACO.project_sa(z_a, action_seq_en) 
             logits = self.TACO.compute_logits(curr_za, next_z)
             labels = torch.arange(logits.shape[0]).long().to(self.device)
@@ -299,7 +299,6 @@ class TACOAgent:
         print(f"Loaded pretrained model from {model_path}")
         
         return checkpoint.get('args', {})  # Return the saved args for reference
-
 
 class OfflineReplayBuffer(IterableDataset):
     def __init__(self, dataset_path, multistep=1, nstep=1, discount=0.99, split='train', train_ratio=0.8):
@@ -359,38 +358,35 @@ class OfflineReplayBuffer(IterableDataset):
             return self._sample()
         
         # Sample a random index within the episode that has enough future steps
-        idx = np.random.randint(start_idx, end_idx - n_step + 1) # +1 TODO original code put a +1 why??
+        idx = np.random.randint(start_idx, end_idx - n_step) 
         
         # Get observation, action and reward like in the original _sample method
         obs = self.observations[idx]
-        r_next_obs = self.observations[idx + self.multistep - 1]
+        r_next_obs = self.observations[idx + self.multistep]
         action = self.actions[idx]
         
         # Create action_seq by concatenating multiple actions
-        action_seq_indices = [min(idx + i, end_idx) for i in range(self.multistep)]
+        action_seq_indices = [idx + i for i in range(self.multistep)]
         action_seq = np.concatenate([self.actions[i:i+1] for i in action_seq_indices])
         
-        next_obs = self.observations[min(idx + self.nstep - 1, end_idx)]
+        next_obs = self.observations[idx + self.nstep]
         
         # Calculate cumulative reward and discount
         reward = np.zeros_like(self.rewards[idx])
         discount = np.ones_like(reward)
         
         for i in range(self.nstep):
-            if idx + i <= end_idx:
-                step_reward = self.rewards[idx + i]
-                reward += discount * step_reward
-                # Use terminal flag to determine discount
-                if idx + i < end_idx:  # Not the last step in the episode
-                    discount_factor = 0.0 if self.terminals[idx + i] else self.discount
-                    discount *= discount_factor
-        
+            step_reward = self.rewards[idx + i]
+            reward += discount * step_reward
+            discount *= self.discount
+
+
+        assert idx + i <= end_idx, "Index out of bounds error"
         return (obs, action, action_seq, reward, next_obs, r_next_obs)
     
     def __iter__(self):
         while True:
             yield self._sample()
-
 
 def make_offline_replay_loader(dataset_path, batch_size, multistep=1, nstep=1, discount=0.99, 
                               num_workers=0, split='train', train_ratio=0.8):
