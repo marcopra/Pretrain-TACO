@@ -231,6 +231,51 @@ class TACOAgent:
 
         return metrics
     
+    def evaluate(self, batch):
+        """
+        Compute losses without updating the network (for validation)
+        """
+        with torch.no_grad():
+            obs, action, action_seq, reward, next_obs, r_next_obs = utils.to_torch(
+                batch, self.device)
+            metrics = dict()
+            
+            metrics['batch_reward'] = reward.mean().item()
+            
+            # Compute TACO losses similar to update_taco but without gradients
+            obs_anchor = self.aug(obs.float())
+            obs_pos = self.aug(obs.float())
+            z_a = self.TACO.encode(obs_anchor)
+            z_pos = self.TACO.encode(obs_pos, ema=True)
+            
+            if self.curl:
+                logits = self.TACO.compute_logits(z_a, z_pos)
+                labels = torch.arange(logits.shape[0]).long().to(self.device)
+                curl_loss = self.cross_entropy_loss(logits, labels)
+            else:
+                curl_loss = torch.tensor(0.)
+            
+            action_en = self.TACO.act_tok(action, seq=False) 
+            action_seq_en = self.TACO.act_tok(action_seq, seq=True)
+            
+            if self.reward:
+                reward_pred = self.TACO.reward(torch.concat([z_a, action_seq_en], dim=-1))
+                reward_loss = F.mse_loss(reward_pred, reward)
+            else:
+                reward_loss = torch.tensor(0.)
+            
+            next_z = self.TACO.encode(self.aug(next_obs.float()), ema=True)
+            curr_za = self.TACO.project_sa(z_a, action_seq_en) 
+            logits = self.TACO.compute_logits(curr_za, next_z)
+            labels = torch.arange(logits.shape[0]).long().to(self.device)
+            taco_loss = self.cross_entropy_loss(logits, labels)
+            
+            metrics['reward_loss'] = reward_loss.item()
+            metrics['curl_loss'] = curl_loss.item()
+            metrics['taco_loss'] = taco_loss.item()
+            
+        return metrics
+    
     def load_pretrained(self, model_path, map_location=None):
         """
         Load a pretrained TACO model from a saved checkpoint.
@@ -257,7 +302,7 @@ class TACOAgent:
 
 
 class OfflineReplayBuffer(IterableDataset):
-    def __init__(self, dataset_path, multistep=1, nstep=1, discount=0.99):
+    def __init__(self, dataset_path, multistep=1, nstep=1, discount=0.99, split='train', train_ratio=0.8):
         with open(dataset_path, 'rb') as f:
             dataset = pickle.load(f)
             
@@ -288,7 +333,18 @@ class OfflineReplayBuffer(IterableDataset):
             self.episode_ends.append(len(self.terminals) - 1)
             
         self.num_episodes = len(self.episode_starts)
-        print(f"Loaded {self.num_episodes} episodes from dataset")
+        
+        # Split episodes for train/validation
+        split_idx = int(self.num_episodes * train_ratio)
+        if split == 'train':
+            self.episode_starts = self.episode_starts[:split_idx]
+            self.episode_ends = self.episode_ends[:split_idx]
+        else:  # 'valid'
+            self.episode_starts = self.episode_starts[split_idx:]
+            self.episode_ends = self.episode_ends[split_idx:]
+        
+        self.num_episodes = len(self.episode_starts)
+        print(f"Loaded {self.num_episodes} episodes for {split} split from dataset")
     
     def _sample(self):
         # Sample a random episode
@@ -336,8 +392,16 @@ class OfflineReplayBuffer(IterableDataset):
             yield self._sample()
 
 
-def make_offline_replay_loader(dataset_path, batch_size, multistep=1, nstep=1, discount=0.99, num_workers=0):
-    iterable = OfflineReplayBuffer(dataset_path, multistep, nstep, discount)
+def make_offline_replay_loader(dataset_path, batch_size, multistep=1, nstep=1, discount=0.99, 
+                              num_workers=0, split='train', train_ratio=0.8):
+    iterable = OfflineReplayBuffer(
+        dataset_path, 
+        multistep, 
+        nstep, 
+        discount, 
+        split=split, 
+        train_ratio=train_ratio
+    )
     
     loader = torch.utils.data.DataLoader(
         iterable,
@@ -364,13 +428,22 @@ if __name__ == "__main__":
     parser.add_argument('--wandb_entity', type=str, default=None, help='WandB entity name')
     parser.add_argument('--wandb_run_name', type=str, default=None, help='WandB run name')
     parser.add_argument('--total_steps', type=int, default=1000000, help='Total number of training steps')
+    parser.add_argument('--checkpoint', type=str, default="500000,1000000", 
+                        help='Comma-separated list of steps at which to save checkpoints (e.g., "100000,500000,1000000")')
     parser.add_argument('--nstep', type=int, default=1, help='N-step returns')
     parser.add_argument('--discount', type=float, default=0.99, help='Discount factor')
     parser.add_argument('--num_workers', type=int, default=0, help='Number of dataloader workers')
     parser.add_argument('--save_path', type=str, default='models/', help='Path to save the trained model')
+    parser.add_argument('--eval_frequency', type=int, default=1000, help='Frequency of evaluation steps')
+    parser.add_argument('--train_ratio', type=float, default=0.8, help='Ratio of data to use for training')
+    parser.add_argument('--eval_batches', type=int, default=10, help='Number of batches to use for evaluation')
     args = parser.parse_args()
 
     assert args.multistep == args.nstep, f"Don't know the difference between nstep and multistep, set them to the same value"
+
+    # Parse checkpoint steps from string to list of integers
+    checkpoint_steps = [int(step) for step in args.checkpoint.split(',') if step.strip()]
+    print(f"Will save checkpoints at steps: {checkpoint_steps}")
 
     # Initialize wandb if enabled
     if args.use_wandb:
@@ -393,24 +466,33 @@ if __name__ == "__main__":
             config=wandb_config
         )
 
-    # Use the new replay buffer instead of directly loading the dataset
-    dataloader = make_offline_replay_loader(
+    # Create train and validation dataloaders
+    train_dataloader = make_offline_replay_loader(
         args.dataset_path, 
         args.batch_size, 
         multistep=args.multistep, 
         nstep=args.nstep,
         discount=args.discount,
-        num_workers=args.num_workers
+        num_workers=args.num_workers,
+        split='train',
+        train_ratio=args.train_ratio
     )
 
-    batch = next(iter(dataloader))
+    valid_dataloader = make_offline_replay_loader(
+        args.dataset_path, 
+        args.batch_size, 
+        multistep=args.multistep, 
+        nstep=args.nstep,
+        discount=args.discount,
+        num_workers=args.num_workers,
+        split='valid',
+        train_ratio=args.train_ratio
+    )
+
+    # Get a batch from training data to initialize the agent
+    batch = next(iter(train_dataloader))
     obs_shape = batch[0].shape[1:]
     action_shape = batch[1].shape[1:]
-    # # Sample a batch to get the observation and action shapes
-    # with open(args.dataset_path, 'rb') as f:
-    #     dataset = pickle.load(f)
-    #     obs_shape = dataset['observations'][0].shape
-    #     action_shape = dataset['actions'][0].shape
 
     taco_agent = TACOAgent(
         obs_shape=obs_shape,
@@ -431,22 +513,79 @@ if __name__ == "__main__":
 
     steps = 0
     epoch = 0
+    valid_iterator = iter(valid_dataloader)
     
     while steps < args.total_steps:
         epoch += 1
         print(f"Epoch: {epoch}, Steps: {steps}/{args.total_steps}")
         
-        for batch in dataloader:
+        for batch in train_dataloader:
+            # Training update
             metrics = taco_agent.update(batch)
             steps += args.batch_size
             
-            # Log metrics to wandb
+            # Log training metrics to wandb
             if args.use_wandb:
                 metrics['steps'] = steps
                 metrics['epoch'] = epoch
                 wandb.log(metrics)
             
+            # Periodically evaluate on validation set
+            if steps % args.eval_frequency == 0:
+                taco_agent.train(False)  # Set to eval mode
+                
+                eval_metrics_sum = {
+                    'eval/reward_loss': 0,
+                    'eval/curl_loss': 0,
+                    'eval/taco_loss': 0,
+                    'eval/batch_reward': 0
+                }
+                num_eval_batches = 0
+                
+                # Evaluate on multiple batches
+                for _ in range(args.eval_batches):
+                    try:
+                        eval_batch = next(valid_iterator)
+                    except StopIteration:
+                        valid_iterator = iter(valid_dataloader)
+                        eval_batch = next(valid_iterator)
+                    
+                    eval_metrics = taco_agent.evaluate(eval_batch)
+                    
+                    # Add eval/ prefix to metrics
+                    eval_metrics_sum['eval/reward_loss'] += eval_metrics['reward_loss']
+                    eval_metrics_sum['eval/curl_loss'] += eval_metrics['curl_loss']
+                    eval_metrics_sum['eval/taco_loss'] += eval_metrics['taco_loss']
+                    eval_metrics_sum['eval/batch_reward'] += eval_metrics['batch_reward']
+                    num_eval_batches += 1
+                
+                # Average the metrics
+                for key in eval_metrics_sum:
+                    eval_metrics_sum[key] /= num_eval_batches
+                
+                # Log eval metrics to wandb
+                if args.use_wandb:
+                    eval_metrics_sum['steps'] = steps
+                    eval_metrics_sum['epoch'] = epoch
+                    wandb.log(eval_metrics_sum)
+                
+                print(f"Validation metrics: {eval_metrics_sum}")
+                taco_agent.train(True)  # Set back to train mode
+            
             print(f"Steps: {steps}/{args.total_steps}, Metrics: {metrics}")
+            # Check if we need to save a checkpoint at this step
+            if any(s <= steps < s + args.batch_size for s in checkpoint_steps):
+                checkpoint_path = f"{args.save_path}/taco_{args.dataset_path.split('/')[-1]}_ts={steps}.pt"
+                print(f"Saving checkpoint at step {steps} to {checkpoint_path}")
+                os.makedirs(args.save_path, exist_ok=True)
+                torch.save({
+                    'encoder': taco_agent.encoder.state_dict(),
+                    'taco': taco_agent.TACO.state_dict(),
+                    'act_tok': taco_agent.act_tok.state_dict(),
+                    'args': vars(args),  # Save configuration for easier loading
+                    'steps': steps,
+                    'epoch': epoch,
+                }, checkpoint_path)
             
             if steps >= args.total_steps:
                 break
@@ -459,7 +598,7 @@ if __name__ == "__main__":
         'taco': taco_agent.TACO.state_dict(),
         'act_tok': taco_agent.act_tok.state_dict(),
         'args': vars(args),  # Save configuration for easier loading
-    }, f"{args.save_path}/taco_{args.dataset_path.split('/')[-1]}.pt")
+    }, f"{args.save_path}/taco_{args.dataset_path.split('/')[-1]}_ts={args.total_steps}.pt")
     
     print(f"Training completed after {steps} steps and {epoch} epochs")
     if args.use_wandb:
