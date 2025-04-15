@@ -420,7 +420,7 @@ if __name__ == "__main__":
     parser.add_argument('--lr', type=float, default=1e-4, help='Learning rate')
     parser.add_argument('--feature_dim', type=int, default=50, help='Feature dimension')
     parser.add_argument('--hidden_dim', type=int, default=1024, help='Hidden dimension')
-    parser.add_argument('--multistep', type=int, default=1, help='Multistep (set to 1)')
+    parser.add_argument('--multistep', type=int, default=3, help='Multistep (set to 1)')
     parser.add_argument('--device', type=str, default='cuda', help='Device to use')
     parser.add_argument('--dataset_path', type=str, required=True, help='Path to the dataset file')
     parser.add_argument('--use_wandb', action='store_true', help='Use Weights & Biases for logging')
@@ -430,7 +430,7 @@ if __name__ == "__main__":
     parser.add_argument('--total_steps', type=int, default=1000000, help='Total number of training steps')
     parser.add_argument('--checkpoint', type=str, default="500000,1000000", 
                         help='Comma-separated list of steps at which to save checkpoints (e.g., "100000,500000,1000000")')
-    parser.add_argument('--nstep', type=int, default=1, help='N-step returns')
+    parser.add_argument('--nstep', type=int, default=3, help='N-step returns')
     parser.add_argument('--discount', type=float, default=0.99, help='Discount factor')
     parser.add_argument('--num_workers', type=int, default=0, help='Number of dataloader workers')
     parser.add_argument('--save_path', type=str, default='models/', help='Path to save the trained model')
