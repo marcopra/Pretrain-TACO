@@ -185,7 +185,7 @@ class TACOAgent:
     def __init__(self, obs_shape, action_shape, device, lr, encoder_lr, feature_dim,
                  hidden_dim, critic_target_tau, num_expl_steps,
                  update_every_steps, stddev_schedule, stddev_clip, use_tb,
-                 reward, multistep, latent_a_dim, curl):
+                 reward, multistep, latent_a_dim, curl, pretrained_path=None):
         self.device = device
         self.critic_target_tau = critic_target_tau
         self.update_every_steps = update_every_steps
@@ -228,9 +228,38 @@ class TACOAgent:
         # data augmentation
         self.aug = RandomShiftsAug(pad=4)
 
+        if pretrained_path is None or pretrained_path.lower() == 'none':
+            print("No pretrained model provided, initializing from scratch.")
+        else:
+            print(f"Loading pretrained model from {pretrained_path}")
+            self.load_pretrained(pretrained_path)
+
         self.train()
         self.critic_target.train()
 
+    def load_pretrained(self, model_path, map_location=None):
+        """
+        Load a pretrained TACO model from a saved checkpoint.
+        
+        Args:
+            model_path: Path to the saved model checkpoint
+            map_location: Optional device mapping for torch.load
+        
+        Returns:
+            dict: The original training arguments
+        """
+        if map_location is None:
+            map_location = self.device
+            
+        checkpoint = torch.load(model_path, map_location=map_location)
+        
+        self.encoder.load_state_dict(checkpoint['encoder'])
+        self.TACO.load_state_dict(checkpoint['taco'])
+        self.act_tok.load_state_dict(checkpoint['act_tok'])
+        
+        print(f"Loaded pretrained model from {model_path}")
+        
+        return checkpoint.get('args', {})  # Return the saved args for reference
     def train(self, training=True):
         self.training = training
         self.encoder.train(training)

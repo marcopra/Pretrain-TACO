@@ -233,6 +233,7 @@ class Workspace:
                             'buffer_size': len(self.replay_storage),
                             'step': self.global_step
                         })
+                        
                     
                     # Save medium policy if we reach a certain reward threshold
                     if hasattr(self.cfg, 'medium_reward_threshold') and \
@@ -267,6 +268,16 @@ class Workspace:
             if not seed_until_step(self.global_step):
                 metrics = self.agent.update(self.replay_iter, self.global_step)
                 self.logger.log_metrics(metrics, self.global_frame, ty='train')
+
+                if self.cfg.use_wandb:
+                    metrics.update({'global_step': self.global_step,
+                            'episode': self.global_episode,
+                            'buffer_size': len(self.replay_storage),
+                            'step': self.global_step,
+                            'global_frame': self.global_frame
+                            })
+                    wandb.log(metrics)
+
 
             # take env step
             time_step = self.train_env.step(action)
