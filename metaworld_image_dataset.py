@@ -81,6 +81,7 @@ def collect_dataset(env_names, expert_probs, dataset_size=int(1e6), checkpoint =
     
     mt10 = metaworld.MT10(seed=42)
     for expert_prob in expert_probs:
+        os.makedirs(f'data/exp={int(expert_prob*100)}', exist_ok=True)
         for env_name in env_names:
             print(f"\n===== Collecting data for {env_name} with expert_prob={expert_prob} =====")
             print(f"Frame stack: {frame_stack}, Action repeat: {action_repeat}")
