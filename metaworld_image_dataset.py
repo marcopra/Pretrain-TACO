@@ -242,7 +242,7 @@ def collect_dataset(env_names, expert_probs, dataset_size=int(1e6), checkpoint =
                     print(f"Dataset saved to {dataset_path}")
                     
                     # Write successful trajectories information to a text file
-                    success_file_path = "data/exp={int(expert_prob*100)}/successful_image_trajectories.txt"
+                    success_file_path = f"data/exp={int(expert_prob*100)}/successful_image_trajectories.txt"
                     with open(success_file_path, 'a') as f:
                         f.write(f"{dataset_path}: {successful_trajectories} successful trajectories out of {episode_count}\n")
                     
