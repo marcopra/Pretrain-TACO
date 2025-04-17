@@ -25,4 +25,4 @@ reward: true
 multistep: 3
 latent_a_dim: none
 batch_size: 1024
-pretrained_path: "/home/mprattico/Pretrain-TACO/models/taco_push-v2_img84_fs3_ar1_exp=80__ds=100000.pt"
+pretrained_path: none
