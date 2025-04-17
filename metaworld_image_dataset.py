@@ -96,7 +96,7 @@ def collect_dataset(env_names, expert_probs, dataset_size=int(1e6), checkpoint =
             task_idx = env_task_indices[task_number]
             # Create environment with image observations using PLEX-MetaWorld
             env = mt10.train_classes[env_name](render_mode="rgb_array", camera_name="corner")
-            # env = RandomizeInitialPositionWrapper(env)
+            env = RandomizeInitialPositionWrapper(env)
             env = ResizeRendering(env, resolution=resolution)
             env.set_task(mt10.train_tasks[task_idx])
             state, info = env.reset()
