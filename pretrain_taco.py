@@ -195,7 +195,8 @@ class TACOAgent:
         ### Compute reward prediction loss
         if self.reward:
             reward_pred = self.TACO.reward(torch.concat([z_a, action_seq_en], dim=-1))
-            reward_loss = F.mse_loss(reward_pred, reward)
+            reward_loss = F.mse_loss(reward_pred.squeeze(-1), reward)
+            
         else:
             reward_loss = torch.tensor(0.)
         
@@ -222,8 +223,6 @@ class TACOAgent:
         obs, action, action_seq, reward, next_obs, r_next_obs = utils.to_torch(
             batch, self.device)
         metrics = dict()
-
-       
         
         metrics['batch_reward'] = reward.mean().item()
         
@@ -260,7 +259,7 @@ class TACOAgent:
             
             if self.reward:
                 reward_pred = self.TACO.reward(torch.concat([z_a, action_seq_en], dim=-1))
-                reward_loss = F.mse_loss(reward_pred, reward)
+                reward_loss = F.mse_loss(reward_pred.squeeze(-1), reward)
             else:
                 reward_loss = torch.tensor(0.)
             
