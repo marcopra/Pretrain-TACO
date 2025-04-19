@@ -180,7 +180,7 @@ class TACOAgent:
         obs_anchor = self.aug(obs.float())
         obs_pos = self.aug(obs.float())
         z_a = self.TACO.encode(obs_anchor)
-        z_pos = self.TACO.encode(obs_pos, ema=True)
+        z_pos = self.TACO.encode(obs_pos, ema=True)   
         ### Compute CURL loss
         if self.curl:
             logits = self.TACO.compute_logits(z_a, z_pos)
@@ -196,7 +196,22 @@ class TACOAgent:
         ### Compute reward prediction loss
         if self.reward:
             reward_pred = self.TACO.reward(torch.concat([z_a, action_seq_en], dim=-1))
-            reward_loss = F.mse_loss(reward_pred.unsqueeze(-1), reward)
+            reward_loss = F.mse_loss(reward_pred.squeeze(-1), reward)
+            # Average percentage of reward prediction error
+            with torch.no_grad():
+                # Average percentage of reward prediction error
+                metrics['avg_rew_pred_error_percentage'] = torch.mean(torch.abs(reward_pred.squeeze(-1) - reward) / (reward + 1e-6)).item() 
+                error = reward_pred.squeeze(-1) - reward
+                metrics['log_cosh'] = torch.mean(torch.log(torch.cosh(error + 1e-12))).item()
+                threshold = 1e-3  # puoi settarlo in base al tuo dominio
+                mask = reward.abs() > threshold
+                metrics['rel_error_filtered'] = torch.mean(
+                    torch.abs(reward_pred.squeeze(-1)[mask] - reward[mask]) / (reward[mask] + 1e-6)
+                ).item()
+                numerator = torch.abs(reward_pred.squeeze(-1) - reward)
+                denominator = torch.abs(reward_pred.squeeze(-1)) + torch.abs(reward) + 1e-6
+                metrics['smape'] = torch.mean(2.0 * numerator / denominator).item()
+
         else:
             reward_loss = torch.tensor(0.)
         
@@ -224,8 +239,6 @@ class TACOAgent:
             batch, self.device)
         metrics = dict()
 
-       
-        
         metrics['batch_reward'] = reward.mean().item()
         
         metrics.update(self.update_taco(obs, action, action_seq, r_next_obs, reward))
@@ -261,7 +274,21 @@ class TACOAgent:
             
             if self.reward:
                 reward_pred = self.TACO.reward(torch.concat([z_a, action_seq_en], dim=-1))
-                reward_loss = F.mse_loss(reward_pred.unsqueeze(-1), reward)
+                reward_loss = F.mse_loss(reward_pred.squeeze(-1), reward)
+                # Average percentage of reward prediction error
+                metrics['avg_rew_pred_error_percentage'] = torch.mean(torch.abs(reward_pred.squeeze(-1) - reward) / (reward + 1e-6)).item() 
+                error = reward_pred.squeeze(-1) - reward
+                metrics['log_cosh'] = torch.mean(torch.log(torch.cosh(error + 1e-12))).item()
+                threshold = 1e-3  # puoi settarlo in base al tuo dominio
+                mask = reward.abs() > threshold
+                metrics['rel_error_filtered'] = torch.mean(
+                    torch.abs(reward_pred.squeeze(-1)[mask] - reward[mask]) / (reward[mask] + 1e-6)
+                ).item()
+                numerator = torch.abs(reward_pred.squeeze(-1) - reward)
+                denominator = torch.abs(reward_pred.squeeze(-1)) + torch.abs(reward) + 1e-6
+                metrics['smape'] = torch.mean(2.0 * numerator / denominator).item()
+
+
             else:
                 reward_loss = torch.tensor(0.)
             
@@ -527,6 +554,7 @@ if __name__ == "__main__":
             "discount": args.discount,
             "datasets": pretraining_datasets,
             "num_datasets": len(pretraining_datasets),
+            "dataset_config": args.dataset_config,
         }
         wandb.init(
             project=args.wandb_project,
@@ -607,7 +635,11 @@ if __name__ == "__main__":
                     'eval/reward_loss': 0,
                     'eval/curl_loss': 0,
                     'eval/taco_loss': 0,
-                    'eval/batch_reward': 0
+                    'eval/batch_reward': 0,
+                    'eval/avg_rew_pred_error_percentage': 0,
+                    'eval/log_cosh': 0,
+                    'eval/rel_error_filtered': 0,
+                    'eval/smape': 0,
                 }
                 num_eval_batches = 0
                 
@@ -626,6 +658,13 @@ if __name__ == "__main__":
                     eval_metrics_sum['eval/curl_loss'] += eval_metrics['curl_loss']
                     eval_metrics_sum['eval/taco_loss'] += eval_metrics['taco_loss']
                     eval_metrics_sum['eval/batch_reward'] += eval_metrics['batch_reward']
+                    eval_metrics_sum['eval/avg_rew_pred_error_percentage'] += eval_metrics['avg_rew_pred_error_percentage']
+                    if 'log_cosh' in eval_metrics:
+                        eval_metrics_sum['eval/log_cosh'] += eval_metrics['log_cosh']
+                    if 'rel_error_filtered' in eval_metrics:
+                        eval_metrics_sum['eval/rel_error_filtered'] += eval_metrics['rel_error_filtered']
+                    if 'smape' in eval_metrics:
+                        eval_metrics_sum['eval/smape'] += eval_metrics['smape']
                     num_eval_batches += 1
                 
                 # Average the metrics

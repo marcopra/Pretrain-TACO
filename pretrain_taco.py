@@ -196,6 +196,9 @@ class TACOAgent:
         if self.reward:
             reward_pred = self.TACO.reward(torch.concat([z_a, action_seq_en], dim=-1))
             reward_loss = F.mse_loss(reward_pred.squeeze(-1), reward)
+            # Average percentage of reward prediction error
+            with torch.no_grad():
+                metrics['avg_rew_pred_error_percentage'] = torch.mean(torch.abs(reward_pred.squeeze(-1) - reward) / (reward + 1e-6)).item() 
             
         else:
             reward_loss = torch.tensor(0.)
@@ -260,6 +263,8 @@ class TACOAgent:
             if self.reward:
                 reward_pred = self.TACO.reward(torch.concat([z_a, action_seq_en], dim=-1))
                 reward_loss = F.mse_loss(reward_pred.squeeze(-1), reward)
+                metrics['avg_rew_pred_error_percentage'] = torch.mean(torch.abs(reward_pred.squeeze(-1) - reward) / (reward + 1e-6)) 
+
             else:
                 reward_loss = torch.tensor(0.)
             
@@ -366,7 +371,7 @@ class OfflineReplayBuffer(IterableDataset):
         
         # Create action_seq by concatenating multiple actions
         action_seq_indices = [idx + i for i in range(self.multistep)]
-        action_seq = np.concatenate([self.actions[i:i+1] for i in action_seq_indices])
+        action_seq = np.concatenate([self.actions[i:i+1][None, :] for i in action_seq_indices])
         
         next_obs = self.observations[idx + self.nstep]
         
@@ -533,7 +538,8 @@ if __name__ == "__main__":
                     'eval/reward_loss': 0,
                     'eval/curl_loss': 0,
                     'eval/taco_loss': 0,
-                    'eval/batch_reward': 0
+                    'eval/batch_reward': 0,
+                    'eval/avg_rew_pred_error_percentage': 0,
                 }
                 num_eval_batches = 0
                 
@@ -552,6 +558,8 @@ if __name__ == "__main__":
                     eval_metrics_sum['eval/curl_loss'] += eval_metrics['curl_loss']
                     eval_metrics_sum['eval/taco_loss'] += eval_metrics['taco_loss']
                     eval_metrics_sum['eval/batch_reward'] += eval_metrics['batch_reward']
+                    if 'avg_rew_pred_error_percentage' in eval_metrics:
+                        eval_metrics_sum['eval/avg_rew_pred_error_percentage'] += eval_metrics['avg_rew_pred_error_percentage']
                     num_eval_batches += 1
                 
                 # Average the metrics
