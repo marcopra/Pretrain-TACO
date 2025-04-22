@@ -12,7 +12,7 @@ ENV_NAME=${ENV_NAME:-"push-v2"}
 # Define cleanup function
 cleanup() {
     echo "Performing cleanup: Removing experiment folder"
-    rm -rf exp_local/metaworld/taco_with_losses_$SEED
+    rm -rf exp_local/metaworld/taco_with_losses_$SEED_$ENV_NAME
     echo "Cleanup completed"
 }
 

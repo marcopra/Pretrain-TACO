@@ -8,7 +8,7 @@ cd $PBS_O_WORKDIR
 # Define cleanup function
 cleanup() {
     echo "Performing cleanup: Removing experiment folder"
-    rm -rf exp_local/default/metaworld/taco_with_losses
+    rm -rf exp_local/metaworld/taco_with_losses_*
     echo "Cleanup completed"
 }
 

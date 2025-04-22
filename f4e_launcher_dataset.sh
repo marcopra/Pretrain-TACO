@@ -18,6 +18,6 @@ exp_probs="0.4,0.2"
 # Create up to MAX_SESSIONS tmux sessions
 for env in $envs; do
     for prob in $exp_probs; do
-        python metaworld_image_dataset.py --env_names $env --dataset_size 100000 --expert_probs $prob
+        python metaworld_image_dataset.py --env_names $env --dataset_size 10000 --expert_probs $prob
     done
 done
