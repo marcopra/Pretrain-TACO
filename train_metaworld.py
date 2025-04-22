@@ -185,7 +185,8 @@ class Workspace:
                 'eval/episode_length': step * self.cfg.action_repeat / episode,
                 'eval/episode': self.global_episode,
                 'eval/step': self.global_step,
-                'eval/success_rate': success / episode
+                'eval/success_rate': success / episode,
+                'buffer_size': len(self.replay_storage)
             })
 
     def train(self):
