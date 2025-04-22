@@ -683,7 +683,7 @@ if __name__ == "__main__":
             print(f"Steps: {steps}/{args.total_steps}, Metrics: {metrics}")
             # Check if we need to save a checkpoint at this step
             if any(s <= steps < s + args.batch_size for s in checkpoint_steps):
-                checkpoint_path = f"{args.save_path}/taco_MT_{args.dataset_config.split('/')[-1]}_ts={steps}.pt"
+                checkpoint_path = f"{args.save_path}/taco_MT_{args.dataset_config.split('/')[-1].split('.')[0]}_ts={steps}.pt"
                 print(f"Saving checkpoint at step {steps} to {checkpoint_path}")
                 os.makedirs(args.save_path, exist_ok=True)
                 torch.save({
@@ -706,7 +706,7 @@ if __name__ == "__main__":
         'taco': taco_agent.TACO.state_dict(),
         'act_tok': taco_agent.act_tok.state_dict(),
         'args': vars(args),  # Save configuration for easier loading
-    }, f"{args.save_path}/taco_MT_{args.dataset_config.split('/')[-1]}_ts={args.total_steps}.pt")
+    }, f"{args.save_path}/taco_MT_{args.dataset_config.split('/')[-1].split('.')[0]}_ts={args.total_steps}.pt")
     
     print(f"Training completed after {steps} steps and {epoch} epochs")
     if args.use_wandb:
