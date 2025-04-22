@@ -11,8 +11,8 @@ conda activate metataco
 
 
 # Define environment names and expert probability values
-envs="push-v2 window-open-v2 door-open-v2 reach-v2 drawer-close-v2 pick-place-v2 drawer-open-v2 button-press-topdown-v2 window-close-v2 peg-insert-side-v2"
-exp_probs="0.4 0.2"
+envs="push-v2,window-open-v2,door-open-v2,reach-v2,drawer-close-v2,pick-place-v2,drawer-open-v2,button-press-topdown-v2,window-close-v2,peg-insert-side-v2"
+exp_probs="0.4,0.2"
 
 
 # Create up to MAX_SESSIONS tmux sessions
