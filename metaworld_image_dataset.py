@@ -8,6 +8,7 @@ from metaworld_env import *
 from metaworld.policies import *
 from PIL import Image
 from collections import deque
+# TODO: rff https://github.com/buoyancy99/ramp-rl/blob/main/experiments/collect_rollouts.py#L240
 # python metaworld_image_dataset.py --env_names push-v2,door-open-v2 --expert_probs 0.8,0.0 --dataset_size 100000 --resolution 84 --camera corner
 
 # Create data directory if it doesn't exist
