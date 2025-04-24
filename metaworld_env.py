@@ -127,7 +127,7 @@ class ActionRepeatWrapper(gym.Wrapper):
             obs, reward_step, terminated, truncated, info = self.env.step(action)
             # Handle success as a termination condition in MetaWorld
             
-            done = terminated or truncated or int(info['success']) == 1
+            done = terminated or truncated # or int(info['success']) == 1
             
             reward += reward_step * discount
             discount *= 0.99  # Standard discount factor
