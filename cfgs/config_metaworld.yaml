@@ -9,7 +9,7 @@ domain: metaworld
 env_name: push-v2
 camera: corner
 resolution: 84
-rondom_init: true
+random_init: true
 
 # task settings
 frame_stack: 3
