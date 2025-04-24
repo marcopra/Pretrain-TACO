@@ -2,7 +2,8 @@ import warnings
 warnings.filterwarnings('ignore', category=DeprecationWarning)
 
 import os
-os.environ["MUJOCO_GL"] = "osmesa"
+if 'MUJOCO_GL' not in os.environ:
+    os.environ["MUJOCO_GL"] = "osmesa"
 print(os.environ["MUJOCO_GL"])
 from pathlib import Path
 
@@ -69,7 +70,8 @@ class Workspace:
             self.cfg.action_repeat, 
             self.cfg.seed,
             resolution=self.cfg.resolution,
-            camera=self.cfg.camera
+            camera=self.cfg.camera,
+            random_initialization=self.cfg.random_initialization,
         )
         
         self.eval_env = metaworld_env.make(
@@ -78,7 +80,8 @@ class Workspace:
             self.cfg.action_repeat, 
             self.cfg.seed,
             resolution=self.cfg.resolution,
-            camera=self.cfg.camera
+            camera=self.cfg.camera,
+            random_initialization=self.cfg.random_initialization,
         )
         
         # Create replay buffer specs

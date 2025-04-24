@@ -244,7 +244,7 @@ class ExtendedTimeStepWrapper(gym.Wrapper):
         return time_step
 
 
-def make(env_name, frame_stack, action_repeat, seed, resolution=84, camera='corner'):
+def make(env_name, frame_stack, action_repeat, seed, resolution=84, camera='corner', random_initialization=True):
     """
     Create a MetaWorld environment with image observations, frame stacking, and action repeat.
     
@@ -255,6 +255,7 @@ def make(env_name, frame_stack, action_repeat, seed, resolution=84, camera='corn
         seed: Random seed
         resolution: Image resolution (height and width)
         camera: Camera angle to use
+        random_initialization: Whether to randomize the initial position of the hand and object
     
     Returns:
         A wrapped MetaWorld environment
@@ -273,7 +274,8 @@ def make(env_name, frame_stack, action_repeat, seed, resolution=84, camera='corn
     task_idx = env_task_indices[task_number]
     # Create environment with image observations using PLEX-MetaWorld
     env = mt10.train_classes[env_name](render_mode="rgb_array", camera_name=camera)
-    env = RandomizeInitialPositionWrapper(env)
+    if random_initialization is True:
+        env = RandomizeInitialPositionWrapper(env)
     env = ResizeRendering(env, resolution=resolution)
     env.set_task(mt10.train_tasks[task_idx])
 
