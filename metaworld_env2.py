@@ -263,11 +263,11 @@ def make(env_name, frame_stack, action_repeat, seed, resolution=84, camera='corn
         A wrapped MetaWorld environment
     """
     # Create MetaWorld environment with image observations
-    mt10 = metaworld.MT10(seed=seed)  # Use the provided seed instead of hardcoded 42
+    mt50 = metaworld.MT50(seed=seed)  # Use the provided seed instead of hardcoded 42
     task_number = 0
-    env_task_indices = [i for i, task in enumerate(mt10.train_tasks) if task.env_name == env_name]
+    env_task_indices = [i for i, task in enumerate(mt50.train_tasks) if task.env_name == env_name]
     if not env_task_indices:
-        raise ValueError(f"Environment {env_name} not found in MT10 tasks")
+        raise ValueError(f"Environment {env_name} not found in mt50 tasks")
     if task_number >= len(env_task_indices):
         print(f"Task number {task_number} out of range. Available tasks: 0-{len(env_task_indices)-1}")
         return
@@ -275,10 +275,10 @@ def make(env_name, frame_stack, action_repeat, seed, resolution=84, camera='corn
     # Get the task index
     task_idx = env_task_indices[task_number]
     # Create environment with image observations using PLEX-MetaWorld
-    env = mt10.train_classes[env_name](render_mode="rgb_array", camera_name=camera)
+    env = mt50.train_classes[env_name](render_mode="rgb_array", camera_name=camera)
     env = RandomizeInitialPositionWrapper(env)
     env = ResizeRendering(env, resolution=resolution)
-    env.set_task(mt10.train_tasks[task_idx])
+    env.set_task(mt50.train_tasks[task_idx])
 
     # Apply wrappers to match dm_control setup
     env = ActionDTypeWrapper(env, dtype=np.float32)

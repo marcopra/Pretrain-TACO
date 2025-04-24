@@ -13,16 +13,56 @@ os.makedirs('data', exist_ok=True)
 def get_policy(env_name):
     # Map environment names to their corresponding policy classes
     env_to_policy = {
-        'reach-v2': SawyerReachV2Policy,
-        'push-v2': SawyerPushV2Policy,
-        'pick-place-v2': SawyerPickPlaceV2Policy,
+        'assembly-v2': SawyerAssemblyV2Policy,
+        'basketball-v2': SawyerBasketballV2Policy,
+        'bin-picking-v2': SawyerBinPickingV2Policy,
+        'box-close-v2': SawyerBoxCloseV2Policy,
+        'button-press-topdown-v2': SawyerButtonPressTopdownV2Policy,
+        'button-press-topdown-wall-v2': SawyerButtonPressTopdownWallV2Policy,
+        'button-press-v2': SawyerButtonPressV2Policy,
+        'button-press-wall-v2': SawyerButtonPressWallV2Policy,
+        'coffee-button-v2': SawyerCoffeeButtonV2Policy,
+        'coffee-pull-v2': SawyerCoffeePullV2Policy,
+        'coffee-push-v2': SawyerCoffeePushV2Policy,
+        'dial-turn-v2': SawyerDialTurnV2Policy,
+        'disassemble-v2': SawyerDisassembleV2Policy,
+        'door-close-v2': SawyerDoorCloseV2Policy,
+        'door-lock-v2': SawyerDoorLockV2Policy,
         'door-open-v2': SawyerDoorOpenV2Policy,
+        'door-unlock-v2': SawyerDoorUnlockV2Policy,
         'drawer-close-v2': SawyerDrawerCloseV2Policy,
         'drawer-open-v2': SawyerDrawerOpenV2Policy,
-        'button-press-topdown-v2': SawyerButtonPressTopdownV2Policy,
-        'window-open-v2': SawyerWindowOpenV2Policy,
+        'faucet-close-v2': SawyerFaucetCloseV2Policy,
+        'faucet-open-v2': SawyerFaucetOpenV2Policy,
+        'hammer-v2': SawyerHammerV2Policy,
+        'hand-insert-v2': SawyerHandInsertV2Policy,
+        'handle-press-side-v2': SawyerHandlePressSideV2Policy,
+        'handle-press-v2': SawyerHandlePressV2Policy,
+        'handle-pull-side-v2': SawyerHandlePullSideV2Policy,
+        'handle-pull-v2': SawyerHandlePullV2Policy,
+        'lever-pull-v2': SawyerLeverPullV2Policy,
+        'peg-insert-side-v2': SawyerPegInsertionSideV2Policy,
+        'peg-unplug-side-v2': SawyerPegUnplugSideV2Policy,
+        'pick-out-of-hole-v2': SawyerPickOutOfHoleV2Policy,
+        'pick-place-v2': SawyerPickPlaceV2Policy,
+        'pick-place-wall-v2': SawyerPickPlaceWallV2Policy,
+        'plate-slide-v2': SawyerPlateSlideV2Policy,
+        'plate-slide-back-v2': SawyerPlateSlideBackV2Policy,
+        'plate-slide-back-side-v2': SawyerPlateSlideBackSideV2Policy,
+        'plate-slide-side-v2': SawyerPlateSlideSideV2Policy,
+        'push-back-v2': SawyerPushBackV2Policy,
+        'push-v2': SawyerPushV2Policy,
+        'push-wall-v2': SawyerPushWallV2Policy,
+        'reach-v2': SawyerReachV2Policy,
+        'reach-wall-v2': SawyerReachWallV2Policy,
+        'shelf-place-v2': SawyerShelfPlaceV2Policy,
+        'soccer-v2': SawyerSoccerV2Policy,
+        'stick-pull-v2': SawyerStickPullV2Policy,
+        'stick-push-v2': SawyerStickPushV2Policy,
+        'sweep-into-v2': SawyerSweepIntoV2Policy,
+        'sweep-v2': SawyerSweepV2Policy,
         'window-close-v2': SawyerWindowCloseV2Policy,
-        'peg-insert-side-v2': SawyerPegInsertionSideV2Policy
+        'window-open-v2': SawyerWindowOpenV2Policy
     }
     
     if env_name not in env_to_policy:
@@ -32,7 +72,7 @@ def get_policy(env_name):
     return env_to_policy[env_name]()
 
 def collect_dataset(env_names, expert_probs, dataset_size=int(1e6), checkpoint=[3e5],  resolution=84, camera='corner', 
-                   include_depth=False, save_example=False, frame_stack=1, action_repeat=1):
+                   include_depth=False, save_example=False, frame_stack=1, action_repeat=1, save_path='data/'):
     """
     Collects a dataset of trajectories from MetaWorld environments with image observations.
     
@@ -50,7 +90,7 @@ def collect_dataset(env_names, expert_probs, dataset_size=int(1e6), checkpoint=[
     """
 
     for expert_prob in expert_probs:
-        os.makedirs(f'data/exp={int(expert_prob*100)}', exist_ok=True)
+        os.makedirs(f'{save_path}exp={int(expert_prob*100)}', exist_ok=True)
         for env_name in env_names:
             print(f"\n===== Collecting data for {env_name} with expert_prob={expert_prob} =====")
             print(f"Frame stack: {frame_stack}, Action repeat: {action_repeat}")
@@ -146,13 +186,13 @@ def collect_dataset(env_names, expert_probs, dataset_size=int(1e6), checkpoint=[
                     for key in dataset:
                         dataset_slice[key] = dataset[key][:transitions_collected]
                     
-                    dataset_path = f"data/exp={int(expert_prob*100)}/{env_name}_mod2_fs{frame_stack}_ar{action_repeat}_exp={int(expert_prob*100)}_ds={transitions_collected}"
+                    dataset_path = f"save_pathexp={int(expert_prob*100)}/{env_name}_mod2_fs{frame_stack}_ar{action_repeat}_exp={int(expert_prob*100)}_ds={transitions_collected}"
                     with open(dataset_path, 'wb') as f:
                         pickle.dump(dataset_slice, f)
                     print(f"Dataset saved to {dataset_path}")
                     
                     # Write successful trajectories information to a text file
-                    success_file_path = f"data/exp={int(expert_prob*100)}/successful_image_trajectories.txt"
+                    success_file_path = f"{save_path}exp={int(expert_prob*100)}/successful_image_trajectories.txt"
                     with open(success_file_path, 'a') as f:
                         f.write(f"{dataset_path}: {successful_trajectories} successful trajectories out of {episode_count}\n")
                     
@@ -164,7 +204,7 @@ def collect_dataset(env_names, expert_probs, dataset_size=int(1e6), checkpoint=[
                 final_dataset[key] = dataset[key][:transitions_collected]
             
             # Save the dataset
-            dataset_path = f"data/exp={int(expert_prob*100)}/{env_name}_mod2_fs{frame_stack}_ar{action_repeat}_exp={int(expert_prob*100)}__ds={transitions_collected}"
+            dataset_path = f"{save_path}exp={int(expert_prob*100)}/{env_name}_mod2_fs{frame_stack}_ar{action_repeat}_exp={int(expert_prob*100)}__ds={transitions_collected}"
             with open(dataset_path, 'wb') as f:
                 pickle.dump(final_dataset, f)
             
@@ -174,7 +214,7 @@ def collect_dataset(env_names, expert_probs, dataset_size=int(1e6), checkpoint=[
             print(f"Successful trajectories: {successful_trajectories} out of {episode_count}")
             
             # Write successful trajectories information to a text file
-            success_file_path = f"data/exp={int(expert_prob*100)}/successful_image_trajectories.txt"
+            success_file_path = f"{save_path}exp={int(expert_prob*100)}/successful_image_trajectories.txt"
             with open(success_file_path, 'a') as f:
                 f.write(f"{dataset_path}: {successful_trajectories} successful trajectories out of {episode_count}\n")
             
@@ -194,6 +234,8 @@ if __name__ == "__main__":
                         help="Number of times to repeat the same action")
     parser.add_argument("--checkpoint", type=str, default=None,
                         help="Comma-separated list of checkpoints to save datasets at")
+    parser.add_argument("--save_path", type=str, default="data/",
+                        help="Path to save the dataset")
     
     args = parser.parse_args()
     
@@ -201,6 +243,9 @@ if __name__ == "__main__":
 
     expert_probs = [float(p) for p in args.expert_probs.split(",")]
     checkpoints = [int(c) for c in args.checkpoint.split(",")] if args.checkpoint else []
+
+    # Create data directory if it doesn't exist
+    os.makedirs(args.save_path, exist_ok=True)
     
     print(f"Collecting data for environments: {env_names}")
     print(f"Expert probabilities: {expert_probs}")
@@ -215,5 +260,6 @@ if __name__ == "__main__":
         dataset_size=args.dataset_size,
         checkpoint=checkpoints,
         frame_stack=args.frame_stack,
-        action_repeat=args.action_repeat
+        action_repeat=args.action_repeat,
+        save_path=args.save_path
     )
