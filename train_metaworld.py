@@ -71,7 +71,7 @@ class Workspace:
             self.cfg.seed,
             resolution=self.cfg.resolution,
             camera=self.cfg.camera,
-            rondom_init=self.cfg.rondom_init,
+            random_init=self.cfg.random_init,
         )
         
         self.eval_env = metaworld_env.make(
@@ -81,7 +81,7 @@ class Workspace:
             self.cfg.seed,
             resolution=self.cfg.resolution,
             camera=self.cfg.camera,
-            rondom_init=self.cfg.rondom_init,
+            random_init=self.cfg.random_init,
         )
         
         # Create replay buffer specs
