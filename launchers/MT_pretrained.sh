@@ -29,5 +29,3 @@ conda activate metataco
 python3 train_metaworld.py agent.pretrained_path=\"${MODEL_PATH}\" exp_name=\"${MODEL_PATH}\" seed=$SEED env_name=$ENV_NAME
 
 # Cleanup will be triggered automatically by the trap
-
-python3 train_metaworld.py agent.pretrained_path="/home/mprattico/Pretrain-TACO/models/taco_MT_exp\=80_1OOD_push_config_ts\=200000512.pt" exp_name="models/taco_MT_exp\=80_1OOD_push_config_ts\=200000512.pt" seed=201 env_name="push-v2"
