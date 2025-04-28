@@ -165,3 +165,4 @@ dataset/
 data*
 exp_local*
 models
+*.png

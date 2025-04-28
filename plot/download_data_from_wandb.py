@@ -35,14 +35,75 @@ def flatten_dict(d):
             items.append((key, value))
     return dict(items)
 
-def main():
+def check_config_match(run_config, config_filters):
+    """Check if a run's config matches the specified filters."""
+    flattened_config = flatten_dict(run_config)
+    for key, filter_info in config_filters.items():
+        operator, value = filter_info
+        
+        # Check if the key exists in the flattened config
+        if key not in flattened_config:
+            # If using != and the key doesn't exist, that's actually a match
+            if operator == "!=":
+                continue
+            return False
+        
+        # Convert the config value to string for comparison
+        config_value = str(flattened_config[key]).lower()
+        filter_value = str(value).lower()
+        
+        # Apply the appropriate comparison based on operator
+        if operator == "==" and config_value != filter_value:
+            return False
+        elif operator == "!=" and config_value == filter_value:
+            return False
     
+    return True
 
+def parse_config_filters(config_filter_str):
+    """Parse the config filter string into a dictionary."""
+    if not config_filter_str:
+        return {}
+    
+    filters = {}
+    filter_pairs = config_filter_str.split(',')
+    for pair in filter_pairs:
+        # Check for inequality operator
+        if "!=" in pair:
+            key, value = pair.split("!=", 1)
+            operator = "!="
+        # Check for equality operator (explicit or implicit)
+        elif "==" in pair:
+            key, value = pair.split("==", 1)
+            operator = "=="
+        elif "=" in pair:
+            key, value = pair.split("=", 1)
+            operator = "=="
+        else:
+            continue
+            
+        # Try to convert value to appropriate type
+        if value.lower() == 'true':
+            value = True
+        elif value.lower() == 'false':
+            value = False
+        elif value.isdigit():
+            value = int(value)
+        elif value.replace('.', '', 1).isdigit() and value.count('.') <= 1:
+            value = float(value)
+        
+        # Store both the operator and the value
+        filters[key.strip()] = (operator, value)
+    
+    return filters
+
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--csv_path', type=str, default="data_plot/", help='csv folder') 
     parser.add_argument('--keys', type=str, default="eval/episode_reward,eval/success_rate", help='Data to be saved')
     parser.add_argument('--x-key', type=str, default="buffer_size", help='X axis key')
-    parser.add_argument('--filter_by_tag', type=str, default="benchmark", help='Filter by tag')
+    parser.add_argument('--filter_by_tags', type=str, default="benchmark", help='Filter by tags (comma-separated list)')
+    parser.add_argument('--filter_by_config', type=str, default="", help='Filter by config parameters (format: key1=value1,key2=value2)')
     parser.add_argument('--download', action='store_true', default=True)
     parser.add_argument('--processing', action='store_true', default=True)
     parser.add_argument('--project', type=str, default='taco_metaworld', help='csv folder') 
@@ -51,6 +112,8 @@ def main():
 
     args = parser.parse_args()
     keys = args.keys.split(",")
+    tags_to_filter = args.filter_by_tags.split(",") if args.filter_by_tags else []
+    config_filters = parse_config_filters(args.filter_by_config)
 
     print("Start Downloading")
     if args.download:
@@ -58,14 +121,26 @@ def main():
         os.makedirs(args.csv_path, exist_ok=True)
         api = wandb.Api()
         runs = api.runs(args.project) 
-        runs = [run for run in runs if run.tags and args.filter_by_tag in run.tags]
+        
+        # Filter runs by tags and config
+        filtered_runs = []
+        for run in runs:
+            # Check if any of the specified tags is present in the run's tags
+            tags_match = not tags_to_filter or any(tag in run.tags for tag in tags_to_filter)
+            
+            # Check if the run's config matches all specified config filters
+            config_match = check_config_match(run.config, config_filters)
+            
+            if tags_match and config_match:
+                filtered_runs.append(run)
+        
+        runs = filtered_runs
         all_keys = keys.copy()
         all_keys.append(args.x_key)
         for run in runs:
             print(flatten_dict(run.config)["agent/pretrained_path"])
             
             history = run.history(keys=all_keys)  
-
 
             run_name = f'{flatten_dict(run.config)["agent/pretrained_path"].split("/")[-1]}___{run.id}'
             history.to_csv(f"{args.csv_path}/{run_name}.csv")

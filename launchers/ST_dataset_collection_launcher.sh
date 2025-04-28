@@ -25,7 +25,7 @@ for env_list in "${env_lists[@]}"; do
             for random_init in "${random_init_options[@]}"; do
                 for random_goal in "${random_goal_options[@]}"; do
                     # Create a descriptive job name
-                    job_name="mt50_ds${dataset_size}_ep${expert_probs//,/_}_ri${random_init}_rg${random_goal}"
+                    job_name="ST_ds${dataset_size}_ep${expert_probs//,/_}_ri${random_init}_rg${random_goal}"
                     
                     echo "Submitting job: $job_name"
                     echo "Environment list: ${env_list:0:30}..."
@@ -36,6 +36,7 @@ for env_list in "${env_lists[@]}"; do
                     
                     # Submit the job with variables
                     qsub -N "$job_name" \
+               
                          -v ENV_LIST="$env_list",DATASET_SIZE="$dataset_size",EXPERT_PROBS="$expert_probs",SAVE_PATH="$save_path",RANDOM_INIT="$random_init",RANDOM_GOAL="$random_goal" \
                          launchers/script_dataset_collection.sh
                     
