@@ -8,11 +8,16 @@ cd $PBS_O_WORKDIR
 # Use an optional experiment argument passed via qsub -v EXPERIMENT=...
 SEED=${SEED:-0}
 ENV_NAME=${ENV_NAME:-"push-v2"}
+RANDOM_HAND=${RANDOM_HAND:-0}
+RANDOM_GOAL=${RANDOM_GOAL:-0}
+
+# Create the experiment name once to ensure consistency
+EXP_NAME="taco_with_losses_${SEED}_random_init_${RANDOM_HAND}_random_goal_${RANDOM_GOAL}"
 
 # Define cleanup function
 cleanup() {
     echo "Performing cleanup: Removing experiment folder"
-    rm -rf exp_local/metaworld/taco_with_losses_$SEED_$ENV_NAME
+    rm -rf exp_local/metaworld/$EXP_NAME
     echo "Cleanup completed"
 }
 
@@ -23,6 +28,6 @@ trap cleanup EXIT HUP INT TERM
 source ~/.bashrc
 conda activate metataco
 
-python3 train_metaworld.py agent.pretrained_path=none exp_name=taco_with_losses_$SEED seed=$SEED env_name=$ENV_NAME
+python3 train_metaworld.py agent.pretrained_path=none exp_name=$EXP_NAME seed=$SEED env_name=$ENV_NAME random_init=$RANDOM_HAND random_goal=$RANDOM_GOAL
 
 # Cleanup will be triggered automatically by the trap

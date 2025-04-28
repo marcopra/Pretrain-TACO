@@ -8,61 +8,61 @@ import torch
 from dm_env import StepType, specs
 
 from PIL import Image
-
-class RandomizeInitialPositionWrapper(gym.Wrapper):
-    """A wrapper that randomizes the initial position and orientation of the hand and object in MetaWorld environments."""
+from wrappers.wrappers_metaworld import RandomizeInitialPositionWrapper
+# class RandomizeInitialPositionWrapper(gym.Wrapper):
+#     """A wrapper that randomizes the initial position and orientation of the hand and object in MetaWorld environments."""
     
-    def __init__(self, env, randomize_hand_pos = True, randomize_goal_and_object_pos = True):
-        super().__init__(env)
-        self.randomize_hand_pos = randomize_hand_pos
-        self.randomize_goal_and_object_pos = randomize_goal_and_object_pos
-        # Get the actual SawyerXYZEnv instance
-        if hasattr(self.env, 'env'):
-            self.sawyer_env = self.env.env
-        else:
-            self.sawyer_env = self.env
+#     def __init__(self, env, randomize_hand_pos = True, randomize_goal_and_object_pos = True):
+#         super().__init__(env)
+#         self.randomize_hand_pos = randomize_hand_pos
+#         self.randomize_goal_and_object_pos = randomize_goal_and_object_pos
+#         # Get the actual SawyerXYZEnv instance
+#         if hasattr(self.env, 'env'):
+#             self.sawyer_env = self.env.env
+#         else:
+#             self.sawyer_env = self.env
 
         
-    def reset(self, seed=None, options=None):
-        """Reset the environment and randomize hand position."""
-        if self.randomize_goal_and_object_pos:
-            if hasattr(self.sawyer_env, '_freeze_rand_vec'):
-                original_freeze = self.sawyer_env._freeze_rand_vec
-                original_seeded = self.sawyer_env.seeded_rand_vec
+#     def reset(self, seed=None, options=None):
+#         """Reset the environment and randomize hand position."""
+#         if self.randomize_goal_and_object_pos:
+#             if hasattr(self.sawyer_env, '_freeze_rand_vec'):
+#                 original_freeze = self.sawyer_env._freeze_rand_vec
+#                 original_seeded = self.sawyer_env.seeded_rand_vec
                 
-                self.sawyer_env._freeze_rand_vec = False  # Allow randomization
-                self.sawyer_env.seeded_rand_vec = True    # Use seeded randomization
+#                 self.sawyer_env._freeze_rand_vec = False  # Allow randomization
+#                 self.sawyer_env.seeded_rand_vec = True    # Use seeded randomization
 
-        # Reset environment
-        obs, info = self.env.reset(seed=seed, options=options)
+#         # Reset environment
+#         obs, info = self.env.reset(seed=seed, options=options)
         
-        # Now let's randomize hand position
-        if hasattr(self.sawyer_env, 'hand_low') and hasattr(self.sawyer_env, 'hand_high') and self.randomize_hand_pos:
-            # Get hand position bounds
-            hand_low = self.sawyer_env.hand_low
-            hand_high = self.sawyer_env.hand_high
+#         # Now let's randomize hand position
+#         if hasattr(self.sawyer_env, 'hand_low') and hasattr(self.sawyer_env, 'hand_high') and self.randomize_hand_pos:
+#             # Get hand position bounds
+#             hand_low = self.sawyer_env.hand_low
+#             hand_high = self.sawyer_env.hand_high
             
-            # Generate random hand position within bounds
-            random_hand_pos = np.random.uniform(hand_low, hand_high)
+#             # Generate random hand position within bounds
+#             random_hand_pos = np.random.uniform(hand_low, hand_high)
             
-            # Direct method to set hand position through mocap
-            mocap_id = self.sawyer_env.model.body_mocapid[self.sawyer_env.data.body("mocap").id]
-            self.sawyer_env.data.mocap_pos[mocap_id] = random_hand_pos
-            self.sawyer_env.data.mocap_quat[mocap_id] = np.array([1, 0, 1, 0])
+#             # Direct method to set hand position through mocap
+#             mocap_id = self.sawyer_env.model.body_mocapid[self.sawyer_env.data.body("mocap").id]
+#             self.sawyer_env.data.mocap_pos[mocap_id] = random_hand_pos
+#             self.sawyer_env.data.mocap_quat[mocap_id] = np.array([1, 0, 1, 0])
             
-            # Run simulation steps to apply the changes
-            for _ in range(10):
-                self.sawyer_env.do_simulation([-1, 1], self.sawyer_env.frame_skip)
+#             # Run simulation steps to apply the changes
+#             for _ in range(10):
+#                 self.sawyer_env.do_simulation([-1, 1], self.sawyer_env.frame_skip)
             
-            # Update the observation to reflect new hand position
-            obs = self.sawyer_env._get_obs()
+#             # Update the observation to reflect new hand position
+#             obs = self.sawyer_env._get_obs()
             
-        return obs, info
+#         return obs, info
     
-    def set_task(self, task):
-        """Set the task for the environment."""
-        # Set the task in the base environment
-        self.env.set_task(task)
+#     def set_task(self, task):
+#         """Set the task for the environment."""
+#         # Set the task in the base environment
+#         self.env.set_task(task)
     
 
 class ResizeRendering(gym.Wrapper):
@@ -93,6 +93,7 @@ class ExtendedTimeStep(NamedTuple):
     reward: Any
     discount: Any
     observation: Any
+    proprio_observation: Any
     action: Any
     success: Any = None
 
@@ -127,7 +128,7 @@ class ActionRepeatWrapper(gym.Wrapper):
             obs, reward_step, terminated, truncated, info = self.env.step(action)
             # Handle success as a termination condition in MetaWorld
             
-            done = terminated or truncated # or int(info['success']) == 1
+            done = terminated or truncated or int(info['success']) == 1
             
             reward += reward_step * discount
             discount *= 0.99  # Standard discount factor
@@ -146,6 +147,7 @@ class ActionRepeatWrapper(gym.Wrapper):
             reward=reward,
             discount=discount if not done else 0.0,
             observation=image_obs,  # Use image observations
+            proprio_observation=obs,
             action=action,
             success= (int(info['success']) == 1)
         )
@@ -159,6 +161,7 @@ class ActionRepeatWrapper(gym.Wrapper):
             reward=0.0,
             discount=1.0,
             observation=image_obs,  # Use image observations
+            proprio_observation=obs,
             action=np.zeros(self.env.action_space.shape, dtype=np.float32)
         )
 
@@ -244,7 +247,7 @@ class ExtendedTimeStepWrapper(gym.Wrapper):
         return time_step
 
 
-def make(env_name, frame_stack, action_repeat, seed, resolution=84, camera='corner', random_init=True):
+def make(env_name, frame_stack, action_repeat, seed, resolution=84, camera='corner', random_init=True, randomize_goal_and_object_pos=True):
     """
     Create a MetaWorld environment with image observations, frame stacking, and action repeat.
     
@@ -255,17 +258,18 @@ def make(env_name, frame_stack, action_repeat, seed, resolution=84, camera='corn
         seed: Random seed
         resolution: Image resolution (height and width)
         camera: Camera angle to use
-        random_init: Whether to randomize the initial position of the hand and object
+        random_init: Whether to randomize the initial position of the hand
+        randomize_goal_and_object_pos: Whether to randomize the goal and object positions
     
     Returns:
         A wrapped MetaWorld environment
     """
     # Create MetaWorld environment with image observations
-    mt10 = metaworld.MT10(seed=seed)  # Use the provided seed instead of hardcoded 42
+    mt50 = metaworld.MT50(seed=seed)  # Use the provided seed instead of hardcoded 42 # THIS IS VERY SLOW
     task_number = 0
-    env_task_indices = [i for i, task in enumerate(mt10.train_tasks) if task.env_name == env_name]
+    env_task_indices = [i for i, task in enumerate(mt50.train_tasks) if task.env_name == env_name]
     if not env_task_indices:
-        raise ValueError(f"Environment {env_name} not found in MT10 tasks")
+        raise ValueError(f"Environment {env_name} not found in mt50 tasks")
     if task_number >= len(env_task_indices):
         print(f"Task number {task_number} out of range. Available tasks: 0-{len(env_task_indices)-1}")
         return
@@ -273,11 +277,11 @@ def make(env_name, frame_stack, action_repeat, seed, resolution=84, camera='corn
     # Get the task index
     task_idx = env_task_indices[task_number]
     # Create environment with image observations using PLEX-MetaWorld
-    env = mt10.train_classes[env_name](render_mode="rgb_array", camera_name=camera)
-    if random_init is True:
-        env = RandomizeInitialPositionWrapper(env)
+    env = mt50.train_classes[env_name](render_mode="rgb_array", camera_name=camera)
+    
+    env = RandomizeInitialPositionWrapper(env, randomize_hand_pos=random_init, randomize_goal_and_object_pos=randomize_goal_and_object_pos)
     env = ResizeRendering(env, resolution=resolution)
-    env.set_task(mt10.train_tasks[task_idx])
+    env.set_task(mt50.train_tasks[task_idx])
 
     # Apply wrappers to match dm_control setup
     env = ActionDTypeWrapper(env, dtype=np.float32)

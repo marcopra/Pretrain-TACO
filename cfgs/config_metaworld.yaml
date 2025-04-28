@@ -10,6 +10,7 @@ env_name: push-v2
 camera: corner
 resolution: 84
 random_init: true
+random_goal: false
 
 # task settings
 frame_stack: 3
