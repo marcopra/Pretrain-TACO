@@ -137,7 +137,9 @@ def main():
     parser.add_argument('--processing', action='store_true', default=True)
     parser.add_argument('--project', type=str, default='taco_metaworld', help='csv folder') 
     parser.add_argument('--n_points', type=int, default=1000, help='Number of points to plot')
-    parser.add_argument('--max_x', type=int, default=200_000, help='maximum x axis value of points to plot')
+    parser.add_argument('--max_x', type=int, default=100_000, help='maximum x axis value of points to plot')
+    parser.add_argument('--min_x', type=int, default=0, help='minimum x axis value of points to plot')
+    parser.add_argument('--group_by_config', type=str, default="pretrained_path", help='Config parameter to use for grouping and naming saved files')
 
     args = parser.parse_args()
     keys = args.keys.split(",")
@@ -174,7 +176,14 @@ def main():
             
             history = run.history(keys=all_keys)  
 
-            run_name = f'{flatten_dict(run.config)["agent/pretrained_path"].split("/")[-1]}___{run.id}'
+            flattened_config = flatten_dict(run.config)
+            if args.group_by_config in flattened_config:
+                param_value = str(flattened_config[args.group_by_config]).split("/")[-1]
+            else:
+                # Fallback if the parameter doesn't exist
+                param_value = "unknown"
+                
+            run_name = f'{param_value}___{run.id}'
             history.to_csv(f"{args.csv_path}/{run_name}.csv")
             print(f"saved {run_name}.csv")
             
@@ -193,7 +202,9 @@ def main():
             print("processing: ", filename)
             history = run
            
-            x_axis = np.linspace(int(history.iloc[0][args.x_key]), int(history.iloc[-1][args.x_key]) if args.max_x is None else args.max_x, args.n_points, dtype = int)
+            # x_axis = np.linspace(int(history.iloc[0][args.x_key]), int(history.iloc[-1][args.x_key]) if args.max_x is None else args.max_x, args.n_points, dtype = int)
+            
+            x_axis = np.linspace(int(history.iloc[0][args.x_key]) if args.min_x is None else args.min_x, int(history.iloc[-1][args.x_key]) if args.max_x is None else args.max_x, args.n_points, dtype = int)
             new_history = pd.DataFrame({
                     str(args.x_key): x_axis,
                 })
