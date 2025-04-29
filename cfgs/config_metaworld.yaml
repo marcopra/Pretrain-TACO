@@ -9,7 +9,7 @@ domain: metaworld
 env_name: push-v2
 camera: corner
 resolution: 84
-random_init: true
+random_init: false
 random_goal: false
 
 # task settings

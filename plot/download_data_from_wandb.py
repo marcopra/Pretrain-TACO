@@ -97,12 +97,41 @@ def parse_config_filters(config_filter_str):
     
     return filters
 
+def parse_tag_filters(tags_filter_str):
+    """Parse tag filter string into inclusion and exclusion lists."""
+    if not tags_filter_str:
+        return [], []
+    
+    include_tags = []
+    exclude_tags = []
+    
+    tag_filters = tags_filter_str.split(',')
+    for tag_filter in tag_filters:
+        if tag_filter.endswith('!='):
+            # Remove the != operator and add to exclude list
+            exclude_tags.append(tag_filter[:-2].strip())
+        elif '!=' in tag_filter:
+            # Format: "tag!=value"
+            exclude_tags.append(tag_filter.split('!=')[1].strip())
+        elif tag_filter.endswith('='):
+            # Format: "tag="
+            include_tags.append(tag_filter[:-1].strip())
+        elif '=' in tag_filter:
+            # Format: "tag=value"
+            include_tags.append(tag_filter.split('=')[1].strip())
+        else:
+            # Simple tag name
+            include_tags.append(tag_filter.strip())
+    
+    return include_tags, exclude_tags
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--csv_path', type=str, default="data_plot/", help='csv folder') 
     parser.add_argument('--keys', type=str, default="eval/episode_reward,eval/success_rate", help='Data to be saved')
     parser.add_argument('--x-key', type=str, default="buffer_size", help='X axis key')
-    parser.add_argument('--filter_by_tags', type=str, default="benchmark", help='Filter by tags (comma-separated list)')
+    parser.add_argument('--filter_by_tags', type=str, default="benchmark", 
+                      help='Filter by tags (comma-separated list). Use tag!= to exclude a tag')
     parser.add_argument('--filter_by_config', type=str, default="", help='Filter by config parameters (format: key1=value1,key2=value2)')
     parser.add_argument('--download', action='store_true', default=True)
     parser.add_argument('--processing', action='store_true', default=True)
@@ -112,7 +141,7 @@ def main():
 
     args = parser.parse_args()
     keys = args.keys.split(",")
-    tags_to_filter = args.filter_by_tags.split(",") if args.filter_by_tags else []
+    include_tags, exclude_tags = parse_tag_filters(args.filter_by_tags)
     config_filters = parse_config_filters(args.filter_by_config)
 
     print("Start Downloading")
@@ -125,8 +154,11 @@ def main():
         # Filter runs by tags and config
         filtered_runs = []
         for run in runs:
-            # Check if any of the specified tags is present in the run's tags
-            tags_match = not tags_to_filter or any(tag in run.tags for tag in tags_to_filter)
+            # Check tags - must have at least one included tag (if any specified)
+            # AND must not have any excluded tags
+            tags_include_match = not include_tags or any(tag in run.tags for tag in include_tags)
+            tags_exclude_match = not exclude_tags or not any(tag in run.tags for tag in exclude_tags)
+            tags_match = tags_include_match and tags_exclude_match
             
             # Check if the run's config matches all specified config filters
             config_match = check_config_match(run.config, config_filters)
