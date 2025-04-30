@@ -7,7 +7,7 @@ cd $PBS_O_WORKDIR
 
 # Parameters passed via qsub -v
 ENV_LIST=${ENV_LIST:-"push-v2"}
-TASKS=${TASKS:-"0"}
+# TASKS=${TASKS:-"0"}
 DATASET_SIZE=${DATASET_SIZE:-1000}
 EXPERT_PROBS=${EXPERT_PROBS:-"0.0"}
 SAVE_PATH=${SAVE_PATH:-"data/mt50/"}
@@ -32,7 +32,6 @@ fi
 # Run the data collection script
 python metaworld_image_dataset.py \
     --env_names "$ENV_LIST" \
-    --tasks "$TASKS" \
     --dataset_size "$DATASET_SIZE" \
     --expert_probs "$EXPERT_PROBS" \
     --save_path "$SAVE_PATH" \
