@@ -36,7 +36,6 @@ for env_list in "${env_lists[@]}"; do
                     
                     # Submit the job with variables
                     qsub -N "$job_name" \
-               
                          -v ENV_LIST="$env_list",DATASET_SIZE="$dataset_size",EXPERT_PROBS="$expert_probs",SAVE_PATH="$save_path",RANDOM_INIT="$random_init",RANDOM_GOAL="$random_goal" \
                          launchers/script_dataset_collection.sh
                     
