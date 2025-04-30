@@ -1,14 +1,14 @@
 {
-  "pretraining_datasets": [
-    "data/exp=60/button-press-topdown-v2_mod2_fs3_ar2_exp=60__ds=10000",
-    "data/exp=60/door-open-v2_mod2_fs3_ar2_exp=60__ds=10000",
-    "data/exp=60/drawer-close-v2_mod2_fs3_ar2_exp=60__ds=10000",
-    "data/exp=60/drawer-open-v2_mod2_fs3_ar2_exp=60__ds=10000",
-    "data/exp=60/peg-insert-side-v2_mod2_fs3_ar2_exp=60__ds=10000",
-    "data/exp=60/pick-place-v2_mod2_fs3_ar2_exp=60__ds=10000",
-    "data/exp=60/reach-v2_mod2_fs3_ar2_exp=60__ds=10000",
-    "data/exp=60/window-close-v2_mod2_fs3_ar2_exp=60__ds=10000",
-    "data/exp=60/window-open-v2_mod2_fs3_ar2_exp=60__ds=10000"
+  "pretraining_data/MT10sets": [
+    "data/MT10/exp=60/button-press-topdown-v2_mod2_fs3_ar2_exp=60__ds=10000",
+    "data/MT10/exp=60/door-open-v2_mod2_fs3_ar2_exp=60__ds=10000",
+    "data/MT10/exp=60/drawer-close-v2_mod2_fs3_ar2_exp=60__ds=10000",
+    "data/MT10/exp=60/drawer-open-v2_mod2_fs3_ar2_exp=60__ds=10000",
+    "data/MT10/exp=60/peg-insert-side-v2_mod2_fs3_ar2_exp=60__ds=10000",
+    "data/MT10/exp=60/pick-place-v2_mod2_fs3_ar2_exp=60__ds=10000",
+    "data/MT10/exp=60/reach-v2_mod2_fs3_ar2_exp=60__ds=10000",
+    "data/MT10/exp=60/window-close-v2_mod2_fs3_ar2_exp=60__ds=10000",
+    "data/MT10/exp=60/window-open-v2_mod2_fs3_ar2_exp=60__ds=10000"
   ],
-  "test_dataset": "data/exp=60/push-v2_mod2_fs3_ar2_exp=60__ds=10000" 
+  "test_data/MT10set": "data/MT10/exp=60/push-v2_mod2_fs3_ar2_exp=60__ds=10000" 
 }

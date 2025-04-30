@@ -233,7 +233,8 @@ class TACOAgent:
         else:
             print(f"Loading pretrained model from {pretrained_path}, freeze encoder: {freeze_encoder}")
             self.load_pretrained(pretrained_path, None, self.freeze_encoder)
-
+            
+        self.pretrained_path = pretrained_path
         self.train()
         self.critic_target.train()
 
@@ -256,7 +257,15 @@ class TACOAgent:
         self.encoder.load_state_dict(checkpoint['encoder'])
         self.TACO.load_state_dict(checkpoint['taco'])
         self.act_tok.load_state_dict(checkpoint['act_tok'])
+        
+        # Store model fingerprints if we're freezing the encoder
         if freeze_encoder:
+            self._frozen_fingerprints = {
+                'encoder': self._get_model_fingerprint(self.encoder),
+                'taco': self._get_model_fingerprint(self.TACO),
+                'act_tok': self._get_model_fingerprint(self.act_tok)
+            }
+            
             self.encoder.eval()
             self.TACO.eval()
             self.act_tok.eval()
@@ -264,6 +273,24 @@ class TACOAgent:
         print(f"Loaded pretrained model from {model_path}")
         
         return checkpoint.get('args', {})  # Return the saved args for reference
+    
+    def _get_model_fingerprint(self, model):
+        """Generate a unique fingerprint for model parameters"""
+        return {name: param.data.clone() for name, param in model.named_parameters()}
+        
+    def _check_frozen_models(self):
+        """Check if frozen models have been modified"""
+        if not hasattr(self, '_frozen_fingerprints'):
+            return
+            
+        for model_name, fingerprint in self._frozen_fingerprints.items():
+            model = getattr(self, model_name.upper() if model_name == 'taco' else model_name)
+            current_fingerprint = self._get_model_fingerprint(model)
+            
+            for param_name, stored_param in fingerprint.items():
+                current_param = current_fingerprint[param_name]
+                assert torch.all(torch.eq(current_param, stored_param)), f"Parameter {param_name} in {model_name} has changed when it should be frozen!"
+
     def train(self, training=True):
         self.training = training
         self.actor.train(training)
@@ -415,5 +442,9 @@ class TACOAgent:
                                  self.critic_target_tau)
         
         metrics.update(self.update_taco(obs, action, action_seq, r_next_obs, reward))
+        
+        # Verify that frozen models haven't been modified
+        if self.freeze_encoder and self.pretrained_path is not None and self.pretrained_path.lower() != 'none':
+            self._check_frozen_models()
 
         return metrics
