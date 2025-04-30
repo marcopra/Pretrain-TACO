@@ -19,6 +19,15 @@ ENV_LIST=$(echo "$ENV_LIST" | sed 's/\\,/,/g')
 EXPERT_PROBS=$(echo "$EXPERT_PROBS" | sed 's/\\,/,/g')
 TASKS=$(echo "$TASKS" | sed 's/\\,/,/g')
 
+echo "Running dataset collection script with the following parameters:"
+echo "ENV_LIST: $ENV_LIST"
+echo "TASKS: $TASKS"
+echo "DATASET_SIZE: $DATASET_SIZE"
+echo "EXPERT_PROBS: $EXPERT_PROBS"
+echo "SAVE_PATH: $SAVE_PATH"
+echo "RANDOM_INIT: $RANDOM_INIT"
+echo "RANDOM_GOAL: $RANDOM_GOAL"
+
 # Load environment
 source ~/.bashrc
 conda activate metataco
