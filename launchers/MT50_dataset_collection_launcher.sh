@@ -36,8 +36,11 @@ for env_list in "${env_lists[@]}"; do
                     echo "Random goal: $random_goal"
                     
                     # Submit the job with variables
+                    env_list_escaped="${env_list//,/\\,}"
+                    expert_probs_escaped="${expert_probs//,/\\,}"
+                    
                     qsub -N "$job_name" \
-                         -v ENV_LIST="$env_list",DATASET_SIZE="$dataset_size",EXPERT_PROBS="$expert_probs",SAVE_PATH="$save_path",RANDOM_INIT="$random_init",RANDOM_GOAL="$random_goal" \
+                         -v ENV_LIST="$env_list_escaped",DATASET_SIZE="$dataset_size",EXPERT_PROBS="$expert_probs_escaped",SAVE_PATH="$save_path",RANDOM_INIT="$random_init",RANDOM_GOAL="$random_goal" \
                          launchers/script_dataset_collection.sh
                     
                     echo "Job submitted: $job_name"

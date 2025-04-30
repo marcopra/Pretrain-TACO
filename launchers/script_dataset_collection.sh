@@ -7,12 +7,17 @@ cd $PBS_O_WORKDIR
 
 # Parameters passed via qsub -v
 ENV_LIST=${ENV_LIST:-"push-v2"}
-# TASKS=${TASKS:-"0"}
+TASKS=${TASKS:-"0"}
 DATASET_SIZE=${DATASET_SIZE:-1000}
 EXPERT_PROBS=${EXPERT_PROBS:-"0.0"}
 SAVE_PATH=${SAVE_PATH:-"data/mt50/"}
 RANDOM_INIT=${RANDOM_INIT:-"true"}
 RANDOM_GOAL=${RANDOM_GOAL:-"true"}
+
+# Restore original commas if they were escaped
+ENV_LIST=$(echo "$ENV_LIST" | sed 's/\\,/,/g')
+EXPERT_PROBS=$(echo "$EXPERT_PROBS" | sed 's/\\,/,/g')
+TASKS=$(echo "$TASKS" | sed 's/\\,/,/g')
 
 # Load environment
 source ~/.bashrc
