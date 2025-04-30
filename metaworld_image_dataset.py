@@ -293,7 +293,7 @@ def collect_dataset(env_names, expert_probs, tasks = [0], dataset_size=int(1e6),
                         for key in dataset:
                             dataset_slice[key] = dataset[key][:transitions_collected]
                         
-                        dataset_path = f"{save_path}exp={int(expert_prob*100)}/{env_name}_mod2_fs{frame_stack}_ar{action_repeat}_ri{int(random_init)}_rg{int(randomize_goal_and_object_pos)}_exp={int(expert_prob*100)}_ds={transitions_collected}"
+                        dataset_path = f"{save_path}exp={int(expert_prob*100)}/{env_name}_task{task}_fs{frame_stack}_ar{action_repeat}_ri{int(random_init)}_rg{int(randomize_goal_and_object_pos)}_exp={int(expert_prob*100)}_ds={transitions_collected}"
                         with open(dataset_path, 'wb') as f:
                             pickle.dump(dataset_slice, f)
                         logger.info(f"Dataset saved to {dataset_path}")
@@ -311,7 +311,7 @@ def collect_dataset(env_names, expert_probs, tasks = [0], dataset_size=int(1e6),
                     final_dataset[key] = dataset[key][:transitions_collected]
                 
                 # Save the dataset
-                dataset_path = f"{save_path}exp={int(expert_prob*100)}/{env_name}_mod2_fs{frame_stack}_ar{action_repeat}_ri{int(random_init)}_rg{int(randomize_goal_and_object_pos)}_exp={int(expert_prob*100)}_ds={transitions_collected}"
+                dataset_path = f"{save_path}exp={int(expert_prob*100)}/{env_name}_task{task}_fs{frame_stack}_ar{action_repeat}_ri{int(random_init)}_rg{int(randomize_goal_and_object_pos)}_exp={int(expert_prob*100)}_ds={transitions_collected}"
                 with open(dataset_path, 'wb') as f:
                     pickle.dump(final_dataset, f)
                 
@@ -331,7 +331,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Collect image-based dataset from DMC environments")
     parser.add_argument("--env_names", type=str, default="push-v2", 
                         help="Comma-separated list of environment names (format: domain_task)")
-    parser.add_argument("--taks", type=str, default="0", 
+    parser.add_argument("--tasks", type=str, default="0", 
                         help="Comma-separated list of tasks for environment names (format: 0,1,2,...,n)")
     parser.add_argument("--expert_probs", type=str, default="0.0", 
                         help="Comma-separated list of expert probabilities (use 0.0 for random policy)")
