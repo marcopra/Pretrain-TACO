@@ -52,10 +52,12 @@ class Workspace:
         self.saved_medium_policy = False
 
         if cfg.use_wandb:
+           
            wandb.init(
             config=OmegaConf.to_container(cfg, resolve=True),
             project=cfg.wandb_project,
             name=cfg.wandb_run_name,
+            tags=cfg.wandb_tag.split(',') if cfg.wandb_tag and cfg.wandb_tag != "none" else None,
             sync_tensorboard=True,
             mode='online')
            wandb.run.save()
@@ -68,6 +70,7 @@ class Workspace:
         # Create environments
         self.train_env = metaworld_env.make(
             self.cfg.env_name, 
+            self.cfg.task,
             self.cfg.frame_stack,
             self.cfg.action_repeat, 
             self.cfg.seed,
@@ -79,6 +82,7 @@ class Workspace:
         
         self.eval_env = metaworld_env.make(
             self.cfg.env_name, 
+            self.cfg.task,
             self.cfg.frame_stack,
             self.cfg.action_repeat, 
             self.cfg.seed,

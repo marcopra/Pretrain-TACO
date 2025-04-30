@@ -18,6 +18,7 @@ agent:
   multistep: ${multistep}
   latent_a_dim: ${latent_a_dim}
   pretrained_path: ${pretrained_path}
+  freeze_encoder: ${freeze_encoder}
 
 ### TACO parameters
 curl: true
@@ -26,3 +27,4 @@ multistep: 3
 latent_a_dim: none
 batch_size: 1024
 pretrained_path: none
+freeze_encoder: false

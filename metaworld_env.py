@@ -247,7 +247,7 @@ class ExtendedTimeStepWrapper(gym.Wrapper):
         return time_step
 
 
-def make(env_name, frame_stack, action_repeat, seed, resolution=84, camera='corner', random_init=True, randomize_goal_and_object_pos=True):
+def make(env_name, task, frame_stack, action_repeat, seed, resolution=84, camera='corner', random_init=True, randomize_goal_and_object_pos=True):
     """
     Create a MetaWorld environment with image observations, frame stacking, and action repeat.
     
@@ -266,7 +266,7 @@ def make(env_name, frame_stack, action_repeat, seed, resolution=84, camera='corn
     """
     # Create MetaWorld environment with image observations
     mt50 = metaworld.MT50(seed=seed)  # Use the provided seed instead of hardcoded 42 # THIS IS VERY SLOW
-    task_number = 0
+    task_number = task
     env_task_indices = [i for i, task in enumerate(mt50.train_tasks) if task.env_name == env_name]
     if not env_task_indices:
         raise ValueError(f"Environment {env_name} not found in mt50 tasks")

@@ -7,6 +7,7 @@ defaults:
 domain: metaworld
 # environment settings
 env_name: push-v2
+task: 0
 camera: corner
 resolution: 84
 random_init: false
@@ -46,6 +47,7 @@ use_wandb: true
 # wandb
 wandb_project: "taco_metaworld"
 wandb_entity: "taco"
+wandb_tag: none
 wandb_run_name: ${now:%Y.%m.%d}_${now:%H%M}_metaworld_${env_name}
 # experiment
 experiment: mw_exp

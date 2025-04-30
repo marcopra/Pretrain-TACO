@@ -185,7 +185,7 @@ class TACOAgent:
     def __init__(self, obs_shape, action_shape, device, lr, encoder_lr, feature_dim,
                  hidden_dim, critic_target_tau, num_expl_steps,
                  update_every_steps, stddev_schedule, stddev_clip, use_tb,
-                 reward, multistep, latent_a_dim, curl, pretrained_path=None):
+                 reward, multistep, latent_a_dim, curl, pretrained_path=None, freeze_encoder=False):
         self.device = device
         self.critic_target_tau = critic_target_tau
         self.update_every_steps = update_every_steps
@@ -213,7 +213,7 @@ class TACOAgent:
                                     feature_dim, hidden_dim).to(device)
         self.critic_target.load_state_dict(self.critic.state_dict())
         self.TACO = TACO(self.encoder.repr_dim, feature_dim, action_shape, latent_a_dim, hidden_dim, self.act_tok, self.encoder, multistep, device).to(device)
-        
+        self.freeze_encoder = freeze_encoder
         ### State & Action Encoders
         parameters = itertools.chain(self.encoder.parameters(),
                                      self.act_tok.parameters(),
@@ -231,13 +231,13 @@ class TACOAgent:
         if pretrained_path is None or pretrained_path.lower() == 'none':
             print("No pretrained model provided, initializing from scratch.")
         else:
-            print(f"Loading pretrained model from {pretrained_path}")
-            self.load_pretrained(pretrained_path)
+            print(f"Loading pretrained model from {pretrained_path}, freeze encoder: {freeze_encoder}")
+            self.load_pretrained(pretrained_path, None, self.freeze_encoder)
 
         self.train()
         self.critic_target.train()
 
-    def load_pretrained(self, model_path, map_location=None):
+    def load_pretrained(self, model_path, map_location=None, freeze_encoder=False):
         """
         Load a pretrained TACO model from a saved checkpoint.
         
@@ -256,16 +256,21 @@ class TACOAgent:
         self.encoder.load_state_dict(checkpoint['encoder'])
         self.TACO.load_state_dict(checkpoint['taco'])
         self.act_tok.load_state_dict(checkpoint['act_tok'])
+        if freeze_encoder:
+            self.encoder.eval()
+            self.TACO.eval()
+            self.act_tok.eval()
         
         print(f"Loaded pretrained model from {model_path}")
         
         return checkpoint.get('args', {})  # Return the saved args for reference
     def train(self, training=True):
         self.training = training
-        self.encoder.train(training)
         self.actor.train(training)
         self.critic.train(training)
-        self.TACO.train()
+        if not self.freeze_encoder:
+            self.encoder.train(training)
+            self.TACO.train()
 
     def act(self, obs, step, eval_mode):
         obs = torch.as_tensor(obs, device=self.device)
@@ -365,10 +370,11 @@ class TACOAgent:
         logits = self.TACO.compute_logits(curr_za, next_z)
         labels = torch.arange(logits.shape[0]).long().to(self.device)
         taco_loss = self.cross_entropy_loss(logits, labels)
-            
-        self.taco_opt.zero_grad()
-        (taco_loss + curl_loss + reward_loss).backward()
-        self.taco_opt.step()
+        
+        if not self.freeze_encoder:
+            self.taco_opt.zero_grad()
+            (taco_loss + curl_loss + reward_loss).backward()
+            self.taco_opt.step()
         if self.use_tb:
             metrics['reward_loss']  = reward_loss.item()
             metrics['curl_loss'] = curl_loss.item()

@@ -139,7 +139,7 @@ def save_example_image(image, env_name, expert_prob, resolution, camera):
     else:
         print(f"Could not save image, unexpected shape: {image.shape}")
 
-def collect_dataset(env_names, expert_probs, dataset_size=int(1e6), checkpoint=[3e5], resolution=84, render_resolution=1024, camera='corner', 
+def collect_dataset(env_names, expert_probs, tasks = [0], dataset_size=int(1e6), checkpoint=[3e5], resolution=84, render_resolution=1024, camera='corner', 
                    include_depth=False, save_example=False, frame_stack=1, action_repeat=1, save_path='data/',
                    random_init=True, randomize_goal_and_object_pos=True):
     """
@@ -166,170 +166,173 @@ def collect_dataset(env_names, expert_probs, dataset_size=int(1e6), checkpoint=[
         os.makedirs(f'{save_path}exp={int(expert_prob*100)}/videos', exist_ok=True)  # Create videos directory
         
         for env_name in env_names:
-            logger.info(f"\n===== Collecting data for {env_name} with expert_prob={expert_prob} =====")
-            logger.info(f"Frame stack: {frame_stack}, Action repeat: {action_repeat}")
-            logger.info(f"Random init: {random_init}, Random goal/object pos: {randomize_goal_and_object_pos}")
-            logger.info(f"Observation resolution: {resolution}, Render resolution: {render_resolution}")
-            
-            # Create environment with image observations using DMC
-            env = make(env_name, frame_stack=frame_stack, action_repeat=action_repeat, seed=42, resolution=resolution, 
-                       camera=camera, random_init=random_init, randomize_goal_and_object_pos=randomize_goal_and_object_pos)
-            
-            
-            
-            # Get initial timestep
-            time_step = env.reset()
-            state = time_step.observation  # This is already stacked and processed
-            proprio_state = time_step.proprio_observation
-            
-            # Pre-determine dataset shapes based on first observation
-            obs_shape = (dataset_size,) + state.shape
-            action_shape = (dataset_size,) + env.action_space.shape
-            
-            # Initialize the dataset dictionary with pre-allocated numpy arrays
-            dataset = {
-                'observations': np.zeros(obs_shape, dtype=np.uint8),
-                'actions': np.zeros(action_shape, dtype=np.float32),
-                'next_observations': np.zeros(obs_shape, dtype=np.uint8),
-                'rewards': np.zeros(dataset_size, dtype=np.float32),
-                'terminals': np.zeros(dataset_size, dtype=bool)
-            }
-            
-            logger.info(f"Collecting {dataset_size} transitions...")
-            
-            # Get the expert policy
-            policy = get_policy(env_name)
+            for task in tasks:
 
-            # For collecting transitions
-            transitions_collected = 0
-            episode_reward = 0
-            successful_trajectories = 0
-            old_dataset_length = 0
-            episode_count = 0
-            
-            # Create video recorder for first 3 episodes (only if logging level is DEBUG)
-            should_record_video = logger.isEnabledFor(logging.DEBUG)
-            if should_record_video:
-                video_dir = Path(f"{save_path}exp={int(expert_prob*100)}/videos")
-                video_recorder = VideoRecorder(
-                    root_dir=video_dir,
-                    render_size=render_resolution,
-                    fps=30,
-                    metaworld=True
-                )
-            # Initialize video recorder if we're in DEBUG mode
-            if should_record_video:
-                video_recorder.init(env, enabled=True)
-            
-            while transitions_collected < dataset_size:
-                # Record frame if in debug mode and within first 3 episodes
-                if logger.isEnabledFor(logging.DEBUG) and episode_count < 3:
-                    video_recorder.record(env)
+                logger.info(f"\n===== Collecting data for {env_name} and task {task} with expert_prob={expert_prob} =====")
+                logger.info(f"Frame stack: {frame_stack}, Action repeat: {action_repeat}")
+                logger.info(f"Random init: {random_init}, Random goal/object pos: {randomize_goal_and_object_pos}")
+                logger.info(f"Observation resolution: {resolution}, Render resolution: {render_resolution}")
                 
-                # Choose between expert or random action based on probability
-                if np.random.random() < expert_prob:
-                    # Expert policy action
-                    a = policy.get_action(proprio_state)
-                else:
-                    # Random action
-                    a = env.action_space.sample()
+                # Create environment with image observations using DMC
+                env = make(env_name, task, frame_stack=frame_stack, action_repeat=action_repeat, seed=42, resolution=resolution, 
+                        camera=camera, random_init=random_init, randomize_goal_and_object_pos=randomize_goal_and_object_pos)
                 
-                # Store current observation
-                curr_obs = state.copy()
                 
-                # Take a step in the environment
-                time_step = env.step(a)
-                next_obs = time_step.observation
-                reward = time_step.reward
-                done = time_step.last()
+                # Get initial timestep
+                time_step = env.reset()
+                state = time_step.observation  # This is already stacked and processed
                 proprio_state = time_step.proprio_observation
                 
-                # Store the transition in the dataset using indexing
-                dataset['observations'][transitions_collected] = curr_obs
-                dataset['actions'][transitions_collected] = a
-                dataset['next_observations'][transitions_collected] = next_obs
-                dataset['rewards'][transitions_collected] = reward
-                dataset['terminals'][transitions_collected] = done
+                # Pre-determine dataset shapes based on first observation
+                obs_shape = (dataset_size,) + state.shape
+                action_shape = (dataset_size,) + env.action_space.shape
                 
-                transitions_collected += 1
-                episode_reward += reward
+                # Initialize the dataset dictionary with pre-allocated numpy arrays
+                dataset = {
+                    'observations': np.zeros(obs_shape, dtype=np.uint8),
+                    'actions': np.zeros(action_shape, dtype=np.float32),
+                    'next_observations': np.zeros(obs_shape, dtype=np.uint8),
+                    'rewards': np.zeros(dataset_size, dtype=np.float32),
+                    'terminals': np.zeros(dataset_size, dtype=bool)
+                }
                 
-                if done:
-                    # Save the video if we're in debug mode and within first 3 episodes
+                logger.info(f"Collecting {dataset_size} transitions...")
+                
+                # Get the expert policy
+                policy = get_policy(env_name)
+
+                # For collecting transitions
+                transitions_collected = 0
+                episode_reward = 0
+                successful_trajectories = 0
+                old_dataset_length = 0
+                episode_count = 0
+                
+                # Create video recorder for first 3 episodes (only if logging level is DEBUG)
+                should_record_video = logger.isEnabledFor(logging.DEBUG)
+                if should_record_video:
+                    video_dir = Path(f"{save_path}exp={int(expert_prob*100)}/videos")
+                    video_recorder = VideoRecorder(
+                        root_dir=video_dir,
+                        render_size=render_resolution,
+                        fps=30,
+                        metaworld=True
+                    )
+                # Initialize video recorder if we're in DEBUG mode
+                if should_record_video:
+                    video_recorder.init(env, enabled=True)
+                
+                while transitions_collected < dataset_size:
+                    # Record frame if in debug mode and within first 3 episodes
                     if logger.isEnabledFor(logging.DEBUG) and episode_count < 3:
-                        video_filename = f"{env_name}_exp={int(expert_prob*100)}_episode_{episode_count}.mp4"
-                        video_recorder.save(video_filename)
-                        logger.debug(f"Saved video for episode {episode_count}")
+                        video_recorder.record(env)
                     
-                    episode_count += 1
+                    # Choose between expert or random action based on probability
+                    if np.random.random() < expert_prob:
+                        # Expert policy action
+                        a = policy.get_action(proprio_state)
+                    else:
+                        # Random action
+                        a = env.action_space.sample()
                     
-                    # For DMC, we consider a task successful if reward is above a threshold
-                    if episode_reward > 0.8:  # Adjust this threshold based on your environment
-                        successful_trajectories += 1
+                    # Store current observation
+                    curr_obs = state.copy()
                     
-                    logger.info(f"Episode {episode_count} ended with total reward: {episode_reward:.4f}, length: {transitions_collected - old_dataset_length}")
-                    episode_reward = 0
-                    old_dataset_length = transitions_collected
-                    
-                    # Reset the environment
-                    time_step = env.reset()
-                    state = time_step.observation
+                    # Take a step in the environment
+                    time_step = env.step(a)
+                    next_obs = time_step.observation
+                    reward = time_step.reward
+                    done = time_step.last()
                     proprio_state = time_step.proprio_observation
                     
-                    # Initialize video recorder for next episode if needed
-                    if logger.isEnabledFor(logging.DEBUG) and episode_count < 3:
-                        video_recorder.init(env, enabled=True)
-                else:
-                    state = next_obs
+                    # Store the transition in the dataset using indexing
+                    dataset['observations'][transitions_collected] = curr_obs
+                    dataset['actions'][transitions_collected] = a
+                    dataset['next_observations'][transitions_collected] = next_obs
+                    dataset['rewards'][transitions_collected] = reward
+                    dataset['terminals'][transitions_collected] = done
+                    
+                    transitions_collected += 1
+                    episode_reward += reward
+                    
+                    if done:
+                        # Save the video if we're in debug mode and within first 3 episodes
+                        if logger.isEnabledFor(logging.DEBUG) and episode_count < 3:
+                            video_filename = f"{env_name}_exp={int(expert_prob*100)}_episode_{episode_count}.mp4"
+                            video_recorder.save(video_filename)
+                            logger.debug(f"Saved video for episode {episode_count}")
+                        
+                        episode_count += 1
+                        
+                        # For DMC, we consider a task successful if reward is above a threshold
+                        if episode_reward > 0.8:  # Adjust this threshold based on your environment
+                            successful_trajectories += 1
+                        
+                        logger.info(f"Episode {episode_count} ended with total reward: {episode_reward:.4f}, length: {transitions_collected - old_dataset_length}")
+                        episode_reward = 0
+                        old_dataset_length = transitions_collected
+                        
+                        # Reset the environment
+                        time_step = env.reset()
+                        state = time_step.observation
+                        proprio_state = time_step.proprio_observation
+                        
+                        # Initialize video recorder for next episode if needed
+                        if logger.isEnabledFor(logging.DEBUG) and episode_count < 3:
+                            video_recorder.init(env, enabled=True)
+                    else:
+                        state = next_obs
+                    
+                    # Print progress
+                    if transitions_collected % 10000 == 0:
+                        logger.info(f"Collected {transitions_collected}/{dataset_size} transitions")
+                    
+                    if len(checkpoint) > 0 and any(s <= transitions_collected for s in checkpoint):
+                        # Save only the filled portion of the dataset
+                        dataset_slice = {}
+                        for key in dataset:
+                            dataset_slice[key] = dataset[key][:transitions_collected]
+                        
+                        dataset_path = f"{save_path}exp={int(expert_prob*100)}/{env_name}_mod2_fs{frame_stack}_ar{action_repeat}_ri{int(random_init)}_rg{int(randomize_goal_and_object_pos)}_exp={int(expert_prob*100)}_ds={transitions_collected}"
+                        with open(dataset_path, 'wb') as f:
+                            pickle.dump(dataset_slice, f)
+                        logger.info(f"Dataset saved to {dataset_path}")
+                        
+                        # Write successful trajectories information to a text file
+                        success_file_path = f"{save_path}exp={int(expert_prob*100)}/successful_image_trajectories.txt"
+                        with open(success_file_path, 'a') as f:
+                            f.write(f"{dataset_path}: {successful_trajectories} successful trajectories out of {episode_count}\n")
+                        
+                        checkpoint.pop(0)  # Remove the checkpoint that was just reached
                 
-                # Print progress
-                if transitions_collected % 10000 == 0:
-                    logger.info(f"Collected {transitions_collected}/{dataset_size} transitions")
+                # Save the final dataset with only the filled portion
+                final_dataset = {}
+                for key in dataset:
+                    final_dataset[key] = dataset[key][:transitions_collected]
                 
-                if len(checkpoint) > 0 and any(s <= transitions_collected for s in checkpoint):
-                    # Save only the filled portion of the dataset
-                    dataset_slice = {}
-                    for key in dataset:
-                        dataset_slice[key] = dataset[key][:transitions_collected]
-                    
-                    dataset_path = f"{save_path}exp={int(expert_prob*100)}/{env_name}_mod2_fs{frame_stack}_ar{action_repeat}_ri{int(random_init)}_rg{int(randomize_goal_and_object_pos)}_exp={int(expert_prob*100)}_ds={transitions_collected}"
-                    with open(dataset_path, 'wb') as f:
-                        pickle.dump(dataset_slice, f)
-                    logger.info(f"Dataset saved to {dataset_path}")
-                    
-                    # Write successful trajectories information to a text file
-                    success_file_path = f"{save_path}exp={int(expert_prob*100)}/successful_image_trajectories.txt"
-                    with open(success_file_path, 'a') as f:
-                        f.write(f"{dataset_path}: {successful_trajectories} successful trajectories out of {episode_count}\n")
-                    
-                    checkpoint.pop(0)  # Remove the checkpoint that was just reached
-            
-            # Save the final dataset with only the filled portion
-            final_dataset = {}
-            for key in dataset:
-                final_dataset[key] = dataset[key][:transitions_collected]
-            
-            # Save the dataset
-            dataset_path = f"{save_path}exp={int(expert_prob*100)}/{env_name}_mod2_fs{frame_stack}_ar{action_repeat}_ri{int(random_init)}_rg{int(randomize_goal_and_object_pos)}_exp={int(expert_prob*100)}_ds={transitions_collected}"
-            with open(dataset_path, 'wb') as f:
-                pickle.dump(final_dataset, f)
-            
-            logger.info(f"Dataset saved to {dataset_path}")
-            logger.info(f"Dataset size: {transitions_collected} transitions")
-            logger.info(f"Dataset shape - observations: {final_dataset['observations'].shape}")
-            logger.info(f"Successful trajectories: {successful_trajectories} out of {episode_count}")
-            
-            # Write successful trajectories information to a text file
-            success_file_path = f"{save_path}exp={int(expert_prob*100)}/successful_image_trajectories.txt"
-            with open(success_file_path, 'a') as f:
-                f.write(f"{dataset_path}: {successful_trajectories} successful trajectories out of {episode_count}\n")
-            
-            logger.info(f"Success information saved to {success_file_path}")
+                # Save the dataset
+                dataset_path = f"{save_path}exp={int(expert_prob*100)}/{env_name}_mod2_fs{frame_stack}_ar{action_repeat}_ri{int(random_init)}_rg{int(randomize_goal_and_object_pos)}_exp={int(expert_prob*100)}_ds={transitions_collected}"
+                with open(dataset_path, 'wb') as f:
+                    pickle.dump(final_dataset, f)
+                
+                logger.info(f"Dataset saved to {dataset_path}")
+                logger.info(f"Dataset size: {transitions_collected} transitions")
+                logger.info(f"Dataset shape - observations: {final_dataset['observations'].shape}")
+                logger.info(f"Successful trajectories: {successful_trajectories} out of {episode_count}")
+                
+                # Write successful trajectories information to a text file
+                success_file_path = f"{save_path}exp={int(expert_prob*100)}/successful_image_trajectories.txt"
+                with open(success_file_path, 'a') as f:
+                    f.write(f"{dataset_path}: {successful_trajectories} successful trajectories out of {episode_count}\n")
+                
+                logger.info(f"Success information saved to {success_file_path}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Collect image-based dataset from DMC environments")
     parser.add_argument("--env_names", type=str, default="push-v2", 
                         help="Comma-separated list of environment names (format: domain_task)")
+    parser.add_argument("--taks", type=str, default="0", 
+                        help="Comma-separated list of tasks for environment names (format: 0,1,2,...,n)")
     parser.add_argument("--expert_probs", type=str, default="0.0", 
                         help="Comma-separated list of expert probabilities (use 0.0 for random policy)")
     parser.add_argument("--dataset_size", type=int, default=200000, 
@@ -373,12 +376,14 @@ if __name__ == "__main__":
     env_names = args.env_names.split(",")
 
     expert_probs = [float(p) for p in args.expert_probs.split(",")]
+    tasks = [int(p) for p in args.tasks.split(",")]
     checkpoints = [int(c) for c in args.checkpoint.split(",")] if args.checkpoint else []
 
     # Create data directory if it doesn't exist
     os.makedirs(args.save_path, exist_ok=True)
     
     logger.info(f"Collecting data for environments: {env_names}")
+    logger.info(f"Tasks: {tasks}")
     logger.info(f"Expert probabilities: {expert_probs}")
     logger.info(f"Dataset size per env and probability: {args.dataset_size}")
     logger.info(f"Checkpoints: {checkpoints}")
@@ -391,6 +396,7 @@ if __name__ == "__main__":
     collect_dataset(
         env_names=env_names,
         expert_probs=expert_probs,
+        tasks=tasks,
         dataset_size=args.dataset_size,
         checkpoint=checkpoints,
         frame_stack=args.frame_stack,
