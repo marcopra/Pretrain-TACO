@@ -1,16 +1,15 @@
 #!/bin/bash
 
-seeds="1 1 1"s
+seeds="0 1 2"
 env_names=("push-v2")
 model_paths=(
     "/home/mprattico/Pretrain-TACO/models/ST50/taco_MT_ST50_exp=20_1OOD_push_config_ts=200000512.pt"
     "/home/mprattico/Pretrain-TACO/models/ST50/taco_MT_ST50_exp=40_1OOD_push_config_ts=200000512.pt"
     "/home/mprattico/Pretrain-TACO/models/ST50/taco_MT_ST50_exp=60_1OOD_push_config_ts=200000512.pt"
     "/home/mprattico/Pretrain-TACO/models/ST50/taco_MT_ST50_exp=80_1OOD_push_config_ts=200000512.pt"
-    
 )
 
-random_hand_goal_n_object_initial="false true"
+random_hand_goal_n_object_initial="false"
 
 for random_hand in $random_hand_goal_n_object_initial; do
     for seed in $seeds; do
