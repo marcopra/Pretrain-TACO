@@ -15,7 +15,7 @@ WANDB_TAG=${WANDB_TAG:-"none"}
 
 # Set seed argument based on SEED value
 if [ "$SEED" -eq 1 ]; then
-    SEED_ARG="random"
+    SEED_ARG=SEED_ARG=$(($RANDOM % 10000)) 
 else
     SEED_ARG=$SEED
 fi
