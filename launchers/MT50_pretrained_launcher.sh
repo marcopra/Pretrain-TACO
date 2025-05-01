@@ -19,5 +19,4 @@ for random_hand in $random_hand_goal_n_object_initial; do
             done
         done
     done
-    
 done
