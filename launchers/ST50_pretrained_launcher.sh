@@ -10,15 +10,18 @@ model_paths=(
     
 )
 random_hand_inital="true"
+random_goal_inital="false"
+wandb_tag="ST50"
 
 for random_hand in $random_hand_inital; do
-    for seed in $seeds; do
-        for env_name in "${env_names[@]}"; do
-            for model_path in "${model_paths[@]}"; do
-            echo "Submitting job: ENV_NAME=${env_name}, RANDOM_HAND=${random_hand}, RANDOM_GOAL=false, SEED=${seed}"
-            qsub -v SEED="${seed}",ENV_NAME="${env_name}",RANDOM_HAND="${random_hand}",RANDOM_GOAL="false",MODEL_PATH="${model_path}",WANDB_TAG="ST50" launchers/MT_pretrained.sh
+    for random_goal in $random_goal_inital; do
+        for seed in $seeds; do
+            for env_name in "${env_names[@]}"; do
+                for model_path in "${model_paths[@]}"; do
+                echo "Submitting job: ENV_NAME=${env_name}, RANDOM_HAND=${random_hand}, RANDOM_GOAL=${random_goal}, SEED=${seed}"
+                qsub -v SEED="${seed}",ENV_NAME="${env_name}",RANDOM_HAND="${random_hand}",RANDOM_GOAL="${random_goal}",MODEL_PATH="${model_path}",WANDB_TAG="${wandb_tag}" launchers/MT_pretrained.sh
+                done
             done
         done
     done
-    
 done
