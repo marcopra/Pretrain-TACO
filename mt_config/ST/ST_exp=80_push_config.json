@@ -1,0 +1,6 @@
+{
+    "pretraining_datasets": [
+      "data/ST/exp=80/push-v2_mod2_fs3_ar2_ri1_rg0_exp=80_ds=100000"
+    ],
+    "test_dataset": ""
+  }
