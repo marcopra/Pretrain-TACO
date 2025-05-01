@@ -15,7 +15,7 @@ WANDB_TAG=${WANDB_TAG:-"none"}
 
 # Set seed argument based on SEED value
 if [ "$SEED" -eq 1 ]; then
-    SEED_ARG=SEED_ARG=$(($RANDOM % 10000)) 
+    SEED_ARG=$(($RANDOM % 10000)) 
 else
     SEED_ARG=$SEED
 fi
@@ -38,6 +38,8 @@ trap cleanup EXIT HUP INT TERM
 # Load environment
 source ~/.bashrc
 conda activate metataco
+
+echo python3 train_metaworld.py agent.pretrained_path=\"${MODEL_PATH}\" exp_name=\"${EXP_NAME}\" seed=$SEED_ARG env_name=$ENV_NAME random_init=$RANDOM_HAND random_goal=$RANDOM_GOAL wandb_tag=$WANDB_TAG num_train_frames=300000
 
 
 # Use quotes and escape model path appropriately
