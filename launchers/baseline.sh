@@ -11,8 +11,15 @@ ENV_NAME=${ENV_NAME:-"push-v2"}
 RANDOM_HAND=${RANDOM_HAND:-0}
 RANDOM_GOAL=${RANDOM_GOAL:-0}
 
+# Set seed argument based on SEED value
+if [ "$SEED" -eq 1 ]; then
+    SEED_ARG=$(($RANDOM % 10000)) 
+else
+    SEED_ARG=$SEED
+fi
+
 # Create the experiment name once to ensure consistency
-EXP_NAME="taco_with_losses_${SEED}_random_init_${RANDOM_HAND}_random_goal_${RANDOM_GOAL}"
+EXP_NAME="taco_with_losses_${SEED_ARG}_random_init_${RANDOM_HAND}_random_goal_${RANDOM_GOAL}"
 
 # Define cleanup function
 cleanup() {
@@ -28,6 +35,6 @@ trap cleanup EXIT HUP INT TERM
 source ~/.bashrc
 conda activate metataco
 
-python3 train_metaworld.py agent.pretrained_path=none exp_name=$EXP_NAME seed=$SEED env_name=$ENV_NAME random_init=$RANDOM_HAND random_goal=$RANDOM_GOAL
+python3 train_metaworld.py agent.pretrained_path=none exp_name=$EXP_NAME seed=$SEED_ARG env_name=$ENV_NAME random_init=$RANDOM_HAND random_goal=$RANDOM_GOAL wandb_tag="baseline" num_train_frames=300000
 
 # Cleanup will be triggered automatically by the trap

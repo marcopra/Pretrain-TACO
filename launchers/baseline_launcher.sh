@@ -1,9 +1,9 @@
 #!/bin/bash
 
-seeds="0 1 2"
-env_names=("push-v2" "door-open-v2" "drawer-close-v2")
-random_hand_initial="true false"
-random_goal_n_object_initial="true false"
+seeds="1 1 1 1 1 1 1 1 1 1 1"
+env_names=("push-v2")
+random_hand_initial="true"
+random_goal_n_object_initial="false"
 # Loop through each environment name and seed   
 
 for random_hand in $random_hand_initial; do
