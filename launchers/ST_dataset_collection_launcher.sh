@@ -16,7 +16,7 @@ save_path="data/ST/"
 
 # Define randomization options
 random_init_options=("true")
-random_goal_options=("false")
+random_goal_options=("true")
 
 # Loop through all combinations and submit jobs
 for env_list in "${env_lists[@]}"; do
