@@ -2,14 +2,14 @@
 
 # Define environment lists (split into two for manageability)
 env_lists=(
-    "push-v2,window-open-v2,door-open-v2,reach-v2,drawer-close-v2,pick-place-v2,drawer-open-v2,button-press-topdown-v2,window-close-v2,peg-insert-side-v2"
+    "push-v2" "window-open-v2" "door-open-v2" "reach-v2" "drawer-close-v2" "pick-place-v2" "drawer-open-v2" "button-press-topdown-v2" "window-close-v2" "peg-insert-side-v2"
 )
 
 # Define dataset sizes
 dataset_sizes=(10000)
 
 # Define expert probabilities
-expert_probs_options=("0.2,0.4" "0.6,0.8")
+expert_probs_options=("0.2" "0.4" "0.6" "0.8")
 
 # Define save path
 save_path="data/MT10/"

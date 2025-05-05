@@ -31,7 +31,7 @@ for env_list in "${env_lists[@]}"; do
                 for random_init in "${random_init_options[@]}"; do
                     for random_goal in "${random_goal_options[@]}"; do
                         # Create a descriptive job name
-                        job_name="ST_ds${dataset_size}_ep${expert_probs//,/_}_ri${random_init}_rg${random_goal}"
+                        job_name="ST50_ds${dataset_size}_ep${expert_probs//,/_}_ri${random_init}_rg${random_goal}"
                         
                         echo "Submitting job: $job_name"
                         echo "Environment list: ${env_list:0:30}..."
