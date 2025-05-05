@@ -347,7 +347,7 @@ def load_dataset_config(config_path):
 
 
 class OfflineReplayBuffer(IterableDataset):
-    def __init__(self, dataset_paths, multistep=1, nstep=1, discount=0.99, split='train', train_ratio=0.8):
+    def __init__(self, dataset_paths, multistep=1, nstep=1, discount=0.99, split='train', train_ratio=0.8, fastwork=False):
         """
         Initialize replay buffer with multiple datasets
         
@@ -358,11 +358,13 @@ class OfflineReplayBuffer(IterableDataset):
             discount: Discount factor
             split: 'train' or 'valid'
             train_ratio: Ratio of data to use for training
+            fastwork: Whether to prepend /home/mprattico/fastwork/ to dataset paths
         """
         self.multistep = multistep
         self.nstep = nstep
         self.discount = discount
         self.split = split
+        self.fastwork = fastwork
         
         # Initialize storage for dataset-specific information
         self.datasets = []
@@ -374,8 +376,14 @@ class OfflineReplayBuffer(IterableDataset):
         
         # Load each dataset and track episode boundaries
         for dataset_idx, path in enumerate(dataset_paths):
-            print(f"Loading dataset from {path}")
-            with open(path, 'rb') as f:
+            # Prepend fastwork path if enabled
+            if fastwork:
+                load_path = os.path.join('/home/mprattico/fastwork/', path)
+            else:
+                load_path = path
+                
+            print(f"Loading dataset from {load_path}")
+            with open(load_path, 'rb') as f:
                 dataset = pickle.load(f)
             
             dataset_info = {
@@ -480,7 +488,7 @@ class OfflineReplayBuffer(IterableDataset):
 
 
 def make_offline_replay_loader(dataset_paths, batch_size, multistep=1, nstep=1, discount=0.99, 
-                              num_workers=0, split='train', train_ratio=0.8):
+                              num_workers=0, split='train', train_ratio=0.8, fastwork=False):
     """
     Create a data loader for multiple datasets
     """
@@ -490,7 +498,8 @@ def make_offline_replay_loader(dataset_paths, batch_size, multistep=1, nstep=1, 
         nstep, 
         discount, 
         split=split, 
-        train_ratio=train_ratio
+        train_ratio=train_ratio,
+        fastwork=fastwork
     )
     
     loader = torch.utils.data.DataLoader(
@@ -527,6 +536,7 @@ if __name__ == "__main__":
     parser.add_argument('--eval_frequency', type=int, default=1000, help='Frequency of evaluation steps')
     parser.add_argument('--train_ratio', type=float, default=0.8, help='Ratio of data to use for training')
     parser.add_argument('--eval_batches', type=int, default=10, help='Number of batches to use for evaluation')
+    parser.add_argument('--fastwork', action='store_true', help='Prepend /home/mprattico/fastwork/ to dataset paths')
     args = parser.parse_args()
 
     assert args.multistep == args.nstep, f"Don't know the difference between nstep and multistep, set them to the same value"
@@ -555,6 +565,7 @@ if __name__ == "__main__":
             "datasets": pretraining_datasets,
             "num_datasets": len(pretraining_datasets),
             "dataset_config": args.dataset_config,
+            "fastwork": args.fastwork,
         }
         wandb.init(
             project=args.wandb_project,
@@ -572,7 +583,8 @@ if __name__ == "__main__":
         discount=args.discount,
         num_workers=args.num_workers,
         split='train',
-        train_ratio=args.train_ratio
+        train_ratio=args.train_ratio,
+        fastwork=args.fastwork
     )
 
     valid_dataloader = make_offline_replay_loader(
@@ -583,7 +595,8 @@ if __name__ == "__main__":
         discount=args.discount,
         num_workers=args.num_workers,
         split='valid',
-        train_ratio=args.train_ratio
+        train_ratio=args.train_ratio,
+        fastwork=args.fastwork
     )
 
     # Get a batch from training data to initialize the agent
