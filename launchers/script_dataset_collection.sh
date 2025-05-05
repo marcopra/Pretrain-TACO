@@ -49,6 +49,7 @@ python metaworld_image_dataset.py \
     --dataset_size "$DATASET_SIZE" \
     --expert_probs "$EXPERT_PROBS" \
     --save_path "$SAVE_PATH" \
+    --log_level DEBUG \
     --task "$TASKS" \
     $RANDOM_INIT_FLAG \
     $RANDOM_GOAL_FLAG

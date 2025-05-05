@@ -173,7 +173,7 @@ def collect_dataset(env_names, expert_probs, tasks = [0], dataset_size=int(1e6),
                 logger.info(f"Random init: {random_init}, Random goal/object pos: {randomize_goal_and_object_pos}")
                 logger.info(f"Observation resolution: {resolution}, Render resolution: {render_resolution}")
                 
-                # Create environment with image observations using DMC
+                # Create environment with image observations 
                 env = make(env_name, task, frame_stack=frame_stack, action_repeat=action_repeat, seed=42, resolution=resolution, 
                         camera=camera, random_init=random_init, randomize_goal_and_object_pos=randomize_goal_and_object_pos)
                 
@@ -252,20 +252,22 @@ def collect_dataset(env_names, expert_probs, tasks = [0], dataset_size=int(1e6),
                     dataset['rewards'][transitions_collected] = reward
                     dataset['terminals'][transitions_collected] = done
                     
+                    # assert that curr_obs are not all zeros
+                    assert np.any(curr_obs), f"curr_obs is all zeros at index {transitions_collected}"
                     transitions_collected += 1
                     episode_reward += reward
                     
                     if done:
                         # Save the video if we're in debug mode and within first 3 episodes
                         if logger.isEnabledFor(logging.DEBUG) and episode_count < 3:
-                            video_filename = f"{env_name}_exp={int(expert_prob*100)}_episode_{episode_count}.mp4"
+                            video_filename = f"{env_name}_exp={int(expert_prob*100)}_task={task}_episode_{episode_count}.mp4"
                             video_recorder.save(video_filename)
-                            logger.debug(f"Saved video for episode {episode_count}")
+                            logger.debug(f"Saved video for episode {episode_count} in {env_name}_exp={int(expert_prob*100)}_task={task}_episode_{episode_count}.mp4")
                         
                         episode_count += 1
                         
-                        # For DMC, we consider a task successful if reward is above a threshold
-                        if episode_reward > 0.8:  # Adjust this threshold based on your environment
+                        
+                        if time_step.success == 1:  # Adjust this threshold based on your environment
                             successful_trajectories += 1
                         
                         logger.info(f"Episode {episode_count} ended with total reward: {episode_reward:.4f}, length: {transitions_collected - old_dataset_length}")
@@ -315,6 +317,13 @@ def collect_dataset(env_names, expert_probs, tasks = [0], dataset_size=int(1e6),
                 with open(dataset_path, 'wb') as f:
                     pickle.dump(final_dataset, f)
                 
+                env.close()
+                try:
+                    import mujoco
+                    mujoco.MjRenderContext.release_all_contexts()
+                    logger.info("Rilasciati tutti i contesti di rendering MuJoCo")
+                except (ImportError, AttributeError):
+                    logger.warning("Non è stato possibile rilasciare esplicitamente i contesti di rendering MuJoCo")
                 logger.info(f"Dataset saved to {dataset_path}")
                 logger.info(f"Dataset size: {transitions_collected} transitions")
                 logger.info(f"Dataset shape - observations: {final_dataset['observations'].shape}")
@@ -378,6 +387,8 @@ if __name__ == "__main__":
     expert_probs = [float(p) for p in args.expert_probs.split(",")]
     tasks = [int(p) for p in args.tasks.split(",")]
     checkpoints = [int(c) for c in args.checkpoint.split(",")] if args.checkpoint else []
+
+    assert len(expert_probs) ==1 and len(env_names) == 1, "Only one environment and one expert probability are supported at a time. There is a bug that from the second cycle there are all black images. Please check the code."
 
     # Create data directory if it doesn't exist
     os.makedirs(args.save_path, exist_ok=True)

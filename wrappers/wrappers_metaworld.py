@@ -21,17 +21,31 @@ class RandomizeInitialPositionWrapper(gym.Wrapper):
             self.sawyer_env = self.env.env
         else:
             self.sawyer_env = self.env
-
         
-    def reset(self, seed=None, options=None):
-        """Reset the environment and randomize hand position."""
         if self.randomize_goal_and_object_pos:
             if hasattr(self.sawyer_env, '_freeze_rand_vec'):
                 original_freeze = self.sawyer_env._freeze_rand_vec
                 original_seeded = self.sawyer_env.seeded_rand_vec
                 
                 self.sawyer_env._freeze_rand_vec = False  # Allow randomization
+                self.sawyer_env.seeded_rand_vec = False    # Use seeded randomization
+            else:
+                raise ValueError("Environment does not support goal and object position randomization.")
+
+        
+    def reset(self, seed=None, options=None):
+        """Reset the environment and randomize hand position."""
+        if self.randomize_goal_and_object_pos:
+            if hasattr(self.sawyer_env, '_freeze_rand_vec'):
+                print("Randomizing goal and object position")
+                original_freeze = self.sawyer_env._freeze_rand_vec
+                original_seeded = self.sawyer_env.seeded_rand_vec
+                
+                self.sawyer_env._freeze_rand_vec = False  # Allow randomization
                 self.sawyer_env.seeded_rand_vec = True    # Use seeded randomization
+            else:
+                raise ValueError("Environment does not support goal and object position randomization.")
+
 
         # Reset environment
         obs, info = self.env.reset(seed=seed, options=options)

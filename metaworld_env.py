@@ -9,6 +9,7 @@ from dm_env import StepType, specs
 
 from PIL import Image
 from wrappers.wrappers_metaworld import RandomizeInitialPositionWrapper
+
 # class RandomizeInitialPositionWrapper(gym.Wrapper):
 #     """A wrapper that randomizes the initial position and orientation of the hand and object in MetaWorld environments."""
     
@@ -265,7 +266,8 @@ def make(env_name, task, frame_stack, action_repeat, seed, resolution=84, camera
         A wrapped MetaWorld environment
     """
     # Create MetaWorld environment with image observations
-    mt50 = metaworld.MT50(seed=seed)  # Use the provided seed instead of hardcoded 42 # THIS IS VERY SLOW
+    mt50 = metaworld.MT50(seed=42)  # Use the provided seed instead of hardcoded 42 # THIS IS VERY SLOW
+    
     task_number = task
     env_task_indices = [i for i, task in enumerate(mt50.train_tasks) if task.env_name == env_name]
     if not env_task_indices:
@@ -276,7 +278,7 @@ def make(env_name, task, frame_stack, action_repeat, seed, resolution=84, camera
     
     # Get the task index
     task_idx = env_task_indices[task_number]
-    # Create environment with image observations using PLEX-MetaWorld
+    # Create environment with image observations
     env = mt50.train_classes[env_name](render_mode="rgb_array", camera_name=camera)
     
     env = RandomizeInitialPositionWrapper(env, randomize_hand_pos=random_init, randomize_goal_and_object_pos=randomize_goal_and_object_pos)
