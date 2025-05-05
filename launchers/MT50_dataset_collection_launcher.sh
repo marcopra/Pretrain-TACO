@@ -17,7 +17,7 @@ save_path="data/MT50/"
 
 # Define randomization options
 random_init_options=("true")
-random_goal_options=("true")
+random_goal_options=("true" "false")
 
 # Loop through all combinations and submit jobs
 for env_list in "${env_lists[@]}"; do
