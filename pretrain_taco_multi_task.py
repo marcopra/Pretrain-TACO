@@ -378,7 +378,7 @@ class OfflineReplayBuffer(IterableDataset):
         for dataset_idx, path in enumerate(dataset_paths):
             # Prepend fastwork path if enabled
             if fastwork:
-                load_path = os.path.join('/home/mprattico/fastwork/', path)
+                load_path = os.path.join('/fastwork/mprattico/', path)
             else:
                 load_path = path
                 
