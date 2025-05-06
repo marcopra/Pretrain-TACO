@@ -175,7 +175,7 @@ def collect_dataset(env_names, expert_probs, tasks = [0], dataset_size=int(1e6),
                 
                 # Create environment with image observations 
                 env = make(env_name, task, frame_stack=frame_stack, action_repeat=action_repeat, seed=42, resolution=resolution, 
-                        camera=camera, random_init=random_init, randomize_goal_and_object_pos=randomize_goal_and_object_pos)
+                        camera=camera, random_init=random_init, randomize_goal_and_object_pos=randomize_goal_and_object_pos, data_collection=True)
                 
                 
                 # Get initial timestep

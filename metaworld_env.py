@@ -115,9 +115,10 @@ class ExtendedTimeStep(NamedTuple):
 
 
 class ActionRepeatWrapper(gym.Wrapper):
-    def __init__(self, env, num_repeats):
+    def __init__(self, env, num_repeats, data_collection=False):
         super().__init__(env)
         self._num_repeats = num_repeats
+        self.data_collection = data_collection
 
     def step(self, action):
         reward = 0.0
@@ -129,7 +130,10 @@ class ActionRepeatWrapper(gym.Wrapper):
             obs, reward_step, terminated, truncated, info = self.env.step(action)
             # Handle success as a termination condition in MetaWorld
             
-            done = terminated or truncated or int(info['success']) == 1
+            done = terminated or truncated
+
+            if self.data_collection:
+                done = done or int(info['success']) == 1
             
             reward += reward_step * discount
             discount *= 0.99  # Standard discount factor
@@ -248,7 +252,7 @@ class ExtendedTimeStepWrapper(gym.Wrapper):
         return time_step
 
 
-def make(env_name, task, frame_stack, action_repeat, seed, resolution=84, camera='corner', random_init=True, randomize_goal_and_object_pos=True):
+def make(env_name, task, frame_stack, action_repeat, seed, resolution=84, camera='corner', random_init=True, randomize_goal_and_object_pos=True, data_collection=False):
     """
     Create a MetaWorld environment with image observations, frame stacking, and action repeat.
     
@@ -287,7 +291,7 @@ def make(env_name, task, frame_stack, action_repeat, seed, resolution=84, camera
 
     # Apply wrappers to match dm_control setup
     env = ActionDTypeWrapper(env, dtype=np.float32)
-    env = ActionRepeatWrapper(env, action_repeat)
+    env = ActionRepeatWrapper(env, action_repeat, data_collection=data_collection)
     
     # Apply frame stacking
     env = FrameStackWrapper(env, frame_stack)
