@@ -30,19 +30,19 @@ case $exp in
 esac
 
 # Run the Python command with the appropriate arguments
-python3 train_metaworld.py agent.pretrained_path="/home/mprattico/Pretrain-TACO/models/ST50/taco_MT_ST50_exp\=${exp}_push_fs3_ar2_ri1_rg0_config_ts\=200000512.pt" exp_name="/home/mprattico/Pretrain-TACO/models/ST50/taco_MT_ST50_exp\=${exp}_push_fs3_ar2_ri1_rg0_config_ts\=200000512.pt" seed=1 env_name=push-v2 random_init=true random_goal=false wandb_tag=ST50 num_train_frames=30000 device=cuda:${cuda_device}
+python3 train_metaworld.py agent.pretrained_path="/home/mprattico/Pretrain-TACO/models/ST50/taco_MT_ST50_exp\=${exp}_push_fs3_ar2_ri1_rg0_config_ts\=200000512.pt" exp_name="/home/mprattico/Pretrain-TACO/models/ST50/taco_MT_ST50_exp\=${exp}_push_fs3_ar2_ri1_rg0_config_ts\=200000512.pt" seed=1 env_name=push-v2 random_init=true random_goal=false wandb_tag=ST50 num_train_frames=300000 device=cuda:${cuda_device}
 
 # Cleanup command
 rm -rf exp_local/metaworld/home/mprattico/Pretrain-TACO/models/ST50/taco_MT_ST50_exp\=${exp}_push_fs3_ar2_ri1_rg0_config_ts=200000512.pt_push-v2
 
 # Run the Python command with the appropriate arguments
-python3 train_metaworld.py agent.pretrained_path="/home/mprattico/Pretrain-TACO/models/ST50/taco_MT_ST50_exp\=${exp}_push_fs3_ar2_ri1_rg0_config_ts\=200000512.pt" exp_name="/home/mprattico/Pretrain-TACO/models/ST50/taco_MT_ST50_exp\=${exp}_push_fs3_ar2_ri1_rg0_config_ts\=200000512.pt" seed=1 env_name=push-v2 random_init=true random_goal=false wandb_tag=ST50 num_train_frames=30000 device=cuda:${cuda_device}
+python3 train_metaworld.py agent.pretrained_path="/home/mprattico/Pretrain-TACO/models/ST50/taco_MT_ST50_exp\=${exp}_push_fs3_ar2_ri1_rg0_config_ts\=200000512.pt" exp_name="/home/mprattico/Pretrain-TACO/models/ST50/taco_MT_ST50_exp\=${exp}_push_fs3_ar2_ri1_rg0_config_ts\=200000512.pt" seed=1 env_name=push-v2 random_init=true random_goal=false wandb_tag=ST50 num_train_frames=300000 device=cuda:${cuda_device}
 
 # Cleanup command
 rm -rf exp_local/metaworld/home/mprattico/Pretrain-TACO/models/ST50/taco_MT_ST50_exp\=${exp}_push_fs3_ar2_ri1_rg0_config_ts=200000512.pt_push-v2
 
 # Run the Python command with the appropriate arguments
-python3 train_metaworld.py agent.pretrained_path="/home/mprattico/Pretrain-TACO/models/ST50/taco_MT_ST50_exp\=${exp}_push_fs3_ar2_ri1_rg0_config_ts\=200000512.pt" exp_name="/home/mprattico/Pretrain-TACO/models/ST50/taco_MT_ST50_exp\=${exp}_push_fs3_ar2_ri1_rg0_config_ts\=200000512.pt" seed=1 env_name=push-v2 random_init=true random_goal=false wandb_tag=ST50 num_train_frames=30000 device=cuda:${cuda_device}
+python3 train_metaworld.py agent.pretrained_path="/home/mprattico/Pretrain-TACO/models/ST50/taco_MT_ST50_exp\=${exp}_push_fs3_ar2_ri1_rg0_config_ts\=200000512.pt" exp_name="/home/mprattico/Pretrain-TACO/models/ST50/taco_MT_ST50_exp\=${exp}_push_fs3_ar2_ri1_rg0_config_ts\=200000512.pt" seed=1 env_name=push-v2 random_init=true random_goal=false wandb_tag=ST50 num_train_frames=300000 device=cuda:${cuda_device}
 
 # Cleanup command
 rm -rf exp_local/metaworld/home/mprattico/Pretrain-TACO/models/ST50/taco_MT_ST50_exp\=${exp}_push_fs3_ar2_ri1_rg0_config_ts=200000512.pt_push-v2
