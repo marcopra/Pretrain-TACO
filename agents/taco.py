@@ -269,6 +269,14 @@ class TACOAgent:
             self.encoder.eval()
             self.TACO.eval()
             self.act_tok.eval()
+            
+            # Disabilita i gradienti per tutti i parametri
+            for param in self.encoder.parameters():
+                param.requires_grad = False
+            for param in self.TACO.parameters():
+                param.requires_grad = False
+            for param in self.act_tok.parameters():
+                param.requires_grad = False
         
         print(f"Loaded pretrained model from {model_path}")
         
@@ -291,6 +299,22 @@ class TACOAgent:
                 current_param = current_fingerprint[param_name]
                 assert torch.all(torch.eq(current_param, stored_param)), f"Parameter {param_name} in {model_name} has changed when it should be frozen!"
 
+    def unfreeze_encoder(self):
+        """Riattiva i gradienti per i modelli congelati"""
+        if hasattr(self, '_frozen_fingerprints'):
+            for param in self.encoder.parameters():
+                param.requires_grad = True
+            for param in self.TACO.parameters():
+                param.requires_grad = True
+            for param in self.act_tok.parameters():
+                param.requires_grad = True
+            
+            self.encoder.train()
+            self.TACO.train()
+            self.act_tok.train()
+            
+            del self._frozen_fingerprints
+            self.freeze_encoder = False
     def train(self, training=True):
         self.training = training
         self.actor.train(training)
