@@ -11,7 +11,7 @@ model_paths=(
    
 random_hand_inital="true"
 random_goal_inital="false"
-wandb_tag="MT50_FREEZE"
+wandb_tag="MT50-FREEZE"
 freeze="true"
 
 for random_hand in $random_hand_inital; do
