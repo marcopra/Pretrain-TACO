@@ -44,7 +44,7 @@ if [ "$RANDOM_GOAL" = "false" ]; then
 fi
 
 # Run the data collection script
-python metaworld_image_dataset.py \
+python collect_metaworld_episodes.py \
     --env_names "$ENV_LIST" \
     --num_episodes $EPISODES \
     --expert_probs "$EXPERT_PROBS" \
