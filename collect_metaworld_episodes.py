@@ -229,9 +229,7 @@ def collect_episodes(config_name, env_names, expert_probs, tasks=[0], num_episod
                     episode['reward'].append(torch.tensor(0.0, dtype=torch.float32))
                     episode['discount'].append(torch.tensor(1.0, dtype=torch.float32))
                     episode['terminal'].append(False)
-                    
-                    # Add first observation
-                    episode['observation'].append(state)
+            
                     
                     # Continue until episode ends or reaches a maximum length (if the env doesn't have a built-in limit)
                     max_episode_length = 1000  # Safety limit
