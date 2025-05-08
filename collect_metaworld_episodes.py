@@ -256,10 +256,9 @@ def collect_episodes(config_name, env_names, expert_probs, tasks=[0], num_episod
                         
                         episode_reward += reward
                         episode_length += 1
-                        
+                        episode_success = episode_success or time_step.success == 1
                         if done:
-                            if hasattr(time_step, 'success') and time_step.success == 1:
-                                episode_success = True
+                            if episode_success:
                                 successful_trajectories += 1
                             break
                     

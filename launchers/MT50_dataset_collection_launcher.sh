@@ -7,44 +7,50 @@ env_lists=(
 )
 
 # Define dataset sizes
-dataset_sizes=(2000)
+n_episodes=(8)
+
 
 # Define expert probabilities
 expert_probs_options=("0.2" "0.4" "0.6" "0.8")
 
 # Define save path
-save_path="data/MT50/"
+config="MT50"
 
 # Define randomization options
 random_init_options=("true")
-random_goal_options=("true" "false")
+random_goal_options=("false")
+
 
 # Loop through all combinations and submit jobs
 for env_list in "${env_lists[@]}"; do
-    for dataset_size in "${dataset_sizes[@]}"; do
+    for eps in "${n_episodes[@]}"; do
         for expert_probs in "${expert_probs_options[@]}"; do
-            for random_init in "${random_init_options[@]}"; do
-                for random_goal in "${random_goal_options[@]}"; do
-                    # Create a descriptive job name
-                    job_name="MT50_ds${dataset_size}_ep${expert_probs//,/_}_ri${random_init}_rg${random_goal}"
-                    
-                    echo "Submitting job: $job_name"
-                    echo "Environment list: ${env_list:0:30}..."
-                    echo "Dataset size: $dataset_size"
-                    echo "Expert probs: $expert_probs"
-                    echo "Random init: $random_init"
-                    echo "Random goal: $random_goal"
-                    
-                    # Submit the job with variables
-                    env_list_escaped="${env_list//,/\\,}"
-                    expert_probs_escaped="${expert_probs//,/\\,}"
-                    
-                    qsub -N "$job_name" \
-                         -v ENV_LIST="$env_list_escaped",DATASET_SIZE="$dataset_size",EXPERT_PROBS="$expert_probs_escaped",SAVE_PATH="$save_path",RANDOM_INIT="$random_init",RANDOM_GOAL="$random_goal" \
-                         launchers/script_dataset_collection.sh
-                    
-                    echo "Job submitted: $job_name"
-                    echo "----------------------------------------"
+            for task in "${tasks[@]}"; do
+                for random_init in "${random_init_options[@]}"; do
+                    for random_goal in "${random_goal_options[@]}"; do
+                        # Create a descriptive job name
+                        job_name="MT50_ds${eps}_exp${expert_probs//,/_}_ri${random_init}_rg${random_goal}"
+                        
+                        echo "Submitting job: $job_name"
+                        echo "Environment list: ${env_list:0:30}..."
+                        echo "Task: $task"
+                        echo "N Episodes: $eps"
+                        echo "Expert probs: $expert_probs"
+                        echo "Random init: $random_init"
+                        echo "Random goal: $random_goal"
+                        
+                        # Submit the job with variables - escape commas in variables
+                        env_list_escaped="${env_list//,/\\,}"
+                        expert_probs_escaped="${expert_probs//,/\\,}"
+                        task_escaped="${task//,/\\,}"
+                        
+                        qsub -N "$job_name" \
+                            -v ENV_LIST="$env_list_escaped",EPISODES="$eps",EXPERT_PROBS="$expert_probs_escaped",CONFIG="$config",RANDOM_INIT="$random_init",RANDOM_GOAL="$random_goal",TASKS="$task_escaped" \
+                            launchers/script_dataset_collection.sh
+
+                        echo "Job submitted: $job_name"
+                        echo "----------------------------------------"
+                    done
                 done
             done
         done
