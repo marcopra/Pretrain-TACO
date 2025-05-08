@@ -11,7 +11,7 @@ n_episodes=(8)
 
 
 # Define expert probabilities
-expert_probs_options=("0.2" "0.4" "0.6" "0.8")
+expert_probs_options=("0.0" "0.33" "0.66" "0.99")
 
 # Define save path
 config="MT50"
@@ -45,8 +45,7 @@ for env_list in "${env_lists[@]}"; do
                         task_escaped="${task//,/\\,}"
                         
                         qsub -N "$job_name" \
-                            -v ENV_LIST="$env_list_escaped",EPISODES="$eps",EXPERT_PROBS="$expert_probs_escaped",CONFIG="$config/$expert_probs_escaped",RANDOM_INIT="$random_init",RANDOM_GOAL="$random_goal",TASKS="$task_escaped" \
-                            launchers/script_dataset_collection.sh
+                            -v ENV_LIST="$env_list_escaped",EPISODES="$eps",EXPERT_PROBS="$expert_probs_escaped",CONFIG="$config/$expert_probs_escaped",RANDOM_INIT="$random_init",RANDOM_GOAL="$random_goal",TASKS="$task_escaped" launchers/script_dataset_collection.sh
 
                         echo "Job submitted: $job_name"
                         echo "----------------------------------------"
