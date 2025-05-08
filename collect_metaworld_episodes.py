@@ -12,6 +12,9 @@ import argparse
 import datetime
 import cv2
 import logging
+import torch  # Add PyTorch import
+torch.set_default_dtype(torch.float32)  # Set default tensor type to float32
+np.set_printoptions(precision=6, suppress=True)  # Configure NumPy display options
 from pathlib import Path
 from PIL import Image
 from metaworld_env import *
@@ -222,9 +225,9 @@ def collect_episodes(config_name, env_names, expert_probs, tasks=[0], num_episod
                         video_recorder.init(env, enabled=True)
                     # add dummy transition to the episode   
                     episode['observation'].append(state)
-                    episode['action'].append(np.zeros(env.action_space.shape))
-                    episode['reward'].append(0)
-                    episode['discount'].append(1)
+                    episode['action'].append(np.zeros(env.action_space.shape, dtype=np.float32))
+                    episode['reward'].append(torch.tensor(0.0, dtype=torch.float32))
+                    episode['discount'].append(torch.tensor(1.0, dtype=torch.float32))
                     episode['terminal'].append(False)
                     
                     # Add first observation
@@ -243,9 +246,12 @@ def collect_episodes(config_name, env_names, expert_probs, tasks=[0], num_episod
                         if np.random.random() < expert_prob:
                             # Expert policy action
                             a = policy.get_action(proprio_state)
+                            # Convert action to float32 if it's not already
+                            if not isinstance(a, np.ndarray) or a.dtype != np.float32:
+                                a = np.array(a, dtype=np.float32)
                         else:
                             # Random action
-                            a = env.action_space.sample()
+                            a = env.action_space.sample().astype(np.float32)
                             
                         # Take a step in the environment
                         time_step = env.step(a)
@@ -258,8 +264,8 @@ def collect_episodes(config_name, env_names, expert_probs, tasks=[0], num_episod
                         # Store transition in episode
                         episode['observation'].append(next_obs)
                         episode['action'].append(a)
-                        episode['reward'].append(reward)
-                        episode['discount'].append(discount)
+                        episode['reward'].append(torch.tensor(reward, dtype=torch.float32))
+                        episode['discount'].append(torch.tensor(discount, dtype=torch.float32))
                         episode['terminal'].append(done)
                         
                         episode_reward += reward
@@ -273,11 +279,22 @@ def collect_episodes(config_name, env_names, expert_probs, tasks=[0], num_episod
                     
                     # Convert episode data to numpy arrays
                     for key in episode:
-                        episode[key] = np.array(episode[key])
+                        if key in ['reward', 'discount']:
+                            # Convert torch tensors to numpy float32 arrays
+                            episode[key] = np.array([r.numpy() if isinstance(r, torch.Tensor) else r 
+                                                for r in episode[key]], dtype=np.float32)
+                        else:
+                            # Ensure other arrays are float32 if they contain floating point values
+                            temp_array = np.array(episode[key])
+                            if np.issubdtype(temp_array.dtype, np.floating):
+                                temp_array = temp_array.astype(np.float32)
+                            episode[key] = temp_array
                     
                     # Reshape reward and discount to have shape [n, 1]
                     episode['reward'] = episode['reward'].reshape(-1, 1)
                     episode['discount'] = episode['discount'].reshape(-1, 1)
+                    
+        
                     
                     # Save the episode only if it's not empty
                     if episode_length > 0:
