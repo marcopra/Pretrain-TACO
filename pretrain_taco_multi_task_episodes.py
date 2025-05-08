@@ -1,5 +1,6 @@
 """
-python pretrain_taco_multi_task_episodes.py --dataset_config data_episodes/debug --save_path models/debug/ --use_wandb --total_steps 300_000_000 --checkpoint "1_000_000, 2_000_000, 20_000_000,200_000_000" --lr 5e-3
+python pretrain_taco_multi_task_episodes.py --dataset_config data_episodes1/ST50 --save_path models/debug/ --total_steps 300_000_000 --checkpoint "1_000_000, 2_000_000, 20_000_000,200_000_000" --lr 5e-3
+python pretrain_taco_multi_task_episodes.py --dataset_config exp_local/metaworld/taco_prova_push-v2/buffer --save_path models/debug/ --total_steps 300_000_000 --checkpoint "1_000_000, 2_000_000, 20_000_000,200_000_000" --lr 5e-3
 """
 import os
 import numpy as np
@@ -239,20 +240,20 @@ class TACOAgent:
         ### Compute reward prediction loss
         if self.reward:
             reward_pred = self.TACO.reward(torch.concat([z_a, action_seq_en], dim=-1))
-            reward_loss = F.mse_loss(reward_pred.squeeze(-1), reward)
+            reward_loss = F.mse_loss(reward_pred, reward)
             # Average percentage of reward prediction error
             with torch.no_grad():
                 # Average percentage of reward prediction error
-                metrics['avg_rew_pred_error_percentage'] = torch.mean(torch.abs(reward_pred.squeeze(-1) - reward) / (reward + 1e-6)).item() 
-                error = reward_pred.squeeze(-1) - reward
+                metrics['avg_rew_pred_error_percentage'] = torch.mean(torch.abs(reward_pred - reward) / (reward + 1e-6)).item() 
+                error = reward_pred - reward
                 metrics['log_cosh'] = torch.mean(torch.log(torch.cosh(error + 1e-12))).item()
                 threshold = 1e-3  # puoi settarlo in base al tuo dominio
                 mask = reward.abs() > threshold
                 metrics['rel_error_filtered'] = torch.mean(
-                    torch.abs(reward_pred.squeeze(-1)[mask] - reward[mask]) / (reward[mask] + 1e-6)
+                    torch.abs(reward_pred[mask] - reward[mask]) / (reward[mask] + 1e-6)
                 ).item()
-                numerator = torch.abs(reward_pred.squeeze(-1) - reward)
-                denominator = torch.abs(reward_pred.squeeze(-1)) + torch.abs(reward) + 1e-6
+                numerator = torch.abs(reward_pred - reward)
+                denominator = torch.abs(reward_pred) + torch.abs(reward) + 1e-6
                 metrics['smape'] = torch.mean(2.0 * numerator / denominator).item()
 
         else:
@@ -297,7 +298,10 @@ class TACOAgent:
             obs, action, action_seq, reward, discount, next_obs, r_next_obs = utils.to_torch(
                 batch, self.device)
             metrics = dict()
-            
+            if len(reward.shape) == 1:
+                reward = reward.unsqueeze(-1)
+            if len(discount.shape) == 1:
+                discount = discount.unsqueeze(-1)
             metrics['batch_reward'] = reward.mean().item()
             
             # Compute TACO losses similar to update_taco but without gradients
@@ -318,18 +322,18 @@ class TACOAgent:
             
             if self.reward:
                 reward_pred = self.TACO.reward(torch.concat([z_a, action_seq_en], dim=-1))
-                reward_loss = F.mse_loss(reward_pred.squeeze(-1), reward)
+                reward_loss = F.mse_loss(reward_pred, reward)
                 # Average percentage of reward prediction error
-                metrics['avg_rew_pred_error_percentage'] = torch.mean(torch.abs(reward_pred.squeeze(-1) - reward) / (reward + 1e-6)).item() 
-                error = reward_pred.squeeze(-1) - reward
+                metrics['avg_rew_pred_error_percentage'] = torch.mean(torch.abs(reward_pred - reward) / (reward + 1e-6)).item() 
+                error = reward_pred - reward
                 metrics['log_cosh'] = torch.mean(torch.log(torch.cosh(error + 1e-12))).item()
                 threshold = 1e-3  # puoi settarlo in base al tuo dominio
                 mask = reward.abs() > threshold
                 metrics['rel_error_filtered'] = torch.mean(
-                    torch.abs(reward_pred.squeeze(-1)[mask] - reward[mask]) / (reward[mask] + 1e-6)
+                    torch.abs(reward_pred[mask] - reward[mask]) / (reward[mask] + 1e-6)
                 ).item()
-                numerator = torch.abs(reward_pred.squeeze(-1) - reward)
-                denominator = torch.abs(reward_pred.squeeze(-1)) + torch.abs(reward) + 1e-6
+                numerator = torch.abs(reward_pred - reward)
+                denominator = torch.abs(reward_pred) + torch.abs(reward) + 1e-6
                 metrics['smape'] = torch.mean(2.0 * numerator / denominator).item()
 
 
@@ -413,6 +417,14 @@ if __name__ == "__main__":
     if args.fastwork:
         pretraining_dataset_path = "/home/mprattico/fastwork/" + pretraining_dataset_path
         valid_datset_path = "/home/mprattico/fastwork/" + valid_datset_path
+    
+    # Check for overlapping subdirectories between training and validation datasets
+    if os.path.exists(pretraining_dataset_path) and os.path.exists(valid_datset_path):
+        train_dirs = {d.name for d in Path(pretraining_dataset_path).iterdir() if d.is_dir()}
+        valid_dirs = {d.name for d in Path(valid_datset_path).iterdir() if d.is_dir()}
+        common_dirs = train_dirs.intersection(valid_dirs)
+        assert len(common_dirs) == 0, f"Found overlapping directories in training and validation sets: {common_dirs}"
+    
     # load
     train_dataloader = load_unified_dataset(
         root_dir=pretraining_dataset_path,

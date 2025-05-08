@@ -220,6 +220,12 @@ def collect_episodes(config_name, env_names, expert_probs, tasks=[0], num_episod
                     # Initialize video recorder if we're in DEBUG mode
                     if should_record_video and episodes_collected < render_episodes:
                         video_recorder.init(env, enabled=True)
+                    # add dummy transition to the episode   
+                    episode['observation'].append(state)
+                    episode['action'].append(np.zeros(env.action_space.shape))
+                    episode['reward'].append(0)
+                    episode['discount'].append(1)
+                    episode['terminal'].append(False)
                     
                     # Add first observation
                     episode['observation'].append(state)
@@ -268,6 +274,10 @@ def collect_episodes(config_name, env_names, expert_probs, tasks=[0], num_episod
                     # Convert episode data to numpy arrays
                     for key in episode:
                         episode[key] = np.array(episode[key])
+                    
+                    # Reshape reward and discount to have shape [n, 1]
+                    episode['reward'] = episode['reward'].reshape(-1, 1)
+                    episode['discount'] = episode['discount'].reshape(-1, 1)
                     
                     # Save the episode only if it's not empty
                     if episode_length > 0:
