@@ -8,9 +8,9 @@ cd $PBS_O_WORKDIR
 # Parameters passed via qsub -v
 ENV_LIST=${ENV_LIST:-"push-v2"}
 TASKS=${TASKS:-"0"}
-DATASET_SIZE=${DATASET_SIZE:-1000}
+EPISODES=${EPISODES:-10}
 EXPERT_PROBS=${EXPERT_PROBS:-"0.0"}
-SAVE_PATH=${SAVE_PATH:-"data/mt50/"}
+CONFIG=${CONFIG:-"data/mt50/"}
 RANDOM_INIT=${RANDOM_INIT:-"true"}
 RANDOM_GOAL=${RANDOM_GOAL:-"true"}
 
@@ -22,9 +22,9 @@ TASKS=$(echo "$TASKS" | sed 's/\\,/,/g')
 echo "Running dataset collection script with the following parameters:"
 echo "ENV_LIST: $ENV_LIST"
 echo "TASKS: $TASKS"
-echo "DATASET_SIZE: $DATASET_SIZE"
+echo "EPISODES: $EPISODES"
 echo "EXPERT_PROBS: $EXPERT_PROBS"
-echo "SAVE_PATH: $SAVE_PATH"
+echo "CONFIG: $CONFIG"
 echo "RANDOM_INIT: $RANDOM_INIT"
 echo "RANDOM_GOAL: $RANDOM_GOAL"
 
@@ -46,9 +46,9 @@ fi
 # Run the data collection script
 python metaworld_image_dataset.py \
     --env_names "$ENV_LIST" \
-    --dataset_size "$DATASET_SIZE" \
+    --num_episodes $EPISODES \
     --expert_probs "$EXPERT_PROBS" \
-    --save_path "$SAVE_PATH" \
+    --config_name "$CONFIG" \
     --log_level DEBUG \
     --task "$TASKS" \
     $RANDOM_INIT_FLAG \

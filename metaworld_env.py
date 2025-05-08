@@ -265,6 +265,7 @@ def make(env_name, task, frame_stack, action_repeat, seed, resolution=84, camera
         camera: Camera angle to use
         random_init: Whether to randomize the initial position of the hand
         randomize_goal_and_object_pos: Whether to randomize the goal and object positions
+        data_collection: Whether to collect data for training, if True it stops at "success"
     
     Returns:
         A wrapped MetaWorld environment

@@ -92,6 +92,10 @@ class ReplayBuffer(IterableDataset):
         print('Loading Data into CPU Memory')
         self._preload()
 
+    def __len__(self):
+        # Return the current number of transitions in the buffer
+        return self._size
+
     def _sample_episode(self):
         eps_fn = random.choice(self._episode_fns)
         return self._episodes[eps_fn]
@@ -124,9 +128,10 @@ class ReplayBuffer(IterableDataset):
             worker_id = torch.utils.data.get_worker_info().id
         except:
             worker_id = 0
-        eps_fns = sorted(self._replay_dir.glob('*.npz'), reverse=True)
+        # Use rglob instead of glob to find episodes recursively in subdirectories
+        eps_fns = sorted(self._replay_dir.rglob('*.npz'), reverse=True)
         fetched_size = 0
-        for eps_fn in eps_fns:
+        for eps_fn in eps_fns:            
             eps_idx, eps_len = [int(x) for x in eps_fn.stem.split('_')[1:]]
             if eps_idx % self._num_workers != worker_id:
                 continue
@@ -139,7 +144,8 @@ class ReplayBuffer(IterableDataset):
                 break
     
     def _preload(self):
-        eps_fns = sorted(self._replay_dir.glob('*.npz'), reverse=True)
+        # Use rglob instead of glob to find episodes recursively in subdirectories
+        eps_fns = sorted(self._replay_dir.rglob('*.npz'), reverse=True)
         for eps_fn in eps_fns:
             self._store_episode(eps_fn)
     
@@ -190,6 +196,9 @@ def make_replay_loader(replay_dir, max_size, batch_size, num_workers,
                             fetch_every=1000,
                             save_snapshot=save_snapshot)
 
+    print(f"ReplayBuffer: {len(iterable)} transitions, "
+          f"{len(iterable._episode_fns)} episodes from all subdirectories")
+    
     loader = torch.utils.data.DataLoader(iterable,
                                          batch_size=batch_size,
                                          num_workers=num_workers,

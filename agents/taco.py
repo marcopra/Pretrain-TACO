@@ -315,6 +315,7 @@ class TACOAgent:
             
             del self._frozen_fingerprints
             self.freeze_encoder = False
+            
     def train(self, training=True):
         self.training = training
         self.actor.train(training)

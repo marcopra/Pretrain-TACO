@@ -192,6 +192,7 @@ def collect_dataset(env_names, expert_probs, tasks = [0], dataset_size=int(1e6),
                     'observations': np.zeros(obs_shape, dtype=np.uint8),
                     'actions': np.zeros(action_shape, dtype=np.float32),
                     'next_observations': np.zeros(obs_shape, dtype=np.uint8),
+                    'discount': np.zeros((dataset_size,), dtype=np.float32),
                     'rewards': np.zeros(dataset_size, dtype=np.float32),
                     'terminals': np.zeros(dataset_size, dtype=bool)
                 }
@@ -242,12 +243,14 @@ def collect_dataset(env_names, expert_probs, tasks = [0], dataset_size=int(1e6),
                     time_step = env.step(a)
                     next_obs = time_step.observation
                     reward = time_step.reward
+                    discount = time_step.discount
                     done = time_step.last()
                     proprio_state = time_step.proprio_observation
                     
                     # Store the transition in the dataset using indexing
                     dataset['observations'][transitions_collected] = curr_obs
                     dataset['actions'][transitions_collected] = a
+                    dataset['discount'][transitions_collected] = discount
                     dataset['next_observations'][transitions_collected] = next_obs
                     dataset['rewards'][transitions_collected] = reward
                     dataset['terminals'][transitions_collected] = done
