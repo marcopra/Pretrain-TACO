@@ -1,5 +1,6 @@
 """
 Collects MetaWorld episodes and saves them directly in the format compatible with ReplayBuffer.
+python collect_metaworld_episodes.py --config_name "my_config" --env_names "push-v2" --expert_probs "0.7" --num_episodes 10 --no_randomize_goal
 """
 import numpy as np
 import os
@@ -118,7 +119,7 @@ def save_episode_video(frames, video_dir, env_name, expert_prob, episode_num):
 def collect_episodes(config_name, env_names, expert_probs, tasks=[0], num_episodes=1000, 
                     resolution=84, render_resolution=1024, camera='corner', 
                     include_depth=False, save_example=False, frame_stack=1, action_repeat=1,
-                    random_init=True, randomize_goal_and_object_pos=True):
+                    random_init=True, randomize_goal_and_object_pos=True, render_episodes=1):
     """
     Collects episodes from MetaWorld environments with image observations and saves them
     directly in the format compatible with ReplayBuffer.
@@ -138,6 +139,7 @@ def collect_episodes(config_name, env_names, expert_probs, tasks=[0], num_episod
         action_repeat: Number of times to repeat the same action
         random_init: Whether to randomize the initial hand position
         randomize_goal_and_object_pos: Whether to randomize the goal and object positions
+        render_episodes: Number of episodes to render for video
     """
     for expert_prob in expert_probs:
         for env_name in env_names:
@@ -216,7 +218,7 @@ def collect_episodes(config_name, env_names, expert_probs, tasks=[0], num_episod
                     episode_length = 0
                     
                     # Initialize video recorder if we're in DEBUG mode
-                    if should_record_video and episodes_collected < 1:
+                    if should_record_video and episodes_collected < render_episodes:
                         video_recorder.init(env, enabled=True)
                     
                     # Add first observation
@@ -228,7 +230,7 @@ def collect_episodes(config_name, env_names, expert_probs, tasks=[0], num_episod
                     
                     while not done and episode_length < max_episode_length:
                         # Record frame if in debug mode and within first 3 episodes
-                        if should_record_video and episodes_collected < 1:
+                        if should_record_video and episodes_collected < render_episodes:
                             video_recorder.record(env)
                             
                         # Choose between expert or random action based on probability
@@ -257,6 +259,7 @@ def collect_episodes(config_name, env_names, expert_probs, tasks=[0], num_episod
                         episode_reward += reward
                         episode_length += 1
                         episode_success = episode_success or time_step.success == 1
+
                         if done:
                             if episode_success:
                                 successful_trajectories += 1
@@ -281,7 +284,7 @@ def collect_episodes(config_name, env_names, expert_probs, tasks=[0], num_episod
                         episodes_collected += 1
                         
                         # Save video for first 3 episodes if in debug mode
-                        if should_record_video and episodes_collected <= 3:
+                        if should_record_video and episodes_collected <= render_episodes:
                             video_filename = f"{env_name}_exp={int(expert_prob*100)}_episode_{episodes_collected-1}.mp4"
                             video_recorder.save(video_filename)
                     else:
@@ -333,6 +336,8 @@ if __name__ == "__main__":
                         help="Resolution for observations")
     parser.add_argument("--render_resolution", type=int, default=1024,
                         help="Resolution for video rendering")
+    parser.add_argument("--render_episodes", type=int, default=1,
+                        help="Resolution for video rendering")
     parser.add_argument("--log_level", type=str, default="INFO", 
                         choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
                         help="Set the logging level")
@@ -376,5 +381,6 @@ if __name__ == "__main__":
         random_init=args.random_init,
         randomize_goal_and_object_pos=args.randomize_goal,
         resolution=args.resolution,
-        render_resolution=args.render_resolution
+        render_resolution=args.render_resolution,
+        render_episodes=args.render_episodes
     )
