@@ -568,7 +568,7 @@ if __name__ == "__main__":
             print(f"Steps: {steps}/{args.total_steps}, Metrics: {metrics}")
             # Check if we need to save a checkpoint at this step
             if any(s <= steps < s + args.batch_size for s in checkpoint_steps):
-                checkpoint_path = f"{args.save_path}/taco_MT_{args.dataset_config.split('/')[-1].split('.')[0]}_lr={args.lr}_ts={steps}.pt"
+                checkpoint_path = f"{args.save_path}/taco_MT_{'_'.join(args.dataset_config.split('/')[1:])}_lr={args.lr}_ts={steps}.pt"
                 print(f"Saving checkpoint at step {steps} to {checkpoint_path}")
                 os.makedirs(args.save_path, exist_ok=True)
                 torch.save({
