@@ -1,6 +1,7 @@
 """
 python pretrain_taco_multi_task_episodes.py --dataset_config data_episodes1/ST50 --save_path models/debug/ --total_steps 300_000_000 --checkpoint "1_000_000, 2_000_000, 20_000_000,200_000_000" --lr 5e-3
 python pretrain_taco_multi_task_episodes.py --dataset_config exp_local/metaworld/taco_prova_push-v2/buffer --save_path models/debug/ --total_steps 300_000_000 --checkpoint "1_000_000, 2_000_000, 20_000_000,200_000_000" --lr 5e-3
+python pretrain_taco_multi_task_episodes.py --dataset_config data_episodes/my_config --save_path models/debug/ --total_steps 300_000_000 --checkpoint "1_000_000, 2_000_000, 20_000_000,200_000_000" --lr 5e-3
 """
 import os
 import numpy as np
@@ -219,6 +220,7 @@ class TACOAgent:
    
     
     def update_taco(self, obs, action, action_seq, next_obs, reward):
+        # Printy data types of elements in the batch
         metrics = dict()
         
         obs_anchor = self.aug(obs.float())
@@ -297,6 +299,7 @@ class TACOAgent:
         with torch.no_grad():
             obs, action, action_seq, reward, discount, next_obs, r_next_obs = utils.to_torch(
                 batch, self.device)
+            
             metrics = dict()
             if len(reward.shape) == 1:
                 reward = reward.unsqueeze(-1)
