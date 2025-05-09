@@ -12,7 +12,7 @@ RANDOM_HAND=${RANDOM_HAND:-0}
 RANDOM_GOAL=${RANDOM_GOAL:-0}
 MODEL_PATH=${MODEL_PATH:-"none"}
 WANDB_TAG=${WANDB_TAG:-"none"}
-FREEZE=${FREEZE:-"none"}
+FREEZE=${FREEZE:-"false"}
 
 # Set seed argument based on SEED value
 if [ "$SEED" -eq 1 ]; then
