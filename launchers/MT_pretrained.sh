@@ -12,7 +12,7 @@ RANDOM_HAND=${RANDOM_HAND:-0}
 RANDOM_GOAL=${RANDOM_GOAL:-0}
 MODEL_PATH=${MODEL_PATH:-"none"}
 WANDB_TAG=${WANDB_TAG:-"none"}
-FREEZE=${FREEZE:-"false"}
+FREEZE=${FREEZE:-"none"}
 
 # Set seed argument based on SEED value
 if [ "$SEED" -eq 1 ]; then
@@ -24,7 +24,7 @@ fi
 export HYDRA_FULL_ERROR=1
 
 # Create the experiment name once to ensure consistency
-EXP_NAME="pretrained_${MODEL_PATH}_${SEED_ARG}_random_init_${RANDOM_HAND}_random_goal_${RANDOM_GOAL}"
+EXP_NAME="pretrained_${MODEL_PATH}_${SEED_ARG}_random_init_${RANDOM_HAND}_random_goal_${RANDOM_GOAL}_freeze_${FREEZE}"
 
 # Define cleanup function
 cleanup() {

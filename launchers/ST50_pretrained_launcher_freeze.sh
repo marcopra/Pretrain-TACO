@@ -17,6 +17,7 @@ freeze="true"
 
 for random_hand in $random_hand_inital; do
     for random_goal in $random_goal_inital; do
+        # Qui era presente la parola FREEZE da rimuovere
         for seed in $seeds; do
             for env_name in "${env_names[@]}"; do
                 for model_path in "${model_paths[@]}"; do
