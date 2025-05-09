@@ -10,10 +10,15 @@ fi
 cuda_device=$1
 
 # Validate cuda_device value
-if [[ ! $cuda_device =~ ^(0|1|2|3)$ ]]; then
-    echo "Error: Invalid cuda_device value. Allowed values are 0, 1, 2, or 3."
-    exit 1
-fi
+case $cuda_device in
+    0|1|2|3)
+        # Valid value
+        ;;
+    *)
+        echo "Error: Invalid cuda_device value. Allowed values are 0, 1, 2, or 3."
+        exit 1
+        ;;
+esac
 
 # Run the Python command with the appropriate arguments
 python3 train_metaworld.py exp_name=baseline${cuda_device} seed=1 env_name=push-v2 random_init=true random_goal=false wandb_tag=baseline num_train_frames=300000 device=cuda:${cuda_device} 
