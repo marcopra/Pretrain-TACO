@@ -1,6 +1,6 @@
 """
 Collects MetaWorld episodes and saves them directly in the format compatible with ReplayBuffer.
-python collect_metaworld_episodes.py --config_name "my_config" --env_names "push-v2" --expert_probs "0.7" --num_episodes 10 --no_randomize_goal
+python collect_metaworld_episodes.py --config_name "my_config" --env_names "push-v2" --expert_probs "0.0" --num_episodes 10 --no_randomize_goal
 """
 import numpy as np
 import os

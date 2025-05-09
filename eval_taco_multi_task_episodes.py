@@ -1,5 +1,5 @@
 """
-python eval_taco_multi_task_episodes.py --pretrained_path "data/debug/taco_MT_debug_lr=0.0001_ts=1000448.pt" --dataset_config "data_episodes/debug"
+python eval_taco_multi_task_episodes.py --pretrained_path "models/taco_MT_ST50_0.66_lr=0.0005_ts=50000896.pt" --dataset_config "data_episodes/my_config"
 """
 import os
 import numpy as np
@@ -300,20 +300,20 @@ class TACOAgent:
         ### Compute reward prediction loss
         if self.reward:
             reward_pred = self.TACO.reward(torch.concat([z_a, action_seq_en], dim=-1))
-            reward_loss = F.mse_loss(reward_pred.squeeze(-1), reward)
+            reward_loss = F.mse_loss(reward_pred, reward)
             # Average percentage of reward prediction error
             with torch.no_grad():
                 # Average percentage of reward prediction error
-                metrics['avg_rew_pred_error_percentage'] = torch.mean(torch.abs(reward_pred.squeeze(-1) - reward) / (reward + 1e-6)).item() 
-                error = reward_pred.squeeze(-1) - reward
+                metrics['avg_rew_pred_error_percentage'] = torch.mean(torch.abs(reward_pred - reward) / (reward + 1e-6)).item() 
+                error = reward_pred - reward
                 metrics['log_cosh'] = torch.mean(torch.log(torch.cosh(error + 1e-12))).item()
                 threshold = 1e-3  # puoi settarlo in base al tuo dominio
                 mask = reward.abs() > threshold
                 metrics['rel_error_filtered'] = torch.mean(
-                    torch.abs(reward_pred.squeeze(-1)[mask] - reward[mask]) / (reward[mask] + 1e-6)
+                    torch.abs(reward_pred[mask] - reward[mask]) / (reward[mask] + 1e-6)
                 ).item()
-                numerator = torch.abs(reward_pred.squeeze(-1) - reward)
-                denominator = torch.abs(reward_pred.squeeze(-1)) + torch.abs(reward) + 1e-6
+                numerator = torch.abs(reward_pred - reward)
+                denominator = torch.abs(reward_pred) + torch.abs(reward) + 1e-6
                 metrics['smape'] = torch.mean(2.0 * numerator / denominator).item()
 
         else:
@@ -379,18 +379,18 @@ class TACOAgent:
             
             if self.reward:
                 reward_pred = self.TACO.reward(torch.concat([z_a, action_seq_en], dim=-1))
-                reward_loss = F.mse_loss(reward_pred.squeeze(-1), reward)
+                reward_loss = F.mse_loss(reward_pred, reward)
                 # Average percentage of reward prediction error
-                metrics['avg_rew_pred_error_percentage'] = torch.mean(torch.abs(reward_pred.squeeze(-1) - reward) / (reward + 1e-6)).item() 
-                error = reward_pred.squeeze(-1) - reward
+                metrics['avg_rew_pred_error_percentage'] = torch.mean(torch.abs(reward_pred - reward) / (reward + 1e-6)).item() 
+                error = reward_pred - reward
                 metrics['log_cosh'] = torch.mean(torch.log(torch.cosh(error + 1e-12))).item()
                 threshold = 1e-3  # puoi settarlo in base al tuo dominio
                 mask = reward.abs() > threshold
                 metrics['rel_error_filtered'] = torch.mean(
-                    torch.abs(reward_pred.squeeze(-1)[mask] - reward[mask]) / (reward[mask] + 1e-6)
+                    torch.abs(reward_pred[mask] - reward[mask]) / (reward[mask] + 1e-6)
                 ).item()
-                numerator = torch.abs(reward_pred.squeeze(-1) - reward)
-                denominator = torch.abs(reward_pred.squeeze(-1)) + torch.abs(reward) + 1e-6
+                numerator = torch.abs(reward_pred - reward)
+                denominator = torch.abs(reward_pred) + torch.abs(reward) + 1e-6
                 metrics['smape'] = torch.mean(2.0 * numerator / denominator).item()
 
 
@@ -524,7 +524,11 @@ if __name__ == "__main__":
             metrics = taco_agent.evaluate(batch)
             steps += args.batch_size
             
-            print("Metrics:", metrics)  
+            print("Metrics:")
+            print("Reward Loss: ",metrics['reward_loss'])
+            print("Curl Loss: ",metrics['curl_loss'])
+            print("TACO Loss: ",metrics['taco_loss'])  
+
             # Log training metrics to wandb
             if args.use_wandb:
                 metrics['steps'] = steps
