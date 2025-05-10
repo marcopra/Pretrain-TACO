@@ -1,6 +1,6 @@
 #!/bin/bash
 
-seeds="1 1 1"
+seeds="1"
 env_names=("push-v2")
 model_paths=(
     "/home/mprattico/Pretrain-TACO/models/taco_MT_MT50_0.0_lr=0.0005_ts=50000896.pt"
