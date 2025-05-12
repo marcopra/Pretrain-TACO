@@ -1,6 +1,6 @@
 """
 Collects MetaWorld episodes and saves them directly in the format compatible with ReplayBuffer.
-python collect_metaworld_episodes.py --config_name "my_config" --env_names "push-v2" --expert_probs "0.0" --num_episodes 10 --no_randomize_goal
+python collect_metaworld_episodes.py --config_name "my_config/10" --env_names "push-v2" --expert_probs "0.1" --num_episodes 10 --no_randomize_goal
 """
 import numpy as np
 import os
@@ -268,7 +268,8 @@ def collect_episodes(config_name, env_names, expert_probs, tasks=[0], num_episod
                         
                         episode_reward += reward
                         episode_length += 1
-                        episode_success = episode_success or time_step.success == 1
+                        if time_step.success == 1:
+                            episode_success = True
 
                         if done:
                             if episode_success:
@@ -293,7 +294,6 @@ def collect_episodes(config_name, env_names, expert_probs, tasks=[0], num_episod
                     episode['discount'] = episode['discount'].reshape(-1, 1)
                     
         
-                    
                     # Save the episode only if it's not empty
                     if episode_length > 0:
                         # Generate filename with timestamp

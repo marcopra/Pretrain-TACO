@@ -24,12 +24,13 @@ fi
 export HYDRA_FULL_ERROR=1
 
 # Create the experiment name once to ensure consistency
-EXP_NAME="pretrained_${MODEL_PATH}_${SEED_ARG}_random_init_${RANDOM_HAND}_random_goal_${RANDOM_GOAL}_freeze_${FREEZE}"
+EXP_NAME="${MODEL_PATH}_${SEED_ARG}_random_init_${RANDOM_HAND}_random_goal_${RANDOM_GOAL}_freeze_${FREEZE}"
 
 # Define cleanup function
 cleanup() {
     echo "Performing cleanup: Removing experiment folder"
     rm -rf exp_local/metaworld/$EXP_NAME
+    echo
     echo "Cleanup completed"
 }
 

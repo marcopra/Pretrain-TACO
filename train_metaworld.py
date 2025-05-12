@@ -311,7 +311,8 @@ class Workspace:
     def load_snapshot(self):
         snapshot = self.work_dir / 'snapshot.pt'
         with snapshot.open('rb') as f:
-            payload = torch.load(f)
+            print("loading snapshot: ", f)
+            payload = torch.load(f, weights_only=False)
         for k, v in payload.items():
             self.__dict__[k] = v
 

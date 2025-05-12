@@ -186,6 +186,28 @@ class TACOAgent:
                  hidden_dim, critic_target_tau, num_expl_steps,
                  update_every_steps, stddev_schedule, stddev_clip, use_tb,
                  reward, multistep, latent_a_dim, curl, pretrained_path=None, freeze_encoder=False):
+        "PRINTING ALL PARAMETERS"
+        print("obs_shape: ", obs_shape)
+        print("action_shape: ", action_shape)
+        print("device: ", device)
+        print("lr: ", lr)
+        print("encoder_lr: ", encoder_lr)
+        print("feature_dim: ", feature_dim)
+        print("hidden_dim: ", hidden_dim)
+        print("critic_target_tau: ", critic_target_tau)
+        print("num_expl_steps: ", num_expl_steps)
+        print("update_every_steps: ", update_every_steps)
+        print("stddev_schedule: ", stddev_schedule)
+        print("stddev_clip: ", stddev_clip)
+        print("use_tb: ", use_tb)
+        print("reward: ", reward)
+        print("multistep: ", multistep)
+        print("latent_a_dim: ", latent_a_dim)
+        print("curl: ", curl)
+        print("pretrained_path: ", pretrained_path)
+        print("freeze_encoder: ", freeze_encoder)
+        print("")
+        # exit()
         self.device = device
         self.critic_target_tau = critic_target_tau
         self.update_every_steps = update_every_steps
@@ -289,7 +311,7 @@ class TACOAgent:
     def _check_frozen_models(self):
         """Check if frozen models have been modified"""
         if not hasattr(self, '_frozen_fingerprints'):
-            return
+            raise ValueError("No frozen fingerprints found. Did you load a pretrained model with freeze_encoder=True?")
             
         for model_name, fingerprint in self._frozen_fingerprints.items():
             model = getattr(self, model_name.upper() if model_name == 'taco' else model_name)
@@ -466,10 +488,105 @@ class TACOAgent:
         utils.soft_update_params(self.critic, self.critic_target,
                                  self.critic_target_tau)
         
-        metrics.update(self.update_taco(obs, action, action_seq, r_next_obs, reward))
+        metrics = self.update_taco(obs, action, action_seq, r_next_obs, reward)
+        metrics.update(metrics)
+        print("Metrics:")
+        print("Reward Loss: ",metrics['reward_loss'])
+        print("Curl Loss: ",metrics['curl_loss'])
+        print("TACO Loss: ",metrics['taco_loss']) 
+        metrics = self.evaluate_taco(obs, action, action_seq, r_next_obs, reward)
+        print("EVAl Metrics:")
+        print("Eval/Reward Loss: ",metrics['reward_loss'])
+        print("Eval/Curl Loss: ",metrics['curl_loss'])
+        print("Eval/TACO Loss: ",metrics['taco_loss'])  
         
         # Verify that frozen models haven't been modified
         if self.freeze_encoder and self.pretrained_path is not None and self.pretrained_path.lower() != 'none':
             self._check_frozen_models()
+            #check if the model corresponds to the pretrained one reloading from the pretrained path
+            pretrained_checkpoint = torch.load(self.pretrained_path, map_location=self.device)
+            pretrained_encoder_state = pretrained_checkpoint['encoder']
+            pretrained_taco_state = pretrained_checkpoint['taco'] 
+            pretrained_act_tok_state = pretrained_checkpoint['act_tok']
+            
+            # Compare current model states with pretrained states
+            current_encoder_state = self.encoder.state_dict()
+            current_taco_state = self.TACO.state_dict()
+            current_act_tok_state = self.act_tok.state_dict()
+            
+            # Check encoder parameters
+            for key in pretrained_encoder_state:
+                if not torch.all(torch.eq(pretrained_encoder_state[key], current_encoder_state[key])):
+                    raise ValueError(f"Encoder parameter {key} has changed when it should be frozen!")
+            
+            # Check TACO parameters
+            for key in pretrained_taco_state:
+                if not torch.all(torch.eq(pretrained_taco_state[key], current_taco_state[key])):
+                    raise ValueError(f"TACO parameter {key} has changed when it should be frozen!")
+            
+            # Check act_tok parameters
+            for key in pretrained_act_tok_state:
+                if not torch.all(torch.eq(pretrained_act_tok_state[key], current_act_tok_state[key])):
+                    raise ValueError(f"act_tok parameter {key} has changed when it should be frozen!")
+            
+            # print("All frozen models are unchanged from the pretrained model.")
+            
 
         return metrics
+    
+    def evaluate_taco(self, obs, action, action_seq, next_obs, reward):
+        with torch.no_grad():
+            metrics = dict()
+            metrics['batch_reward'] = reward.mean().item()
+
+            obs_anchor = self.aug(obs.float())
+            obs_pos = self.aug(obs.float())
+            z_a = self.TACO.encode(obs_anchor)
+            z_pos = self.TACO.encode(obs_pos, ema=True)
+            ### Compute CURL loss
+            if self.curl:
+                logits = self.TACO.compute_logits(z_a, z_pos)
+                labels = torch.arange(logits.shape[0]).long().to(self.device)
+                curl_loss = self.cross_entropy_loss(logits, labels)
+            else:
+                curl_loss = torch.tensor(0.)
+            
+            ### Compute action encodings
+            action_en = self.TACO.act_tok(action, seq=False) 
+            action_seq_en = self.TACO.act_tok(action_seq, seq=True)
+            
+            ### Compute reward prediction loss
+            if self.reward:
+                reward_pred = self.TACO.reward(torch.concat([z_a, action_seq_en], dim=-1))
+                reward_loss = F.mse_loss(reward_pred, reward)
+
+                # Average percentage of reward prediction error
+                
+                metrics['avg_rew_pred_error_percentage'] = torch.mean(torch.abs(reward_pred - reward) / (reward + 1e-6)).item() 
+                error = reward_pred - reward
+                metrics['log_cosh'] = torch.mean(torch.log(torch.cosh(error + 1e-12))).item()
+                threshold = 1e-3  # puoi settarlo in base al tuo dominio
+                mask = reward.abs() > threshold
+                metrics['rel_error_filtered'] = torch.mean(
+                    torch.abs(reward_pred[mask] - reward[mask]) / (reward[mask] + 1e-6)
+                ).item()
+                numerator = torch.abs(reward_pred - reward)
+                denominator = torch.abs(reward_pred) + torch.abs(reward) + 1e-6
+                metrics['smape'] = torch.mean(2.0 * numerator / denominator).item()
+
+            else:
+                reward_loss = torch.tensor(0.)
+            
+            ### Compute TACO loss
+            next_z = self.TACO.encode(self.aug(next_obs.float()), ema=True)
+            curr_za = self.TACO.project_sa(z_a, action_seq_en) 
+            logits = self.TACO.compute_logits(curr_za, next_z)
+            labels = torch.arange(logits.shape[0]).long().to(self.device)
+            taco_loss = self.cross_entropy_loss(logits, labels)
+            
+            if self.use_tb:
+                metrics['reward_loss']  = reward_loss.item()
+                metrics['curl_loss'] = curl_loss.item()
+                metrics['taco_loss']  = taco_loss.item()
+            return metrics
+

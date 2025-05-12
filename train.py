@@ -141,6 +141,7 @@ class Workspace:
             log('episode_length', step * self.cfg.action_repeat / episode)
             log('episode', self.global_episode)
             log('step', self.global_step)
+            log('global_frame', self.global_frame)
 
     def train(self):
         # predicates
