@@ -488,17 +488,7 @@ class TACOAgent:
         utils.soft_update_params(self.critic, self.critic_target,
                                  self.critic_target_tau)
         
-        metrics = self.update_taco(obs, action, action_seq, r_next_obs, reward)
-        metrics.update(metrics)
-        print("Metrics:")
-        print("Reward Loss: ",metrics['reward_loss'])
-        print("Curl Loss: ",metrics['curl_loss'])
-        print("TACO Loss: ",metrics['taco_loss']) 
-        metrics = self.evaluate_taco(obs, action, action_seq, r_next_obs, reward)
-        print("EVAl Metrics:")
-        print("Eval/Reward Loss: ",metrics['reward_loss'])
-        print("Eval/Curl Loss: ",metrics['curl_loss'])
-        print("Eval/TACO Loss: ",metrics['taco_loss'])  
+        metrics.update(self.update_taco(obs, action, action_seq, r_next_obs, reward))       
         
         # Verify that frozen models haven't been modified
         if self.freeze_encoder and self.pretrained_path is not None and self.pretrained_path.lower() != 'none':
