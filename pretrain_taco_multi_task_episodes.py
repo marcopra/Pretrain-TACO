@@ -85,6 +85,8 @@ if __name__ == "__main__":
     parser.add_argument('--train_ratio', type=float, default=0.8, help='Ratio of data to use for training')
     parser.add_argument('--eval_batches', type=int, default=10, help='Number of batches to use for evaluation')
     parser.add_argument('--fastwork', action='store_true', help='Prepend /home/mprattico/fastwork/ to dataset paths')
+    parser.add_argument('--no_curl', action='store_true', help='Disable CURL loss (enabled by default)')
+    parser.add_argument('--no_reward', action='store_true', help='Disable reward loss (enabled by default)')
     args = parser.parse_args()
 
     assert args.multistep == args.nstep, f"Don't know the difference between nstep and multistep, set them to the same value"
@@ -140,6 +142,8 @@ if __name__ == "__main__":
             "num_datasets": len(args.dataset_config),
             "dataset_config": args.dataset_config,
             "fastwork": args.fastwork,
+            "use_curl": not args.no_curl,
+            "use_reward": not args.no_reward,
         }
         wandb.init(
             project=args.wandb_project,
@@ -167,10 +171,10 @@ if __name__ == "__main__":
         stddev_schedule=None,
         stddev_clip=None,
         use_tb=True,
-        reward=True,
+        reward=not args.no_reward,
         multistep=args.multistep,
         latent_a_dim='none',
-        curl=True
+        curl=not args.no_curl
     )
 
     steps = 0
@@ -257,7 +261,9 @@ if __name__ == "__main__":
             # *** Save model checkpoint ***
             # Check if we need to save a checkpoint at this step
             if any(s <= steps < s + args.batch_size for s in checkpoint_steps):
-                checkpoint_path = f"{args.save_path}/taco_MT_{'_'.join(args.dataset_config.split('/')[1:])}_lr={args.lr}_ts={steps}.pt"
+                curl_str = "curl" if not args.no_curl else "nocurl"
+                reward_str = "rew" if not args.no_reward else "norew"
+                checkpoint_path = f"{args.save_path}/taco_MT_{'_'.join(args.dataset_config.split('/')[1:])}_lr={args.lr}_ts={steps}_{curl_str}_{reward_str}.pt"
                 print(f"Saving checkpoint at step {steps} to {checkpoint_path}")
                 os.makedirs(args.save_path, exist_ok=True)
                 torch.save({
@@ -275,12 +281,14 @@ if __name__ == "__main__":
     # *** Save the trained TACO agent ***
     print(f"Saving model to {args.save_path}")
     os.makedirs(args.save_path, exist_ok=True)
+    curl_str = "curl" if not args.no_curl else "nocurl"
+    reward_str = "rew" if not args.no_reward else "norew"
     torch.save({
         'encoder': taco_agent.encoder.state_dict(),
         'taco': taco_agent.TACO.state_dict(),
         'act_tok': taco_agent.act_tok.state_dict(),
         'args': vars(args),  # Save configuration for easier loading
-    }, f"{args.save_path}/taco_MT_{args.dataset_config.split('/')[-1].split('.')[0]}_lr={args.lr}_ts={args.total_steps}.pt")
+    }, f"{args.save_path}/taco_MT_{args.dataset_config.split('/')[-1].split('.')[0]}_lr={args.lr}_ts={args.total_steps}_{curl_str}_{reward_str}.pt")
     
     print(f"Training completed after {steps} steps and {epoch} epochs")
     if args.use_wandb:
