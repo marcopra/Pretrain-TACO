@@ -197,7 +197,8 @@ class Workspace:
                 'eval/episode': self.global_episode,
                 'eval/step': self.global_step,
                 'eval/success_rate': success / episode,
-                'buffer_size': len(self.replay_storage)
+                'buffer_size': len(self.replay_storage),
+                'global_frame': self.global_frame
             })
 
     def train(self):
@@ -243,6 +244,7 @@ class Workspace:
                             'episode_length': episode_frame,
                             'episode': self.global_episode,
                             'buffer_size': len(self.replay_storage),
+                            'global_frame': self.global_frame,
                             'step': self.global_step
                         })
                         
