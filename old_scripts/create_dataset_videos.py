@@ -4,49 +4,78 @@ import pickle
 import cv2
 import argparse
 import re
+import glob
+import subprocess
 from pathlib import Path
 
-def extract_episodes(dataset, max_episode_length=None):
+def extract_episodes_from_npz(npz_path):
     """
-    Extract episodes from the dataset based on terminal flags.
+    Extract episodes from a .npz file.
     
     Args:
-        dataset: Dataset dictionary with observations and terminals
-        max_episode_length: Maximum length of non-terminal episodes (None for no limit)
+        npz_path: Path to the .npz file
         
     Returns:
-        List of episodes, where each episode is a list of observations
+        Dictionary with episode data including observations
     """
-    episodes = []
-    current_episode = []
-    
-    for i in range(len(dataset['terminals'])):
-        obs = dataset['observations'][i]
-        current_episode.append(obs)
-        
-        if dataset['terminals'][i]:
-            # Terminal state reached, end of episode
-            episodes.append(current_episode)
-            current_episode = []
-        elif max_episode_length and len(current_episode) >= max_episode_length:
-            # Episode exceeded maximum length, split it
-            episodes.append(current_episode)
-            current_episode = []
-    
-    # Add the last episode if it's not empty and doesn't end with terminal
-    if current_episode:
-        episodes.append(current_episode)
-    
-    return episodes
+    try:
+        with np.load(npz_path, allow_pickle=True) as data:
+            episode = {key: data[key] for key in data.files}
+        return episode
+    except Exception as e:
+        print(f"Error loading episode from {npz_path}: {e}")
+        return None
 
-def create_episode_video(observations, output_path, episode_idx, resolution=256, frame_stack=1, save_as_png=False):
+def parse_dataset_path(dataset_path):
+    """
+    Parse the dataset path to extract metadata.
+    
+    Args:
+        dataset_path: Path to the dataset file or directory
+        
+    Returns:
+        Dictionary with parsed metadata
+    """
+    # Convert to Path object for easier path manipulation
+    path = Path(dataset_path)
+    
+    # Try to extract metadata from the folder name
+    # Format: env-name_task0_fs3_ar2_ri1_rg0_exp=99
+    folder_name = path.name if path.is_dir() else path.parent.name
+    
+    # Extract environment name and task ID
+    env_match = re.search(r'([a-z-]+)_task(\d+)', folder_name)
+    env_name = env_match.group(1) if env_match else "unknown"
+    task_id = env_match.group(2) if env_match else "0"
+    
+    # Extract frame stack
+    fs_match = re.search(r'fs(\d+)', folder_name)
+    frame_stack = int(fs_match.group(1)) if fs_match else 1
+    
+    # Extract action repeat
+    ar_match = re.search(r'ar(\d+)', folder_name)
+    action_repeat = int(ar_match.group(1)) if ar_match else 1
+    
+    # Extract expert probability
+    exp_match = re.search(r'exp=(\d+)', folder_name)
+    expert_prob = int(exp_match.group(1)) / 100.0 if exp_match else 0.0
+    
+    return {
+        'env_name': env_name,
+        'task_id': task_id,
+        'frame_stack': frame_stack,
+        'action_repeat': action_repeat,
+        'expert_prob': expert_prob,
+        'basename': os.path.basename(dataset_path)
+    }
+
+def create_episode_video(observations, output_path, resolution=256, frame_stack=1, save_as_png=False):
     """
     Create a video or save frames as PNG from an episode's observations.
     
     Args:
         observations: List of observation frames for the episode
-        output_path: Base path for the output video or frames
-        episode_idx: Episode index
+        output_path: Path for the output video or frames
         resolution: Video resolution
         frame_stack: Number of frames stacked in each observation
         save_as_png: If True, save individual frames as PNG instead of creating a video
@@ -61,79 +90,48 @@ def create_episode_video(observations, output_path, episode_idx, resolution=256,
     print(f"Observation shape: {sample_obs.shape}, dtype: {sample_obs.dtype}")
     
     for obs in observations:
-        print(obs)
         # Handle channels-first format (C, H, W)
         if len(obs.shape) == 3 and obs.shape[0] == 3 * frame_stack:
             print(f"Detected channels-first format with stacked frames: {obs.shape}")
-            # For frame_stack=3, shape would be (9, H, W)
-            # Extract most recent frame (last 3 channels) and convert to channels-last
             frame = obs[-3:].transpose(1, 2, 0)  # Convert from (3, H, W) to (H, W, 3)
         elif len(obs.shape) == 3 and obs.shape[0] > 3 and obs.shape[0] % 3 == 0:
-            # Generic case for channels-first with multiple stacked frames
             print(f"Handling generic channels-first format: {obs.shape}")
-            # Extract most recent frame and convert to channels-last
             frame = obs[-3:].transpose(1, 2, 0)
-        # Check if this is a stacked observation in channels-last format
         elif frame_stack > 1 and len(obs.shape) == 3 and obs.shape[2] == 3 * frame_stack:
-            # Extract the most recent frame (last 3 channels)
             frame = obs[:, :, -3:]
-        # If the shape is (H, W) - grayscale image
         elif len(obs.shape) == 2:
-            # Convert grayscale to RGB
             frame = np.stack([obs, obs, obs], axis=2)
-        # If the observation has an unusual shape that might need transposition
         elif len(obs.shape) == 3 and (obs.shape[0] == resolution or obs.shape[0] == 84):
-            # This might be a transposed observation with shape (84, 84, 9) or similar
             print(f"Handling transposed observation: {obs.shape}")
             if obs.shape[2] >= 3:
-                # If depth/channels is 3 or more, it might be a misaligned RGB image
                 frame = obs
             else:
-                # If first dimension is resolution, this might be a channels-first grayscale
-                # Transpose and convert to RGB
                 frame = np.stack([obs[:, :, 0], obs[:, :, 0], obs[:, :, 0]], axis=2)
-        # If the resolution equals the number of channels - transposed observation
         elif len(obs.shape) == 3 and (obs.shape[2] == resolution or obs.shape[2] > 10):
-            # This might be a transposed observation
             print(f"Unusual observation shape detected: {obs.shape}. Attempting to reshape...")
-            # Attempt to reshape to a proper image format
             if obs.shape[2] == resolution:
-                # Might be a square grayscale image in wrong orientation
                 frame = obs.reshape(resolution, resolution, 1)
-                # Convert grayscale to RGB
                 frame = np.concatenate([frame, frame, frame], axis=2)
             else:
-                # If not sure, convert to a displayable format
-                # Use only first 3 channels or average across channels to create RGB
                 if obs.shape[2] >= 3:
-                    frame = obs[:, :, :3]  # Take first 3 channels
+                    frame = obs[:, :, :3]
                 else:
-                    # Average across channels to get a single channel, then duplicate for RGB
                     avg_channel = np.mean(obs, axis=2, keepdims=True)
                     frame = np.concatenate([avg_channel, avg_channel, avg_channel], axis=2)
         else:
-            # Standard RGB image
             frame = obs
             
-        print(f"Processed frame shape: {frame.shape}, dtype: {frame.dtype}, frame_stack: {frame}")
-        # Make sure frame is 3-channel for video
         if len(frame.shape) == 2 or (len(frame.shape) == 3 and frame.shape[2] == 1):
-            # Convert grayscale to RGB
             if len(frame.shape) == 3:
-                frame = frame[:, :, 0]  # Extract the single channel
+                frame = frame[:, :, 0]
             frame = np.stack([frame, frame, frame], axis=2)
             
-        # Ensure we have 3 channels for video
         if len(frame.shape) != 3 or frame.shape[2] != 3:
             print(f"Warning: Unusual frame shape after processing: {frame.shape}. Attempting to fix.")
-            # Handle various cases
             if len(frame.shape) == 3 and frame.shape[2] > 3:
-                # Too many channels, take first 3
                 frame = frame[:, :, :3]
             else:
-                # Create placeholder frame with correct shape
                 placeholder = np.zeros((resolution, resolution, 3), dtype=np.uint8)
-                # Try to embed original data in some way
                 if len(frame.shape) >= 2:
                     h, w = min(resolution, frame.shape[0]), min(resolution, frame.shape[1])
                     if len(frame.shape) == 3:
@@ -145,152 +143,172 @@ def create_episode_video(observations, output_path, episode_idx, resolution=256,
                         placeholder[:h, :w, 2] = frame[:h, :w]
                 frame = placeholder
         
-        # Resize the frame if necessary
         if frame.shape[0] < resolution or frame.shape[1] < resolution:
             frame = cv2.resize(frame, (resolution, resolution), interpolation=cv2.INTER_CUBIC)
         
-        # Ensure frame is uint8 for video encoding
         if frame.dtype != np.uint8:
             if frame.max() <= 1.0:
                 frame = (frame * 255).astype(np.uint8)
             else:
                 frame = frame.astype(np.uint8)
-                
+        
+        # Flip the frame vertically to correct orientation
+        frame = cv2.flip(frame, 0)  # 0 means flipping around x-axis (vertical flip)
+        
         frames.append(frame)
     
-    # Define the output path
     if save_as_png:
-        # Create a directory for frame images
-        frames_dir = f"{output_path}_ep{episode_idx}_frames"
+        frames_dir = f"{output_path}_frames"
         os.makedirs(frames_dir, exist_ok=True)
         
-        # Save each frame as PNG
         for i, frame in enumerate(frames):
-            # Convert RGB to BGR for OpenCV
             if frame.shape[2] == 3:
                 frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
             
-            # Save the frame
             frame_path = os.path.join(frames_dir, f"frame_{i:04d}.png")
             cv2.imwrite(frame_path, frame)
         
         print(f"Saved {len(frames)} frames to {frames_dir}")
     else:
-        # Define the output video path
-        video_path = f"{output_path}_ep{episode_idx}.mp4"
-        
-        # Create video writer
-        height, width = frames[0].shape[:2]
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        video = cv2.VideoWriter(video_path, fourcc, 30, (width, height))
-        
-        # Write frames to video
-        for frame in frames:
-            # Convert RGB to BGR for OpenCV if needed
-            if frame.shape[2] == 3:  # Make sure it's a 3-channel image
-                frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+        try:
+            temp_dir = os.path.join(os.path.dirname(output_path), "temp_frames")
+            os.makedirs(temp_dir, exist_ok=True)
+            
+            for i, frame in enumerate(frames):
+                if frame.dtype != np.uint8:
+                    if frame.max() <= 1.0:
+                        frame = (frame * 255).astype(np.uint8)
+                    else:
+                        frame = frame.astype(np.uint8)
+                
+                if len(frame.shape) == 3 and frame.shape[2] == 3:
+                    frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                else:
+                    frame_bgr = frame
+                
+                frame_path = os.path.join(temp_dir, f"frame_{i:04d}.png")
+                cv2.imwrite(frame_path, frame_bgr)
+            
+            ffmpeg_cmd = [
+                "ffmpeg", "-y",
+                "-framerate", "30",
+                "-i", os.path.join(temp_dir, "frame_%04d.png"),
+                "-c:v", "libx264",
+                "-preset", "medium", 
+                "-pix_fmt", "yuv420p",
+                "-crf", "23",
+                output_path
+            ]
+            
+            print(f"Running ffmpeg command to create video: {' '.join(ffmpeg_cmd)}")
+            subprocess.run(ffmpeg_cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            
+            if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
+                print(f"Successfully created video: {output_path} ({os.path.getsize(output_path)} bytes)")
             else:
-                print(f"Warning: Frame has unexpected number of channels: {frame.shape[2]}. Writing as is.")
-            video.write(frame)
-        
-        video.release()
-        print(f"Saved video to {video_path}")
+                print(f"Video creation failed or file is empty: {output_path}")
+                
+            for file in os.listdir(temp_dir):
+                os.remove(os.path.join(temp_dir, file))
+            os.rmdir(temp_dir)
+                
+        except Exception as e:
+            print(f"Error creating video with ffmpeg: {e}")
+            try:
+                height, width = frames[0].shape[:2]
+                
+                if width % 2 == 1:
+                    width -= 1
+                if height % 2 == 1:
+                    height -= 1
+                
+                for codec in ['avc1', 'H264', 'XVID', 'MJPG', 'mp4v']:
+                    try:
+                        fourcc = cv2.VideoWriter_fourcc(*codec)
+                        video = cv2.VideoWriter(output_path, fourcc, 30, (width, height))
+                        
+                        if video.isOpened():
+                            for frame in frames:
+                                if frame.shape[0] != height or frame.shape[1] != width:
+                                    frame = cv2.resize(frame, (width, height))
+                                
+                                if frame.shape[2] == 3:
+                                    frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                                
+                                video.write(frame)
+                            
+                            video.release()
+                            print(f"Saved video to {output_path} using codec {codec}")
+                            
+                            if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
+                                break
+                    except Exception as codec_error:
+                        print(f"Error with codec {codec}: {codec_error}")
+            except Exception as cv_error:
+                print(f"OpenCV video writing failed: {cv_error}")
 
-def parse_dataset_path(dataset_path):
-    """
-    Parse the dataset path to extract metadata.
-    
-    Args:
-        dataset_path: Path to the dataset file
-        
-    Returns:
-        Dictionary with parsed metadata
-    """
-    # Extract meaningful parts from the path
-    basename = os.path.basename(dataset_path)
-    
-    # Extract parameters using regex
-    env_match = re.search(r'([a-z-]+)_task(\d+)', basename)
-    env_name = env_match.group(1) if env_match else "unknown"
-    task_id = env_match.group(2) if env_match else "0"
-    
-    frame_stack = int(re.search(r'fs(\d+)', basename).group(1)) if re.search(r'fs(\d+)', basename) else 1
-    action_repeat = int(re.search(r'ar(\d+)', basename).group(1)) if re.search(r'ar(\d+)', basename) else 1
-    
-    return {
-        'env_name': env_name,
-        'task_id': task_id,
-        'frame_stack': frame_stack,
-        'action_repeat': action_repeat,
-        'basename': basename
-    }
-
-def create_videos(dataset_path, resolution=256, max_episodes=None, max_episode_length=None, save_as_png=False):
-    """
-    Create videos for episodes in the dataset.
-    
-    Args:
-        dataset_path: Path to the dataset file
-        resolution: Resolution of the output videos
-        max_episodes: Maximum number of episodes to process (None for all)
-        max_episode_length: Maximum length of non-terminal episodes (None for no limit)
-        save_as_png: If True, save individual frames as PNG instead of creating a video
-    """
-    print(f"Loading dataset from {dataset_path}...")
-    # Load the dataset
-    try:
-        with open(dataset_path, 'rb') as f:
-            dataset = pickle.load(f)
-    except Exception as e:
-        print(f"Error loading dataset: {e}")
-        return
-    
-    # Get metadata from dataset path
-    metadata = parse_dataset_path(dataset_path)
-    print(f"Processing dataset with metadata: {metadata}")
+def process_npz_episodes(directory_path, resolution=256, max_episodes=None, save_as_png=False):
+    metadata = parse_dataset_path(directory_path)
+    print(f"Processing directory with metadata: {metadata}")
     print(f"Frame stack: {metadata['frame_stack']}, Action repeat: {metadata['action_repeat']}")
     
-    # Print observation shape to understand the data structure
-    if 'observations' in dataset and len(dataset['observations']) > 0:
-        sample_obs = dataset['observations'][0]
-        print(f"Sample observation shape: {sample_obs.shape}, dtype: {sample_obs.dtype}")
+    npz_files = sorted(glob.glob(os.path.join(directory_path, "*.npz")))
     
-    # Extract episodes
-    episodes = extract_episodes(dataset, max_episode_length)
-    print(f"Found {len(episodes)} episodes in the dataset")
+    if not npz_files:
+        print(f"No .npz files found in {directory_path}")
+        return
     
-    # Create output directory based on dataset path
-    output_dir = os.path.join(os.path.dirname(dataset_path), "videos")
-    os.makedirs(output_dir, exist_ok=True)
+    print(f"Found {len(npz_files)} .npz files in {directory_path}")
     
-    # Base output path for videos
-    filename_base = os.path.splitext(os.path.basename(dataset_path))[0]
-    base_output_path = os.path.join(output_dir, filename_base)
+    videos_dir = os.path.join(directory_path, "videos")
+    os.makedirs(videos_dir, exist_ok=True)
     
-    # Process at most max_episodes episodes
-    episodes_to_process = episodes[:max_episodes] if max_episodes else episodes
+    files_to_process = npz_files[:max_episodes] if max_episodes else npz_files
     
-    # Create a video for each episode
-    for i, episode in enumerate(episodes_to_process):
-        print(f"Creating video for episode {i+1} of {len(episodes_to_process)} with length {len(episode)}")
-        create_episode_video(episode, base_output_path, i+1, resolution, metadata['frame_stack'], save_as_png)
+    for i, npz_path in enumerate(files_to_process):
+        npz_basename = os.path.basename(npz_path)
+        video_basename = os.path.splitext(npz_basename)[0] + ".mp4"
+        video_path = os.path.join(videos_dir, video_basename)
+        
+        if os.path.exists(video_path) and not save_as_png:
+            print(f"Video already exists: {video_path}, skipping")
+            continue
+        
+        print(f"Processing episode {i+1} of {len(files_to_process)}: {npz_path}")
+        
+        episode_data = extract_episodes_from_npz(npz_path)
+        if episode_data is None:
+            continue
+            
+        observations = episode_data.get('observation', [])
+        
+        if len(observations) == 0:
+            print(f"No observations found in {npz_path}")
+            continue
+            
+        print(f"Episode length: {len(observations)}")
+        
+        create_episode_video(
+            observations=observations,
+            output_path=video_path,
+            resolution=resolution,
+            frame_stack=metadata['frame_stack'],
+            save_as_png=save_as_png
+        )
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Create videos from a dataset of trajectories")
+    parser = argparse.ArgumentParser(description="Create videos from dataset episodes")
     parser.add_argument("--dataset_path", type=str, required=True,
-                        help="Path to the dataset file")
+                        help="Path to the dataset directory containing .npz files")
     parser.add_argument("--resolution", type=int, default=256,
                         help="Resolution for the output videos (minimum 256)")
     parser.add_argument("--max_episodes", type=int, default=None,
                         help="Maximum number of episodes to process (None for all)")
-    parser.add_argument("--max_episode_length", type=int, default=None,
-                        help="Maximum length of non-terminal episodes (None for no limit)")
     parser.add_argument("--save_as_png", action="store_true",
                         help="Save individual frames as PNG files instead of creating a video")
     
     args = parser.parse_args()
     
-    # Ensure resolution is at least 256
-    resolution = args.resolution
+    resolution = max(256, args.resolution)
     
-    create_videos(args.dataset_path, resolution, args.max_episodes, args.max_episode_length, args.save_as_png)
+    process_npz_episodes(args.dataset_path, resolution, args.max_episodes, args.save_as_png)

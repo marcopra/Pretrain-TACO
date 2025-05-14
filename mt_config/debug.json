@@ -1,8 +1,0 @@
-{
-    "pretraining_datasets": [
-      "data/ST50/exp=20/push-v2_task0_fs3_ar2_ri1_rg0_exp=20_ds=2000"
-    ],
-    "test_dataset": [
-      "data/ST50/exp=20/push-v2_task1_fs3_ar2_ri1_rg0_exp=20_ds=2000"
-    ]
-    }
