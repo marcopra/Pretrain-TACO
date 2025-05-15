@@ -193,6 +193,7 @@ def make_replay_loader(replay_dir, max_size, batch_size, num_workers,
                             discount,
                             fetch_every=1000,
                             save_snapshot=save_snapshot)
+    print(f"Replay buffer size: {len(iterable)}")
 
     loader = torch.utils.data.DataLoader(iterable,
                                          batch_size=batch_size,

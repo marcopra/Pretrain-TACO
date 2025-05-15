@@ -122,7 +122,7 @@ def save_episode_video(frames, video_dir, env_name, expert_prob, episode_num):
 def collect_episodes(config_name, env_names, expert_probs, tasks=[0], num_episodes=1000, 
                     resolution=84, render_resolution=1024, camera='corner', 
                     include_depth=False, save_example=False, frame_stack=1, action_repeat=1,
-                    random_init=True, randomize_goal_and_object_pos=True, render_episodes=1):
+                    random_init=True, randomize_goal_and_object_pos=True, stop_on_success = False, render_episodes=1):
     """
     Collects episodes from MetaWorld environments with image observations and saves them
     directly in the format compatible with ReplayBuffer.
@@ -142,6 +142,7 @@ def collect_episodes(config_name, env_names, expert_probs, tasks=[0], num_episod
         action_repeat: Number of times to repeat the same action
         random_init: Whether to randomize the initial hand position
         randomize_goal_and_object_pos: Whether to randomize the goal and object positions
+        stop_on_success: Whether to stop the episode when success is achieved
         render_episodes: Number of episodes to render for video
     """
     for expert_prob in expert_probs:
@@ -149,7 +150,7 @@ def collect_episodes(config_name, env_names, expert_probs, tasks=[0], num_episod
             for task in tasks:
                 logger.info(f"\n===== Collecting episodes for {env_name} and task {task} with expert_prob={expert_prob} =====")
                 logger.info(f"Frame stack: {frame_stack}, Action repeat: {action_repeat}")
-                logger.info(f"Random init: {random_init}, Random goal/object pos: {randomize_goal_and_object_pos}")
+                logger.info(f"Random init: {random_init}, Random goal/object pos: {randomize_goal_and_object_pos}, Stop on success: {stop_on_success}")
                 
                 # Create dataset name from parameters
                 dataset_name = f"{env_name}_task{task}_fs{frame_stack}_ar{action_repeat}_ri{int(random_init)}_rg{int(randomize_goal_and_object_pos)}_exp={int(expert_prob*100)}"
@@ -180,7 +181,7 @@ def collect_episodes(config_name, env_names, expert_probs, tasks=[0], num_episod
                 
                 # Create environment with image observations 
                 env = make(env_name, task, frame_stack=frame_stack, action_repeat=action_repeat, seed=42, resolution=resolution, 
-                        camera=camera, random_init=random_init, randomize_goal_and_object_pos=randomize_goal_and_object_pos, data_collection=False)
+                        camera=camera, random_init=random_init, randomize_goal_and_object_pos=randomize_goal_and_object_pos, data_collection=stop_on_success)
                 
                 # Get the expert policy
                 policy = get_policy(env_name)
@@ -295,7 +296,7 @@ def collect_episodes(config_name, env_names, expert_probs, tasks=[0], num_episod
                     
         
                     # Save the episode only if it's not empty
-                    if episode_length > 0:
+                    if episode_length > 10:
                         # Generate filename with timestamp
                         ts = datetime.datetime.now().strftime('%Y%m%dT%H%M%S')
                         filename = f'{ts}_{episodes_collected}_{episode_length}.npz'
@@ -357,6 +358,8 @@ if __name__ == "__main__":
                         help="Whether to randomize the goal and object positions")
     parser.add_argument("--no_randomize_goal", action="store_false", dest="randomize_goal",
                         help="Disable randomization of the goal and object positions")
+    parser.add_argument("--stop_on_success", action="store_true",
+                        help="Whether to stop the episode when success")
     parser.add_argument("--resolution", type=int, default=84,
                         help="Resolution for observations")
     parser.add_argument("--render_resolution", type=int, default=1024,
@@ -393,6 +396,7 @@ if __name__ == "__main__":
     logger.info(f"Action repeat: {args.action_repeat}")
     logger.info(f"Random init: {args.random_init}")
     logger.info(f"Randomize goal: {args.randomize_goal}")
+    logger.info(f"Stop on success: {args.stop_on_success}")
     logger.info(f"Logging level: {args.log_level}")
     
     collect_episodes(
@@ -407,5 +411,6 @@ if __name__ == "__main__":
         randomize_goal_and_object_pos=args.randomize_goal,
         resolution=args.resolution,
         render_resolution=args.render_resolution,
+        stop_on_success=args.stop_on_success,
         render_episodes=args.render_episodes
     )
