@@ -12,5 +12,9 @@ agent:
   feature_dim: ${feature_dim}
   stddev_schedule: ${stddev_schedule}
   stddev_clip: 0.3
+  pretrained_path: ${pretrained_path}
+  freeze_encoder: ${freeze_encoder}
 
 batch_size: 256
+pretrained_path: none
+freeze_encoder: false

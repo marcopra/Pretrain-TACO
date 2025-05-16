@@ -186,28 +186,7 @@ class TACOAgent:
                  hidden_dim, critic_target_tau, num_expl_steps,
                  update_every_steps, stddev_schedule, stddev_clip, use_tb,
                  reward, multistep, latent_a_dim, curl, pretrained_path=None, freeze_encoder=False):
-        "PRINTING ALL PARAMETERS"
-        print("obs_shape: ", obs_shape)
-        print("action_shape: ", action_shape)
-        print("device: ", device)
-        print("lr: ", lr)
-        print("encoder_lr: ", encoder_lr)
-        print("feature_dim: ", feature_dim)
-        print("hidden_dim: ", hidden_dim)
-        print("critic_target_tau: ", critic_target_tau)
-        print("num_expl_steps: ", num_expl_steps)
-        print("update_every_steps: ", update_every_steps)
-        print("stddev_schedule: ", stddev_schedule)
-        print("stddev_clip: ", stddev_clip)
-        print("use_tb: ", use_tb)
-        print("reward: ", reward)
-        print("multistep: ", multistep)
-        print("latent_a_dim: ", latent_a_dim)
-        print("curl: ", curl)
-        print("pretrained_path: ", pretrained_path)
-        print("freeze_encoder: ", freeze_encoder)
-        print("")
-        # exit()
+    
         self.device = device
         self.critic_target_tau = critic_target_tau
         self.update_every_steps = update_every_steps
@@ -490,36 +469,36 @@ class TACOAgent:
         
         metrics.update(self.update_taco(obs, action, action_seq, r_next_obs, reward))       
         
-        # Verify that frozen models haven't been modified
-        if self.freeze_encoder and self.pretrained_path is not None and self.pretrained_path.lower() != 'none':
-            self._check_frozen_models()
-            #check if the model corresponds to the pretrained one reloading from the pretrained path
-            pretrained_checkpoint = torch.load(self.pretrained_path, map_location=self.device)
-            pretrained_encoder_state = pretrained_checkpoint['encoder']
-            pretrained_taco_state = pretrained_checkpoint['taco'] 
-            pretrained_act_tok_state = pretrained_checkpoint['act_tok']
+        # # Verify that frozen models haven't been modified
+        # if self.freeze_encoder and self.pretrained_path is not None and self.pretrained_path.lower() != 'none':
+        #     self._check_frozen_models()
+        #     #check if the model corresponds to the pretrained one reloading from the pretrained path
+        #     pretrained_checkpoint = torch.load(self.pretrained_path, map_location=self.device)
+        #     pretrained_encoder_state = pretrained_checkpoint['encoder']
+        #     pretrained_taco_state = pretrained_checkpoint['taco'] 
+        #     pretrained_act_tok_state = pretrained_checkpoint['act_tok']
             
-            # Compare current model states with pretrained states
-            current_encoder_state = self.encoder.state_dict()
-            current_taco_state = self.TACO.state_dict()
-            current_act_tok_state = self.act_tok.state_dict()
+        #     # Compare current model states with pretrained states
+        #     current_encoder_state = self.encoder.state_dict()
+        #     current_taco_state = self.TACO.state_dict()
+        #     current_act_tok_state = self.act_tok.state_dict()
             
-            # Check encoder parameters
-            for key in pretrained_encoder_state:
-                if not torch.all(torch.eq(pretrained_encoder_state[key], current_encoder_state[key])):
-                    raise ValueError(f"Encoder parameter {key} has changed when it should be frozen!")
+        #     # Check encoder parameters
+        #     for key in pretrained_encoder_state:
+        #         if not torch.all(torch.eq(pretrained_encoder_state[key], current_encoder_state[key])):
+        #             raise ValueError(f"Encoder parameter {key} has changed when it should be frozen!")
             
-            # Check TACO parameters
-            for key in pretrained_taco_state:
-                if not torch.all(torch.eq(pretrained_taco_state[key], current_taco_state[key])):
-                    raise ValueError(f"TACO parameter {key} has changed when it should be frozen!")
+        #     # Check TACO parameters
+        #     for key in pretrained_taco_state:
+        #         if not torch.all(torch.eq(pretrained_taco_state[key], current_taco_state[key])):
+        #             raise ValueError(f"TACO parameter {key} has changed when it should be frozen!")
             
-            # Check act_tok parameters
-            for key in pretrained_act_tok_state:
-                if not torch.all(torch.eq(pretrained_act_tok_state[key], current_act_tok_state[key])):
-                    raise ValueError(f"act_tok parameter {key} has changed when it should be frozen!")
+        #     # Check act_tok parameters
+        #     for key in pretrained_act_tok_state:
+        #         if not torch.all(torch.eq(pretrained_act_tok_state[key], current_act_tok_state[key])):
+        #             raise ValueError(f"act_tok parameter {key} has changed when it should be frozen!")
             
-            # print("All frozen models are unchanged from the pretrained model.")
+        #     # print("All frozen models are unchanged from the pretrained model.")
             
 
         return metrics

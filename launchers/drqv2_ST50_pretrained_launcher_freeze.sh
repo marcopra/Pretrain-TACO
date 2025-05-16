@@ -8,17 +8,20 @@ model_paths=(
     "/home/mprattico/Pretrain-TACO/models/taco_MT_ST50_0.66_lr=0.0005_ts=200000512_curl_rew.pt"
     "/home/mprattico/Pretrain-TACO/models/taco_MT_ST50_0.99_lr=0.0005_ts=200000512_curl_rew.pt"
 )
+   
 random_hand_inital="true"
 random_goal_inital="false"
-wandb_tag="ST50"
+wandb_tag="ST50-FREEZE"
+freeze="true"
 
 for random_hand in $random_hand_inital; do
     for random_goal in $random_goal_inital; do
+        # Qui era presente la parola FREEZE da rimuovere
         for seed in $seeds; do
             for env_name in "${env_names[@]}"; do
                 for model_path in "${model_paths[@]}"; do
-                echo "Submitting job: ENV_NAME=${env_name}, RANDOM_HAND=${random_hand}, RANDOM_GOAL=${random_goal}, SEED=${seed}"
-                qsub -v SEED="${seed}",ENV_NAME="${env_name}",RANDOM_HAND="${random_hand}",RANDOM_GOAL="${random_goal}",MODEL_PATH="${model_path}",WANDB_TAG="${wandb_tag}" launchers/MT_pretrained.sh
+                echo "Submitting job: ENV_NAME=${env_name}, RANDOM_HAND=${random_hand}, RANDOM_GOAL=${random_goal}, FREEZE=${freeze}"
+                qsub -v SEED="${seed}",ENV_NAME="${env_name}",RANDOM_HAND="${random_hand}",RANDOM_GOAL="${random_goal}",MODEL_PATH="${model_path}",WANDB_TAG="${wandb_tag}",FREEZE="${freeze}" launchers/drqv2_MT_pretrained.sh
                 done
             done
         done

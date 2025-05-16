@@ -119,7 +119,7 @@ class Critic(nn.Module):
 class DrQV2Agent:
     def __init__(self, obs_shape, action_shape, device, lr, feature_dim,
                  hidden_dim, critic_target_tau, num_expl_steps,
-                 update_every_steps, stddev_schedule, stddev_clip, use_tb):
+                 update_every_steps, stddev_schedule, stddev_clip, use_tb, pretrained_path=None, freeze_encoder=False):
         self.device = device
         self.critic_target_tau = critic_target_tau
         self.update_every_steps = update_every_steps
@@ -129,6 +129,7 @@ class DrQV2Agent:
         self.stddev_clip = stddev_clip
         
         self.encoder = Encoder(obs_shape, feature_dim).to(device)
+        self.freeze_encoder = freeze_encoder
         self.actor = Actor(self.encoder.repr_dim, action_shape, feature_dim,
                            hidden_dim).to(device)
 
@@ -147,9 +148,82 @@ class DrQV2Agent:
         # data augmentation
         self.aug = RandomShiftsAug(pad=4)
 
+        if pretrained_path is None or pretrained_path.lower() == 'none':
+            print("No pretrained model provided, initializing from scratch.")
+        else:
+            print(f"Loading pretrained model from {pretrained_path}, freeze encoder: {freeze_encoder}")
+            self.load_pretrained(pretrained_path, None, self.freeze_encoder)
+            
+        self.pretrained_path = pretrained_path
+
         self.train()
         self.critic_target.train()
 
+    def load_pretrained(self, model_path, map_location=None, freeze_encoder=False):
+        """
+        Load a pretrained TACO model from a saved checkpoint.
+        
+        Args:
+            model_path: Path to the saved model checkpoint
+            map_location: Optional device mapping for torch.load
+        
+        Returns:
+            dict: The original training arguments
+        """
+        if map_location is None:
+            map_location = self.device
+            
+        checkpoint = torch.load(model_path, map_location=map_location)
+        
+        self.encoder.load_state_dict(checkpoint['encoder'])
+
+        
+        # Store model fingerprints if we're freezing the encoder
+        if freeze_encoder:
+            self._frozen_fingerprints = {
+                'encoder': self._get_model_fingerprint(self.encoder),
+    
+            }
+
+            self.encoder.eval()
+           
+            # Disabilita i gradienti per tutti i parametri
+            for param in self.encoder.parameters():
+                param.requires_grad = False
+            
+        
+        print(f"Loaded pretrained model from {model_path}")
+        
+        return checkpoint.get('args', {})  # Return the saved args for reference
+    
+    def _get_model_fingerprint(self, model):
+        """Generate a unique fingerprint for model parameters"""
+        return {name: param.data.clone() for name, param in model.named_parameters()}
+        
+    def _check_frozen_models(self):
+        """Check if frozen models have been modified"""
+        if not hasattr(self, '_frozen_fingerprints'):
+            raise ValueError("No frozen fingerprints found. Did you load a pretrained model with freeze_encoder=True?")
+            
+        for model_name, fingerprint in self._frozen_fingerprints.items():
+            model = getattr(self, model_name.upper() if model_name == 'taco' else model_name)
+            current_fingerprint = self._get_model_fingerprint(model)
+            
+            for param_name, stored_param in fingerprint.items():
+                current_param = current_fingerprint[param_name]
+                assert torch.all(torch.eq(current_param, stored_param)), f"Parameter {param_name} in {model_name} has changed when it should be frozen!"
+
+    def unfreeze_encoder(self):
+        """Riattiva i gradienti per i modelli congelati"""
+        if hasattr(self, '_frozen_fingerprints'):
+            for param in self.encoder.parameters():
+                param.requires_grad = True
+            
+            self.encoder.train()
+            
+            del self._frozen_fingerprints
+            self.freeze_encoder = False
+            
     def train(self, training=True):
         self.training = training
         self.encoder.train(training)
@@ -238,6 +312,8 @@ class DrQV2Agent:
         next_obs_en = self.aug(next_obs.float())
         # encode
         obs_en = self.encoder(obs_en)
+        if self.freeze_encoder:
+            obs_en = obs_en.detach()
         with torch.no_grad():
             next_obs_en = self.encoder(next_obs_en)
         
@@ -254,5 +330,36 @@ class DrQV2Agent:
         # update critic target
         utils.soft_update_params(self.critic, self.critic_target,
                                  self.critic_target_tau)
+
+        # Verify that frozen models haven't been modified
+        if self.freeze_encoder and self.pretrained_path is not None and self.pretrained_path.lower() != 'none':
+            self._check_frozen_models()
+            #check if the model corresponds to the pretrained one reloading from the pretrained path
+            pretrained_checkpoint = torch.load(self.pretrained_path, map_location=self.device)
+            pretrained_encoder_state = pretrained_checkpoint['encoder']
+            pretrained_taco_state = pretrained_checkpoint['taco'] 
+            pretrained_act_tok_state = pretrained_checkpoint['act_tok']
+            
+            # Compare current model states with pretrained states
+            current_encoder_state = self.encoder.state_dict()
+            current_taco_state = self.TACO.state_dict()
+            current_act_tok_state = self.act_tok.state_dict()
+            
+            # Check encoder parameters
+            for key in pretrained_encoder_state:
+                if not torch.all(torch.eq(pretrained_encoder_state[key], current_encoder_state[key])):
+                    raise ValueError(f"Encoder parameter {key} has changed when it should be frozen!")
+            
+            # Check TACO parameters
+            for key in pretrained_taco_state:
+                if not torch.all(torch.eq(pretrained_taco_state[key], current_taco_state[key])):
+                    raise ValueError(f"TACO parameter {key} has changed when it should be frozen!")
+            
+            # Check act_tok parameters
+            for key in pretrained_act_tok_state:
+                if not torch.all(torch.eq(pretrained_act_tok_state[key], current_act_tok_state[key])):
+                    raise ValueError(f"act_tok parameter {key} has changed when it should be frozen!")
+            
+            print("All frozen models are unchanged from the pretrained model.")
 
         return metrics
