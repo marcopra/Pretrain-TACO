@@ -161,7 +161,7 @@ class DrQV2Agent:
 
     def load_pretrained(self, model_path, map_location=None, freeze_encoder=False):
         """
-        Load a pretrained TACO model from a saved checkpoint.
+        Load a pretrained model from a saved checkpoint.
         
         Args:
             model_path: Path to the saved model checkpoint
@@ -337,29 +337,15 @@ class DrQV2Agent:
             #check if the model corresponds to the pretrained one reloading from the pretrained path
             pretrained_checkpoint = torch.load(self.pretrained_path, map_location=self.device)
             pretrained_encoder_state = pretrained_checkpoint['encoder']
-            pretrained_taco_state = pretrained_checkpoint['taco'] 
-            pretrained_act_tok_state = pretrained_checkpoint['act_tok']
+        
             
             # Compare current model states with pretrained states
             current_encoder_state = self.encoder.state_dict()
-            current_taco_state = self.TACO.state_dict()
-            current_act_tok_state = self.act_tok.state_dict()
             
             # Check encoder parameters
             for key in pretrained_encoder_state:
                 if not torch.all(torch.eq(pretrained_encoder_state[key], current_encoder_state[key])):
                     raise ValueError(f"Encoder parameter {key} has changed when it should be frozen!")
             
-            # Check TACO parameters
-            for key in pretrained_taco_state:
-                if not torch.all(torch.eq(pretrained_taco_state[key], current_taco_state[key])):
-                    raise ValueError(f"TACO parameter {key} has changed when it should be frozen!")
-            
-            # Check act_tok parameters
-            for key in pretrained_act_tok_state:
-                if not torch.all(torch.eq(pretrained_act_tok_state[key], current_act_tok_state[key])):
-                    raise ValueError(f"act_tok parameter {key} has changed when it should be frozen!")
-            
-            print("All frozen models are unchanged from the pretrained model.")
 
         return metrics
