@@ -56,19 +56,19 @@ else
 fi
 
 # Run the Python command with the appropriate arguments
-python3 train_metaworld.py agent.pretrained_path="/home/mprattico/Pretrain-TACO/models/taco_MT_MT50_0.${exp}_lr\=0.0005_ts\=200000512_curl_rew.pt"  exp_name="/home/mprattico/Pretrain-TACO/models/taco_MT_MT50_0.${exp}_lr\=0.0005_ts\=200000512_curl_rew.pt" seed=1 env_name=push-v2 random_init=true random_goal=false wandb_tag=MT50${wandb_suffix} num_train_frames=300000 device=cuda:${cuda_device} agent.freeze_encoder=${freeze_encoder}
+python3 train_metaworld.py --config-name config_drqv2metaworld agent.pretrained_path="/home/mprattico/Pretrain-TACO/models/taco_MT_MT50_0.${exp}_lr\=0.0005_ts\=200000512_curl_rew.pt" exp_name="/home/mprattico/Pretrain-TACO/models/taco_MT_MT50_0.${exp}_lr\=0.0005_ts\=200000512_curl_rew.pt" seed=1 env_name=push-v2 random_init=true random_goal=false wandb_tag=MT50${wandb_suffix} num_train_frames=300000 device=cuda:${cuda_device} agent.freeze_encoder=${freeze_encoder}
 
 # Cleanup command
 rm -rf exp_local/metaworld/home/mprattico/Pretrain-TACO/models/taco_MT_MT50_0.${exp}_lr\=0.0005_ts\=200000512_curl_rew.pt
 
 # Run the Python command with the appropriate arguments
-python3 train_metaworld.py agent.pretrained_path="/home/mprattico/Pretrain-TACO/models/taco_MT_MT50_0.${exp}_lr\=0.0005_ts\=200000512_curl_rew.pt"  exp_name="/home/mprattico/Pretrain-TACO/models/taco_MT_MT50_0.${exp}_lr\=0.0005_ts\=200000512_curl_rew.pt" seed=1 env_name=push-v2 random_init=true random_goal=false wandb_tag=MT50${wandb_suffix} num_train_frames=300000 device=cuda:${cuda_device} agent.freeze_encoder=${freeze_encoder}
+python3 train_metaworld.py --config-name config_drqv2metaworld agent.pretrained_path="/home/mprattico/Pretrain-TACO/models/taco_MT_MT50_0.${exp}_lr\=0.0005_ts\=200000512_curl_rew.pt" exp_name="/home/mprattico/Pretrain-TACO/models/taco_MT_MT50_0.${exp}_lr\=0.0005_ts\=200000512_curl_rew.pt" seed=1 env_name=push-v2 random_init=true random_goal=false wandb_tag=MT50${wandb_suffix} num_train_frames=300000 device=cuda:${cuda_device} agent.freeze_encoder=${freeze_encoder}
 
 # Cleanup command
 rm -rf exp_local/metaworld/home/mprattico/Pretrain-TACO/models/taco_MT_MT50_0.${exp}_lr\=0.0005_ts\=200000512_curl_rew.pt
 
 # Run the Python command with the appropriate arguments
-python3 train_metaworld.py agent.pretrained_path="/home/mprattico/Pretrain-TACO/models/taco_MT_MT50_0.${exp}_lr\=0.0005_ts\=200000512_curl_rew.pt"  exp_name="/home/mprattico/Pretrain-TACO/models/taco_MT_MT50_0.${exp}_lr\=0.0005_ts\=200000512_curl_rew.pt" seed=1 env_name=push-v2 random_init=true random_goal=false wandb_tag=MT50${wandb_suffix} num_train_frames=300000 device=cuda:${cuda_device} agent.freeze_encoder=${freeze_encoder}
+python3 train_metaworld.py --config-name config_drqv2metaworld agent.pretrained_path="/home/mprattico/Pretrain-TACO/models/taco_MT_MT50_0.${exp}_lr\=0.0005_ts\=200000512_curl_rew.pt" exp_name="/home/mprattico/Pretrain-TACO/models/taco_MT_MT50_0.${exp}_lr\=0.0005_ts\=200000512_curl_rew.pt" seed=1 env_name=push-v2 random_init=true random_goal=false wandb_tag=MT50${wandb_suffix} num_train_frames=300000 device=cuda:${cuda_device} agent.freeze_encoder=${freeze_encoder}
 
 # Cleanup command
 rm -rf exp_local/metaworld/home/mprattico/Pretrain-TACO/models/taco_MT_MT50_0.${exp}_lr\=0.0005_ts\=200000512_curl_rew.pt
