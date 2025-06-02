@@ -57,6 +57,7 @@ class Encoder(nn.Module):
         self.channels = 3  # RGB
         self.num_stack = total_channels // self.channels
         
+        self.range = None
         assert total_channels % self.channels == 0, f"Total channels {total_channels} not divisible by {self.channels}"
         
         # Load pretrained ResNet18
@@ -92,9 +93,15 @@ class Encoder(nn.Module):
         obs_flat = obs.view(batch_size * self.num_stack, self.channels, self.height, self.width)
         
         # Ensure values are in [0, 1] range (convert from [0, 255] if needed)
-        if obs_flat.max() > 1.0:
-            obs_flat = obs_flat / 255.0
-        
+        if self.range is None:
+            if obs_flat.max() > 1.0:
+                obs_flat = obs_flat / 255.0
+            else:
+                self.range = False
+        elif self.range is True:
+            if obs_flat.max() > 1.0:
+                obs_flat = obs_flat / 255.0
+
         # Resize if necessary
         if self.resize is not None:
             obs_flat = self.resize(obs_flat)
