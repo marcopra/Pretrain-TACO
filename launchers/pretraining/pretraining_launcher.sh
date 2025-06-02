@@ -8,6 +8,6 @@ exps_values=("0.0" "0.33" "0.66" "0.99")
 for dataset_name in "${dataset_names[@]}"; do
     for exps in "${exps_values[@]}"; do
         echo "Submitting job: DATASET_NAME=${dataset_name}, EXPS=${exps}"
-        qsub -v DATASET_NAME="${dataset_name}",EXPS="${exps}" launchers/pretraining.sh
+        qsub -v DATASET_NAME="${dataset_name}",EXPS="${exps}" launchers/pretraining/pretraining.sh
     done
 done

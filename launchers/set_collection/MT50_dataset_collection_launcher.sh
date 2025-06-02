@@ -49,7 +49,7 @@ for env_list in "${env_lists[@]}"; do
                         task_escaped="${task//,/\\,}"
                         
                         qsub -N "$job_name" \
-                            -v ENV_LIST="$env_list_escaped",EPISODES="$eps",EXPERT_PROBS="$expert_probs_escaped",CONFIG="$config/$expert_probs_escaped",RANDOM_INIT="$random_init",RANDOM_GOAL="$random_goal",TASKS="$task_escaped" launchers/script_dataset_collection.sh
+                            -v ENV_LIST="$env_list_escaped",EPISODES="$eps",EXPERT_PROBS="$expert_probs_escaped",CONFIG="$config/$expert_probs_escaped",RANDOM_INIT="$random_init",RANDOM_GOAL="$random_goal",TASKS="$task_escaped" launchers/data_collection/script_dataset_collection.sh
 
                         echo "Job submitted: $job_name"
                         echo "----------------------------------------"

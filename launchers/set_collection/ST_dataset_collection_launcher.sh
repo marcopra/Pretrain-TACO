@@ -2,21 +2,21 @@
 
 # Define environment lists (split into two for manageability)
 env_lists=(
-    "push-v2" "window-open-v2" "door-open-v2" "reach-v2" "drawer-close-v2" "pick-place-v2" "drawer-open-v2" "button-press-topdown-v2" "window-close-v2" "peg-insert-side-v2"
+    "push-v2"
 )
 
 # Define dataset sizes
-dataset_sizes=(10000)
+dataset_sizes=(100000)
 
 # Define expert probabilities
 expert_probs_options=("0.2" "0.4" "0.6" "0.8")
 
 # Define save path
-save_path="data/MT10/"
+save_path="data/ST/"
 
 # Define randomization options
 random_init_options=("true")
-random_goal_options=("false")
+random_goal_options=("true")
 
 # Loop through all combinations and submit jobs
 for env_list in "${env_lists[@]}"; do
@@ -25,7 +25,7 @@ for env_list in "${env_lists[@]}"; do
             for random_init in "${random_init_options[@]}"; do
                 for random_goal in "${random_goal_options[@]}"; do
                     # Create a descriptive job name
-                    job_name="MT10_ds${dataset_size}_ep${expert_probs//,/_}_ri${random_init}_rg${random_goal}"
+                    job_name="ST_ds${dataset_size}_ep${expert_probs//,/_}_ri${random_init}_rg${random_goal}"
                     
                     echo "Submitting job: $job_name"
                     echo "Environment list: ${env_list:0:30}..."
@@ -37,7 +37,7 @@ for env_list in "${env_lists[@]}"; do
                     # Submit the job with variables
                     qsub -N "$job_name" \
                          -v ENV_LIST="$env_list",DATASET_SIZE="$dataset_size",EXPERT_PROBS="$expert_probs",SAVE_PATH="$save_path",RANDOM_INIT="$random_init",RANDOM_GOAL="$random_goal" \
-                         launchers/script_dataset_collection.sh
+                         launchers/data_collection/script_dataset_collection.sh
                     
                     echo "Job submitted: $job_name"
                     echo "----------------------------------------"

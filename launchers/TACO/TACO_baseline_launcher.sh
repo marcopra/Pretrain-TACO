@@ -10,7 +10,7 @@ for random_hand in $random_hand_initial; do
     for random_goal in $random_goal_n_object_initial; do
         for env_name in "${env_names[@]}"; do
             for seed in $seeds; do
-                qsub -v SEED="$seed",ENV_NAME="$env_name",RANDOM_HAND="$random_hand",RANDOM_GOAL="$random_goal" launchers/baseline.sh
+                qsub -v SEED="$seed",ENV_NAME="$env_name",RANDOM_HAND="$random_hand",RANDOM_GOAL="$random_goal" launchers/TACO/baseline.sh
             done
         done
     done
