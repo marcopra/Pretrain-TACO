@@ -99,8 +99,7 @@ class Encoder(nn.Module):
             else:
                 self.range = False
         elif self.range is True:
-            if obs_flat.max() > 1.0:
-                obs_flat = obs_flat / 255.0
+            obs_flat = obs_flat / 255.0
 
         # Resize if necessary
         if self.resize is not None:
