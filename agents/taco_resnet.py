@@ -85,8 +85,6 @@ class Encoder(nn.Module):
         # obs shape: (batch_size, N*C, H, W) where N*C is total stacked channels
         batch_size = obs.shape[0]
         
-        # # Reshape to separate stacked frames: (batch_size, N, C, H, W)
-        # obs_reshaped = obs.view(batch_size, self.num_stack, self.channels, self.height, self.width)
         
         # Flatten to process each image separately: (batch_size * N, C, H, W)
         obs_flat = obs.view(batch_size * self.num_stack, self.channels, self.height, self.width)
@@ -104,12 +102,6 @@ class Encoder(nn.Module):
         
         # Extract features using pretrained ResNet18
         features = self.resnet(obs_normalized)  # Shape: (batch_size * N, 512, 1, 1)
-        
-        # # Flatten the spatial dimensions
-        # features = features.view(batch_size * self.num_stack, -1)  # Shape: (batch_size * N, 512)
-        
-        # # Reshape back to separate the stacked images: (batch_size, N, 512)
-        # features = features.view(batch_size, self.num_stack, -1)
         
         # Concatenate features from all stacked images: (batch_size, N * 512)
         features_concat = features.view(batch_size, -1)
