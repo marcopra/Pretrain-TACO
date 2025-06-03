@@ -43,4 +43,4 @@ conda activate metataco
 echo 
 
 # Use quotes and escape model path appropriately
-python3 train_metaworld.py agent="taco_resnet" exp_name=\"${EXP_NAME}\" seed=$SEED_ARG env_name=$ENV_NAME random_init=$RANDOM_HAND random_goal=$RANDOM_GOAL wandb_tag=$WANDB_TAG num_train_frames=600000 agent.freeze_encoder=$FREEZE batch_size=1024 agent.pretrained_path="resnet" save_snapshot=true use_pretrained_resnet=false 
+python3 train_metaworld.py agent="taco_resnet" exp_name=\"${EXP_NAME}\" seed=$SEED_ARG env_name=$ENV_NAME random_init=$RANDOM_HAND random_goal=$RANDOM_GOAL wandb_tag=$WANDB_TAG num_train_frames=600000 agent.freeze_encoder=$FREEZE batch_size=512 agent.pretrained_path="resnet" save_snapshot=true use_pretrained_resnet=false 
