@@ -45,7 +45,7 @@ class RandomShiftsAug(nn.Module):
         
 
 class Encoder(nn.Module):
-    def __init__(self, obs_shape, feature_dim):
+    def __init__(self, obs_shape, feature_dim, use_pretrained_resnet=True):
         super().__init__()
         assert len(obs_shape) == 3
         # obs_shape is (N*C, H, W) where N is number of stacked frames, C=3 for RGB
@@ -60,27 +60,49 @@ class Encoder(nn.Module):
         self.range = None
         assert total_channels % self.channels == 0, f"Total channels {total_channels} not divisible by {self.channels}"
         
-        # Load pretrained ResNet18
-        self.resnet = models.resnet18(weights=ResNet18_Weights.DEFAULT)
+        self.use_pretrained_resnet = use_pretrained_resnet
+        
+        if use_pretrained_resnet:
+            # Load pretrained ResNet18
+            self.resnet = models.resnet18(weights=ResNet18_Weights.DEFAULT)
+            
+            # ImageNet normalization (same as pretraining)
+            self.normalize = transforms.Normalize(
+                mean=[0.485, 0.456, 0.406],
+                std=[0.229, 0.224, 0.225]
+            )
+            
+            # Resize transform if input size is different from ImageNet (224x224)
+            if self.height != 224 or self.width != 224:
+                self.resize = transforms.Resize((224, 224))
+            else:
+                self.resize = None
+        else:
+            # Initialize ResNet18 from scratch without pretrained weights
+            self.resnet = models.resnet18(weights=None)
+            
+            # Modify the first conv layer to handle different input sizes
+            if self.height != 224 or self.width != 224:
+                # Calculate the appropriate kernel size and stride for the first conv layer
+                # to maintain similar feature extraction capabilities
+                kernel_size = min(7, self.height // 4, self.width // 4)
+                stride = max(1, min(2, self.height // 112, self.width // 112))
+                
+                self.resnet.conv1 = nn.Conv2d(
+                    3, 64, kernel_size=kernel_size, stride=stride, 
+                    padding=kernel_size//2, bias=False
+                )
+            
+            # No normalization and resize needed for non-pretrained
+            self.normalize = None
+            self.resize = None
         
         # Remove the final classification layer to get features
         self.resnet = nn.Sequential(*list(self.resnet.children())[:-1])
         
-        # ImageNet normalization (same as pretraining)
-        self.normalize = transforms.Normalize(
-            mean=[0.485, 0.456, 0.406],
-            std=[0.229, 0.224, 0.225]
-        )
-        
         # ResNet18 feature dimension is 512
         # Since we concatenate features from N images: 512 * N
         self.repr_dim = 512 * self.num_stack
-        
-        # Resize transform if input size is different from ImageNet (224x224)
-        if self.height != 224 or self.width != 224:
-            self.resize = transforms.Resize((224, 224))
-        else:
-            self.resize = None
     
     def forward(self, obs):
         # obs shape: (batch_size, N*C, H, W) = (batch_size, 9, 84, 84)
@@ -105,14 +127,18 @@ class Encoder(nn.Module):
         elif self.range is True:
             obs_flat = obs_flat / 255.0
 
-        # Resize if necessary
-        if self.resize is not None:
-            obs_flat = self.resize(obs_flat)
+        # Apply preprocessing only if using pretrained ResNet
+        if self.use_pretrained_resnet:
+            # Resize if necessary
+            if self.resize is not None:
+                obs_flat = self.resize(obs_flat)
+            
+            # Apply ImageNet normalization
+            obs_normalized = self.normalize(obs_flat)
+        else:
+            obs_normalized = obs_flat
         
-        # Apply ImageNet normalization
-        obs_normalized = self.normalize(obs_flat)
-        
-        # Extract features using pretrained ResNet18
+        # Extract features using ResNet18
         features = self.resnet(obs_normalized)  # Shape: (batch_size * 3, 512, 1, 1)
         
         # Flatten features: (batch_size * 3, 512)
@@ -250,7 +276,8 @@ class TACOAgent:
     def __init__(self, obs_shape, action_shape, device, lr, encoder_lr, feature_dim,
                  hidden_dim, critic_target_tau, num_expl_steps,
                  update_every_steps, stddev_schedule, stddev_clip, use_tb,
-                 reward, multistep, latent_a_dim, curl, pretrained_path=None, freeze_encoder=False):
+                 reward, multistep, latent_a_dim, curl, pretrained_path=None, 
+                 freeze_encoder=False, use_pretrained_resnet=True):
     
         self.device = device
         self.critic_target_tau = critic_target_tau
@@ -269,7 +296,7 @@ class TACOAgent:
             latent_a_dim = int(action_shape[0]*1.25)+1
         ### Create action embeddings
         self.act_tok = utils.ActionEncoding(action_shape[0], latent_a_dim, multistep)
-        self.encoder = Encoder(obs_shape, feature_dim).to(device)
+        self.encoder = Encoder(obs_shape, feature_dim, use_pretrained_resnet).to(device)
         
         self.actor = Actor(self.encoder.repr_dim, action_shape, feature_dim,
                            hidden_dim).to(device)
