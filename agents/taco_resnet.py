@@ -299,10 +299,30 @@ class TACOAgent:
         else:
             print(f"Loading pretrained model from {pretrained_path}, freeze encoder: {freeze_encoder}")
             self.load_pretrained(pretrained_path, None, self.freeze_encoder)
-            
+        
         self.pretrained_path = pretrained_path
         self.train()
         self.critic_target.train()
+
+        # Store model fingerprints if we're freezing the encoder
+        if freeze_encoder:
+            self._frozen_fingerprints = {
+                'encoder': self._get_model_fingerprint(self.encoder),
+                'taco': self._get_model_fingerprint(self.TACO),
+                'act_tok': self._get_model_fingerprint(self.act_tok)
+            }
+            
+            self.encoder.eval()
+            self.TACO.eval()
+            self.act_tok.eval()
+            
+            # Disabilita i gradienti per tutti i parametri
+            for param in self.encoder.parameters():
+                param.requires_grad = False
+            for param in self.TACO.parameters():
+                param.requires_grad = False
+            for param in self.act_tok.parameters():
+                param.requires_grad = False
 
     def load_pretrained(self, model_path, map_location=None, freeze_encoder=False):
         """
@@ -323,26 +343,6 @@ class TACOAgent:
         self.encoder.load_state_dict(checkpoint['encoder'])
         self.TACO.load_state_dict(checkpoint['taco'])
         self.act_tok.load_state_dict(checkpoint['act_tok'])
-        
-        # Store model fingerprints if we're freezing the encoder
-        if freeze_encoder:
-            self._frozen_fingerprints = {
-                'encoder': self._get_model_fingerprint(self.encoder),
-                'taco': self._get_model_fingerprint(self.TACO),
-                'act_tok': self._get_model_fingerprint(self.act_tok)
-            }
-            
-            self.encoder.eval()
-            self.TACO.eval()
-            self.act_tok.eval()
-            
-            # Disabilita i gradienti per tutti i parametri
-            for param in self.encoder.parameters():
-                param.requires_grad = False
-            for param in self.TACO.parameters():
-                param.requires_grad = False
-            for param in self.act_tok.parameters():
-                param.requires_grad = False
         
         print(f"Loaded pretrained model from {model_path}")
         
