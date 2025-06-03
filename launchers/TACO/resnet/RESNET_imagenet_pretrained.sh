@@ -43,7 +43,4 @@ conda activate metataco
 echo 
 
 # Use quotes and escape model path appropriately
-python3 train_metaworld.py agent="taco_resnet" exp_name=\"${EXP_NAME}\" seed=$SEED_ARG env_name=$ENV_NAME random_init=$RANDOM_HAND random_goal=$RANDOM_GOAL wandb_tag=$WANDB_TAG num_train_frames=300000 agent.freeze_encoder=$FREEZE batch_size=512 agent.pretrained_path="resnet" 
-
-# Cleanup will be triggered automatically by the trap
- rm -rf exp_local/metaworld/$EXP_NAME*
+python3 train_metaworld.py agent="taco_resnet" exp_name=\"${EXP_NAME}\" seed=$SEED_ARG env_name=$ENV_NAME random_init=$RANDOM_HAND random_goal=$RANDOM_GOAL wandb_tag=$WANDB_TAG num_train_frames=300000 agent.freeze_encoder=$FREEZE batch_size=512 agent.pretrained_path="resnet" save_snapshot=true
