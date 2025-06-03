@@ -83,19 +83,23 @@ class Encoder(nn.Module):
             self.resize = None
     
     def forward(self, obs):
-        # obs shape: (batch_size, N*C, H, W) where N*C is total stacked channels
+        # obs shape: (batch_size, N*C, H, W) = (batch_size, 9, 84, 84)
         batch_size = obs.shape[0]
         
-        # # Reshape to separate stacked frames: (batch_size, N, C, H, W)
-        # obs_reshaped = obs.view(batch_size, self.num_stack, self.channels, self.height, self.width)
+        # Reshape corretto per preservare la sequenzialità
+        # Da (batch_size, 9, 84, 84) a (batch_size, 3, 3, 84, 84)
+        obs_reshaped = obs.view(batch_size, self.num_stack, self.channels, self.height, self.width)
         
-        # Flatten to process each image separately: (batch_size * N, C, H, W)
-        obs_flat = obs.view(batch_size * self.num_stack, self.channels, self.height, self.width)
+        # Flatten per processare ogni immagine separatamente: (batch_size * 3, 3, 84, 84)
+        obs_flat = obs_reshaped.view(batch_size * self.num_stack, self.channels, self.height, self.width)
+        
+        # Ora ogni gruppo di 3 canali rappresenta correttamente un'immagine RGB
         
         # Ensure values are in [0, 1] range (convert from [0, 255] if needed)
         if self.range is None:
             if obs_flat.max() > 1.0:
                 obs_flat = obs_flat / 255.0
+                self.range = True
             else:
                 self.range = False
         elif self.range is True:
@@ -109,16 +113,16 @@ class Encoder(nn.Module):
         obs_normalized = self.normalize(obs_flat)
         
         # Extract features using pretrained ResNet18
-        features = self.resnet(obs_normalized)  # Shape: (batch_size * N, 512, 1, 1)
+        features = self.resnet(obs_normalized)  # Shape: (batch_size * 3, 512, 1, 1)
         
-        # # Flatten the spatial dimensions
-        # features = features.view(batch_size * self.num_stack, -1)  # Shape: (batch_size * N, 512)
+        # Flatten features: (batch_size * 3, 512)
+        features = features.view(batch_size * self.num_stack, -1)
         
-        # # Reshape back to separate the stacked images: (batch_size, N, 512)
-        # features = features.view(batch_size, self.num_stack, -1)
+        # Reshape back to separate each frame's features: (batch_size, 3, 512)
+        features_per_frame = features.view(batch_size, self.num_stack, -1)
         
-        # Concatenate features from all stacked images: (batch_size, N * 512)
-        features_concat = features.view(batch_size, -1)
+        # Concatenate features from all stacked images: (batch_size, 3 * 512)
+        features_concat = features_per_frame.view(batch_size, -1)
         
         return features_concat
     
