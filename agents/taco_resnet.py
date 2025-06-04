@@ -98,8 +98,7 @@ class Encoder(nn.Module):
             )
             # Apply resize and center crop as per ResNet standard
             resize = transforms.Compose([
-                transforms.Resize(256),
-                transforms.CenterCrop(224)
+                transforms.Resize(224),
             ])
                 
         else:
@@ -121,8 +120,8 @@ class Encoder(nn.Module):
                         std=[0.229, 0.224, 0.225]
                     )
                     resize = transforms.Compose([
-                        transforms.Resize(256),
-                        transforms.CenterCrop(224)
+                        transforms.Resize(224), # USE DIRECTLY 224
+                        # transforms.CenterCrop(224)
                     ])
                 else:
                     resnet = models.resnet18(weights=None)
@@ -136,8 +135,8 @@ class Encoder(nn.Module):
                         std=[0.229, 0.224, 0.225]
                     )
                     resize = transforms.Compose([
-                        transforms.Resize(256),
-                        transforms.CenterCrop(224)
+                        transforms.Resize(224),
+                        # transforms.CenterCrop(224)
                     ])
                 else:
                     resnet = models.resnet50(weights=None)
