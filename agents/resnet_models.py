@@ -9,7 +9,7 @@ def resnet_conv3_compressed(checkpoint_path):
     state_dict = checkpoint['state_dict']
 
     # Construct the compressed model
-    model = models.resnet.resnet50(pretrained=False, progress=False)
+    model = models.resnet.resnet50(weights=None, progress=False)
     downsample = nn.Sequential(
         nn.Conv2d(1024,
                   11,
@@ -50,7 +50,7 @@ def resnet_conv4_compressed(checkpoint_path):
     state_dict = checkpoint['state_dict']
 
     # Construct the compressed model
-    model = models.resnet.resnet50(pretrained=False, progress=False)
+    model = models.resnet.resnet50(weights=None, progress=False)
     downsample = nn.Sequential(
         nn.Conv2d(2048,
                   42,
@@ -89,7 +89,7 @@ def resnet_conv5(checkpoint_path):
     # state_dict = checkpoint['state_dict']
 
     # Construct the model
-    model = models.resnet.resnet50(pretrained=ResNet50_Weights.DEFAULT, progress=False)
+    model = models.resnet.resnet50(weights=ResNet50_Weights.DEFAULT, progress=False)
     model.fc = nn.Sequential()
 
     # # Rename the keys correctly
