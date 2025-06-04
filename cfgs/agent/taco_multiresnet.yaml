@@ -1,5 +1,5 @@
 agent:
-  _target_: agents.taco_resnet.TACOAgent
+  _target_: agents.taco_multiresnet.TACOAgent
   obs_shape: ??? # to be specified later
   action_shape: ??? # to be specified later
   device: ${device}
@@ -19,6 +19,7 @@ agent:
   latent_a_dim: ${latent_a_dim}
   pretrained_path: ${pretrained_path}
   freeze_encoder: ${freeze_encoder}
+  use_pretrained_resnet: ${use_pretrained_resnet}
 
 ### TACO parameters
 curl: true
@@ -26,6 +27,6 @@ reward: true
 multistep: 3
 latent_a_dim: none
 batch_size: 1024
-pretrained_path: resnet18_l5_pretrained
+pretrained_path: resnetmulti
 freeze_encoder: false
-wandb_project: "taco_metaworld_resnet"
+use_pretrained_resnet: true

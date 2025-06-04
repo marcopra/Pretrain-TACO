@@ -359,7 +359,7 @@ class TACOAgent:
             metrics['critic_loss'] = critic_loss.item()
 
         # optimize encoder and critic
-        self.encoder_opt.zero_grad(set_to_none=True)
+        self.encoder_opt.zero_grad(set_to_none=True) # TODO check encoder were really frozen, I should put a if freeze don't optimize to be 100% sure
         self.critic_opt.zero_grad(set_to_none=True)
         critic_loss.backward()
         self.critic_opt.step()
