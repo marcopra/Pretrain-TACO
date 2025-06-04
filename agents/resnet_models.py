@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torchvision.models as models
+from torchvision.models import ResNet18_Weights, ResNet50_Weights
 
 
 def resnet_conv3_compressed(checkpoint_path):
@@ -84,21 +85,21 @@ def resnet_conv4_compressed(checkpoint_path):
 
 
 def resnet_conv5(checkpoint_path):
-    checkpoint = torch.load(checkpoint_path)
-    state_dict = checkpoint['state_dict']
+    # checkpoint = torch.load(checkpoint_path)
+    # state_dict = checkpoint['state_dict']
 
     # Construct the model
-    model = models.resnet.resnet50(pretrained=False, progress=False)
+    model = models.resnet.resnet50(pretrained=ResNet50_Weights.DEFAULT, progress=False)
     model.fc = nn.Sequential()
 
-    # Rename the keys correctly
-    for k in list(state_dict.keys()):
-        if k.startswith('module.'):
-            state_dict[k[len('module.'):]] = state_dict[k]
-        # Delete renamed or unused k
-        del state_dict[k]
+    # # Rename the keys correctly
+    # for k in list(state_dict.keys()):
+    #     if k.startswith('module.'):
+    #         state_dict[k[len('module.'):]] = state_dict[k]
+    #     # Delete renamed or unused k
+    #     del state_dict[k]
 
-    msg = model.load_state_dict(state_dict, strict=False)
-    assert len(msg.missing_keys) == 0
+    # msg = model.load_state_dict(state_dict, strict=False)
+    # assert len(msg.missing_keys) == 0
 
     return model

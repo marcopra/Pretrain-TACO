@@ -6,7 +6,7 @@ import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.models as models
-from torchvision.models import resnet18, resnet50, ResNet18_Weights, ResNet50_Weights
+from torchvision.models import ResNet18_Weights, ResNet50_Weights
 import torchvision.transforms as transforms
 from agents.resnet_models import resnet_conv3_compressed, resnet_conv4_compressed, resnet_conv5
 import re
@@ -80,8 +80,8 @@ class Encoder(nn.Module):
             resnet = self._modify_resnet_for_input_size(resnet)
             resnet = nn.Sequential(*list(resnet.children())[:-1])  # Remove fc layer
             
-        elif os.path.exists(pretrained_path):
-            # Load from checkpoint file
+        elif os.path.exists(pretrained_path) or  'resnet50_l5' in pretrained_path:
+            # Load from checkpoint file - these are pretrained models that need standard transforms
             if 'resnet50_l3' in pretrained_path:
                 resnet = resnet_conv3_compressed(pretrained_path)
             elif 'resnet50_l4' in pretrained_path:
@@ -90,6 +90,17 @@ class Encoder(nn.Module):
                 resnet = resnet_conv5(pretrained_path)
             else:
                 raise ValueError(f"Unknown checkpoint format: {pretrained_path}")
+            
+            # Apply standard ResNet transforms for pretrained checkpoints
+            normalize = transforms.Normalize(
+                mean=[0.485, 0.456, 0.406],
+                std=[0.229, 0.224, 0.225]
+            )
+            # Apply resize and center crop as per ResNet standard
+            resize = transforms.Compose([
+                transforms.Resize(256),
+                transforms.CenterCrop(224)
+            ])
                 
         else:
             # Parse format: resnet<k>_l<n>_<initialization>
@@ -109,8 +120,10 @@ class Encoder(nn.Module):
                         mean=[0.485, 0.456, 0.406],
                         std=[0.229, 0.224, 0.225]
                     )
-                    if self.height != 224 or self.width != 224:
-                        resize = transforms.Resize((224, 224))
+                    resize = transforms.Compose([
+                        transforms.Resize(256),
+                        transforms.CenterCrop(224)
+                    ])
                 else:
                     resnet = models.resnet18(weights=None)
                     resnet = self._modify_resnet_for_input_size(resnet)
@@ -122,8 +135,10 @@ class Encoder(nn.Module):
                         mean=[0.485, 0.456, 0.406],
                         std=[0.229, 0.224, 0.225]
                     )
-                    if self.height != 224 or self.width != 224:
-                        resize = transforms.Resize((224, 224))
+                    resize = transforms.Compose([
+                        transforms.Resize(256),
+                        transforms.CenterCrop(224)
+                    ])
                 else:
                     resnet = models.resnet50(weights=None)
                     resnet = self._modify_resnet_for_input_size(resnet)
@@ -171,6 +186,7 @@ class Encoder(nn.Module):
         # Test with a dummy input to get output dimensions
         dummy_input = torch.randn(1, 3, self.height, self.width)
         
+        # Apply transforms in the same order as forward pass
         if self.resize is not None:
             dummy_input = self.resize(dummy_input)
         if self.normalize is not None:
@@ -183,6 +199,11 @@ class Encoder(nn.Module):
     def forward(self, obs):
         # obs shape: (batch_size, N*C, H, W) = (batch_size, 9, 84, 84)
         batch_size = obs.shape[0]
+        if self.range is None:
+            assert obs.max() > 1, "Input observations should be in [0, 255] range"
+            self.range = True
+        if self.range is True:
+            obs = obs/255.0
         
         # Reshape corretto per preservare la sequenzialità
         # Da (batch_size, 9, 84, 84) a (batch_size, 3, 3, 84, 84)
@@ -190,18 +211,8 @@ class Encoder(nn.Module):
         
         # Flatten per processare ogni immagine separatamente: (batch_size * 3, 3, 84, 84)
         obs_flat = obs_reshaped.view(batch_size * self.num_stack, self.channels, self.height, self.width)
-        
-        # Ensure values are in [0, 1] range (convert from [0, 255] if needed)
-        if self.range is None:
-            if obs_flat.max() > 1.0:
-                obs_flat = obs_flat / 255.0
-                self.range = True
-            else:
-                self.range = False
-        elif self.range is True:
-            obs_flat = obs_flat / 255.0
 
-        # Apply preprocessing if necessary
+        # Apply preprocessing in the correct order: resize first, then normalize
         if self.resize is not None:
             obs_flat = self.resize(obs_flat)
         
@@ -616,6 +627,7 @@ class TACOAgent:
                 logits = self.TACO.compute_logits(z_a, z_pos)
                 labels = torch.arange(logits.shape[0]).long().to(self.device)
                 curl_loss = self.cross_entropy_loss(logits, labels)
+                print(f"curl_loss: {curl_loss.item()}")
             else:
                 curl_loss = torch.tensor(0.)
             

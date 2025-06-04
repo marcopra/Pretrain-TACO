@@ -10,8 +10,10 @@ SEED=${SEED:-0}
 ENV_NAME=${ENV_NAME:-"push-v2"}
 RANDOM_HAND=${RANDOM_HAND:-0}
 RANDOM_GOAL=${RANDOM_GOAL:-0}
+MODEL_PATH=${MODEL_PATH:-"none"}
 WANDB_TAG=${WANDB_TAG:-"none"}
 FREEZE=${FREEZE:-"false"}
+BATCH_SIZE=${BATCH_SIZE:-512}
 
 # Set seed argument based on SEED value
 if [ "$SEED" -eq 1 ]; then
@@ -23,7 +25,7 @@ fi
 export HYDRA_FULL_ERROR=1
 
 # Create the experiment name once to ensure consistency
-EXP_NAME="RESNET_baseline_${SEED_ARG}_random_init_${RANDOM_HAND}_random_goal_${RANDOM_GOAL}_freeze_${FREEZE}"
+EXP_NAME="RESNET_${MODEL_PATH}_BS${BATCH_SIZE}_${SEED_ARG}_random_init_${RANDOM_HAND}_random_goal_${RANDOM_GOAL}_freeze_${FREEZE}"
 
 # Define cleanup function
 cleanup() {
@@ -40,7 +42,10 @@ trap cleanup EXIT HUP INT TERM
 source ~/.bashrc
 conda activate metataco
 
-echo 
+
 
 # Use quotes and escape model path appropriately
-python3 train_metaworld.py agent="taco_resnet" exp_name=\"${EXP_NAME}\" seed=$SEED_ARG env_name=$ENV_NAME random_init=$RANDOM_HAND random_goal=$RANDOM_GOAL wandb_tag=$WANDB_TAG num_train_frames=600000 agent.freeze_encoder=$FREEZE batch_size=512 agent.pretrained_path="resnet" save_snapshot=true use_pretrained_resnet=false 
+python3 train_metaworld.py agent="taco_resnet" agent.pretrained_path=\"${MODEL_PATH}\" exp_name=\"${EXP_NAME}\" seed=$SEED_ARG env_name=$ENV_NAME random_init=$RANDOM_HAND random_goal=$RANDOM_GOAL wandb_tag=$WANDB_TAG num_train_frames=300000 agent.freeze_encoder=$FREEZE batch_size=$BATCH_SIZE
+
+# Cleanup will be triggered automatically by the trap
+rm -rf exp_local/metaworld/$EXP_NAME*
