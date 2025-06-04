@@ -12,7 +12,7 @@ model_paths=(
  
 )
 
-BATCH_SIZE="1024 512"
+BATCH_SIZE="512"
    
 random_hand_inital="true"
 random_goal_inital="false"

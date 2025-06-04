@@ -2,6 +2,8 @@
 #PBS -l select=1:ncpus=4:ngpus=1
 #PBS -l walltime=24:00:00
 #PBS -j oe
+#PBS -N RESNET_TACO
+#PBS -q a100f
 
 cd $PBS_O_WORKDIR
 

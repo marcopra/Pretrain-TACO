@@ -8,7 +8,7 @@ model_paths=(
     "resnet50_l5"
 )
 
-BATCH_SIZE="1024 512"
+BATCH_SIZE="1024"
    
 random_hand_inital="true"
 random_goal_inital="false"
