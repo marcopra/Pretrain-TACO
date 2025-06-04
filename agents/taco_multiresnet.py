@@ -1,11 +1,16 @@
 import hydra
-import numpy as np
+import utils
 import torch
+import itertools
+import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
-import utils
-import itertools
 import torchvision.models as models
+from torchvision.models import ResNet18_Weights, ResNet50_Weights
+import torchvision.transforms as transforms
+from agents.resnet_models import resnet_conv3_compressed, resnet_conv4_compressed, resnet_conv5
+import re
+import os
 
 
 class RandomShiftsAug(nn.Module):
@@ -41,51 +46,221 @@ class RandomShiftsAug(nn.Module):
                              padding_mode='zeros',
                              align_corners=False)
         
-class Encoder(nn.Module):
-    def __init__(self, obs_shape, feature_dim, use_pretrained_resnet=False):
-        super().__init__()
 
+class Encoder(nn.Module):
+    def __init__(self, obs_shape, feature_dim, pretrained_path=None):
+        super().__init__()
         assert len(obs_shape) == 3
+        # obs_shape is (N*C, H, W) where N is number of stacked frames, C=3 for RGB
+        total_channels = obs_shape[0]  # N*C
+        self.height = obs_shape[1]     # H  
+        self.width = obs_shape[2]      # W
         
-        # Create ResNet18 backbone
-        if use_pretrained_resnet:
-            self.resnet = models.resnet18(pretrained=True)
+        # Assuming RGB images (C=3), calculate number of stacked frames
+        self.channels = 3  # RGB
+        self.num_stack = total_channels // self.channels
+        
+        self.range = None
+        assert total_channels % self.channels == 0, f"Total channels {total_channels} not divisible by {self.channels}"
+        
+        # Parse pretrained_path to determine model configuration
+        self.resnet, self.normalize = self._create_resnet(pretrained_path, total_channels)
+        
+        # Calculate representation dimension based on the model architecture
+        self.repr_dim = self._calculate_repr_dim(total_channels)
+    
+    def _create_resnet(self, pretrained_path, input_channels):
+        """Create ResNet model based on pretrained_path configuration"""
+        normalize = None
+        
+        if pretrained_path is None or pretrained_path.lower() == 'none':
+            # Default: ResNet18 without pretrained weights
+            resnet = models.resnet18(weights=None)
+            resnet = self._modify_resnet_for_multichannel(resnet, input_channels)
+            resnet = nn.Sequential(*list(resnet.children())[:-1])  # Remove fc layer
+            
+        elif os.path.exists(pretrained_path) or 'resnet50_l5' in pretrained_path:
+            # Load from checkpoint file but modify for multichannel input
+            if 'resnet50_l3' in pretrained_path:
+                base_resnet = resnet_conv3_compressed(pretrained_path)
+            elif 'resnet50_l4' in pretrained_path:
+                base_resnet = resnet_conv4_compressed(pretrained_path)
+            elif 'resnet50_l5' in pretrained_path:
+                base_resnet = resnet_conv5(pretrained_path)
+            else:
+                raise ValueError(f"Unknown checkpoint format: {pretrained_path}")
+            
+            # Modify first conv layer for multichannel input
+            resnet = self._adapt_pretrained_for_multichannel(base_resnet, input_channels)
+            
+            # Don't apply normalization for multichannel - keep original scale
+            normalize = None
+                
         else:
-            self.resnet = models.resnet18(pretrained=False)
+            # Parse format: resnet<k>_l<n>_<initialization>
+            match = re.match(r'resnet(\d+)_l(\d+)_(\w+)', pretrained_path)
+            if not match:
+                raise ValueError(f"Invalid pretrained_path format: {pretrained_path}. Expected format: resnet<k>_l<n>_<initialization>")
+            
+            k, n, initialization = match.groups()
+            k, n = int(k), int(n)
+            
+            # Create base ResNet
+            if k == 18:
+                if initialization == 'pretrained':
+                    base_resnet = models.resnet18(weights=ResNet18_Weights.DEFAULT)
+                else:
+                    base_resnet = models.resnet18(weights=None)
+            elif k == 50:
+                if initialization == 'pretrained':
+                    base_resnet = models.resnet50(weights=ResNet50_Weights.DEFAULT)
+                else:
+                    base_resnet = models.resnet50(weights=None)
+            else:
+                raise ValueError(f"Unsupported ResNet variant: ResNet{k}")
+            
+            # Modify for multichannel input
+            if initialization == 'pretrained':
+                resnet = self._adapt_pretrained_for_multichannel(base_resnet, input_channels)
+            else:
+                resnet = self._modify_resnet_for_multichannel(base_resnet, input_channels)
+            
+            # Apply layer cutting based on n
+            resnet = self._cut_resnet_at_layer(resnet, n)
         
-        # Modify first conv layer to handle frame stacking
-        original_conv1 = self.resnet.conv1
-        self.resnet.conv1 = nn.Conv2d(
-            obs_shape[0],  # n_frames * 3 channels
+        return resnet, normalize
+    
+    def _modify_resnet_for_multichannel(self, resnet, input_channels):
+        """Modify ResNet for multichannel input maintaining original image dimensions"""
+        # Modify first conv layer to accept input_channels instead of 3
+        original_conv1 = resnet.conv1
+        
+        # Create new conv1 layer with same parameters but different input channels
+        resnet.conv1 = nn.Conv2d(
+            input_channels, 
             original_conv1.out_channels,
             kernel_size=original_conv1.kernel_size,
             stride=original_conv1.stride,
             padding=original_conv1.padding,
-            bias=original_conv1.bias
+            bias=original_conv1.bias is not None
         )
         
         # Initialize new conv1 weights
-        if use_pretrained_resnet and obs_shape[0] != 3:
-            # Average pretrained weights across input channels
-            with torch.no_grad():
-                self.resnet.conv1.weight[:, :3] = original_conv1.weight
-                if obs_shape[0] > 3:
-                    # Repeat weights for additional channels
-                    for i in range(3, obs_shape[0]):
-                        self.resnet.conv1.weight[:, i] = original_conv1.weight[:, i % 3]
+        with torch.no_grad():
+            if input_channels > 3:
+                # Repeat the original weights across channels
+                original_weight = original_conv1.weight
+                new_weight = torch.zeros_like(resnet.conv1.weight)
+                
+                # Copy original RGB weights for each set of 3 channels
+                for i in range(0, input_channels, 3):
+                    end_idx = min(i + 3, input_channels)
+                    channels_to_copy = end_idx - i
+                    new_weight[:, i:end_idx] = original_weight[:, :channels_to_copy]
+                
+                resnet.conv1.weight.copy_(new_weight)
+            else:
+                # If input_channels <= 3, just copy what we can
+                channels_to_copy = min(input_channels, 3)
+                resnet.conv1.weight[:, :channels_to_copy] = original_conv1.weight[:, :channels_to_copy]
         
-        # Remove the final fully connected layer
-        self.resnet.fc = nn.Identity()
+        return resnet
+    
+    def _adapt_pretrained_for_multichannel(self, base_resnet, input_channels):
+        """Adapt a pretrained ResNet for multichannel input"""
+        # Get the original conv1 layer
+        original_conv1 = base_resnet.conv1 if hasattr(base_resnet, 'conv1') else list(base_resnet.children())[0]
         
-        # Calculate representation dimension (ResNet18 outputs 512 features)
-        self.repr_dim = 512
+        # Create new conv1 layer
+        new_conv1 = nn.Conv2d(
+            input_channels,
+            original_conv1.out_channels,
+            kernel_size=original_conv1.kernel_size,
+            stride=original_conv1.stride,
+            padding=original_conv1.padding,
+            bias=original_conv1.bias is not None
+        )
         
-
+        # Initialize weights by repeating original weights
+        with torch.no_grad():
+            original_weight = original_conv1.weight
+            new_weight = torch.zeros_like(new_conv1.weight)
+            
+            for i in range(0, input_channels, 3):
+                end_idx = min(i + 3, input_channels)
+                channels_to_copy = end_idx - i
+                new_weight[:, i:end_idx] = original_weight[:, :channels_to_copy]
+            
+            new_conv1.weight.copy_(new_weight)
+            if new_conv1.bias is not None and original_conv1.bias is not None:
+                new_conv1.bias.copy_(original_conv1.bias)
+        
+        # Replace conv1 in the model
+        if hasattr(base_resnet, 'conv1'):
+            base_resnet.conv1 = new_conv1
+        else:
+            # For Sequential models, replace the first layer
+            children = list(base_resnet.children())
+            children[0] = new_conv1
+            base_resnet = nn.Sequential(*children)
+        
+        return base_resnet
+    
+    def _cut_resnet_at_layer(self, resnet, layer_num):
+        """Cut ResNet at specified layer"""
+        children = list(resnet.children())
+        
+        if layer_num == 5:
+            # Remove only fc layer
+            return nn.Sequential(*children[:-1])
+        elif layer_num == 4:
+            # Remove fc and avgpool
+            return nn.Sequential(*children[:-2])
+        elif layer_num == 3:
+            # Remove fc, avgpool, and layer4
+            return nn.Sequential(*children[:-3])
+        else:
+            raise ValueError(f"Unsupported layer cut: l{layer_num}")
+    
+    def _calculate_repr_dim(self, input_channels):
+        """Calculate representation dimension based on model architecture"""
+        # Test with a dummy input to get output dimensions
+        dummy_input = torch.randn(1, input_channels, self.height, self.width)
+        
+        if self.normalize is not None:
+            dummy_input = self.normalize(dummy_input)
+            
+        with torch.no_grad():
+            output = self.resnet(dummy_input)
+            return output.view(output.size(0), -1).size(1)
+    
     def forward(self, obs):
-        obs = obs / 255.0  # Normalize input to [0, 1]
-        h = self.resnet(obs)
-        return h
-
+        # obs shape: (batch_size, N*C, H, W) = (batch_size, 9, 84, 84)
+        batch_size = obs.shape[0]
+        if self.range is None:
+            if obs.max() > 1:
+                self.range = True
+            else:
+                self.range = False
+        if self.range is True:
+            obs = obs/255.0
+        
+        # Process the entire multichannel observation directly
+        # No need to split into individual RGB images
+        
+        if self.normalize is not None:
+            obs_normalized = self.normalize(obs)
+        else:
+            obs_normalized = obs
+        
+        # Extract features using ResNet
+        features = self.resnet(obs_normalized)
+        
+        # Flatten features
+        features = features.view(batch_size, -1)
+        
+        return features
+    
 class TACO(nn.Module):
     """
     TACO Constrastive loss
@@ -210,8 +385,8 @@ class TACOAgent:
     def __init__(self, obs_shape, action_shape, device, lr, encoder_lr, feature_dim,
                  hidden_dim, critic_target_tau, num_expl_steps,
                  update_every_steps, stddev_schedule, stddev_clip, use_tb,
-                 reward, multistep, latent_a_dim, curl, use_pretrained_resnet=False, 
-                 pretrained_path=None, freeze_encoder=False):
+                 reward, multistep, latent_a_dim, curl, pretrained_path=None, 
+                 freeze_encoder=False):
     
         self.device = device
         self.critic_target_tau = critic_target_tau
@@ -224,13 +399,21 @@ class TACOAgent:
         self.reward = reward
         self.multistep = multistep
         self.curl = curl
+        self.freeze_encoder = freeze_encoder
 
         ### A heuristics to choose the dimensionality of latent actions
         if latent_a_dim == 'none':
             latent_a_dim = int(action_shape[0]*1.25)+1
-        ### Create action embeddings
-        self.act_tok = utils.ActionEncoding(action_shape[0], latent_a_dim, multistep)
-        self.encoder = Encoder(obs_shape, feature_dim, use_pretrained_resnet).to(device)
+        
+        ### Create action embeddings - use Identity if freezing encoder
+        if freeze_encoder:
+            self.act_tok = nn.Identity()
+            # When using Identity, latent_a_dim should match action_shape[0]
+            latent_a_dim = action_shape[0]
+        else:
+            self.act_tok = utils.ActionEncoding(action_shape[0], latent_a_dim, multistep)
+        
+        self.encoder = Encoder(obs_shape, feature_dim, pretrained_path).to(device)
         
         self.actor = Actor(self.encoder.repr_dim, action_shape, feature_dim,
                            hidden_dim).to(device)
@@ -240,117 +423,66 @@ class TACOAgent:
                                     feature_dim, hidden_dim).to(device)
         self.critic_target.load_state_dict(self.critic.state_dict())
         self.TACO = TACO(self.encoder.repr_dim, feature_dim, action_shape, latent_a_dim, hidden_dim, self.act_tok, self.encoder, multistep, device).to(device)
-        self.freeze_encoder = freeze_encoder
         
-        ### State & Action Encoders
-        parameters = itertools.chain(self.encoder.parameters(),
-                                     self.act_tok.parameters(),
-        )
-        self.encoder_opt = torch.optim.Adam(parameters, lr=encoder_lr)
+        ### State & Action Encoders - exclude from optimization if frozen
+        if freeze_encoder:
+            # Freeze encoder and TACO parameters
+            for param in self.encoder.parameters():
+                param.requires_grad = False
+            for param in self.TACO.parameters():
+                param.requires_grad = False
+            if hasattr(self.act_tok, 'parameters'):
+                for param in self.act_tok.parameters():
+                    param.requires_grad = False
+            
+            # Only optimize non-frozen parameters
+            parameters = []
+            self.encoder_opt = None
+
+        else:
+            parameters = itertools.chain(self.encoder.parameters(),
+                                         self.act_tok.parameters(),
+            )
+            self.encoder_opt = torch.optim.Adam(parameters, lr=encoder_lr)
+        
         self.actor_opt = torch.optim.Adam(self.actor.parameters(), lr=lr)
         self.critic_opt = torch.optim.Adam(self.critic.parameters(), lr=lr)
-        self.taco_opt = torch.optim.Adam(self.TACO.parameters(), lr=encoder_lr)
+        
+        if not freeze_encoder:
+            self.taco_opt = torch.optim.Adam(self.TACO.parameters(), lr=encoder_lr)
+        else:
+            self.taco_opt = None
         
         self.cross_entropy_loss = nn.CrossEntropyLoss()
         
         # data augmentation
         self.aug = RandomShiftsAug(pad=4)
 
-        if pretrained_path is None or pretrained_path.lower() == 'none':
-            print("No pretrained model provided, initializing from scratch.")
+        if pretrained_path is not None:
+            print(f"Using ResNet configuration: {pretrained_path}")
         else:
-            print(f"Loading pretrained model from {pretrained_path}, freeze encoder: {freeze_encoder}")
-            self.load_pretrained(pretrained_path, None, self.freeze_encoder)
-            
-        self.pretrained_path = pretrained_path
+            print("Using default ResNet18 without pretrained weights")
+        
+        if freeze_encoder:
+            print("Encoder is frozen - no updates will be performed on encoder, TACO, and action tokenizer")
+            # Set frozen models to eval mode
+            self.encoder.eval()
+            self.TACO.eval()
+            if hasattr(self.act_tok, 'eval'):
+                self.act_tok.eval()
+        
         self.train()
         self.critic_target.train()
 
-    def load_pretrained(self, model_path, map_location=None, freeze_encoder=False):
-        """
-        Load a pretrained TACO model from a saved checkpoint.
-        
-        Args:
-            model_path: Path to the saved model checkpoint
-            map_location: Optional device mapping for torch.load
-        
-        Returns:
-            dict: The original training arguments
-        """
-        if map_location is None:
-            map_location = self.device
-            
-        checkpoint = torch.load(model_path, map_location=map_location)
-        
-        self.encoder.load_state_dict(checkpoint['encoder'])
-        self.TACO.load_state_dict(checkpoint['taco'])
-        self.act_tok.load_state_dict(checkpoint['act_tok'])
-        
-        # Store model fingerprints if we're freezing the encoder
-        if freeze_encoder:
-            self._frozen_fingerprints = {
-                'encoder': self._get_model_fingerprint(self.encoder),
-                'taco': self._get_model_fingerprint(self.TACO),
-                'act_tok': self._get_model_fingerprint(self.act_tok)
-            }
-            
-            self.encoder.eval()
-            self.TACO.eval()
-            self.act_tok.eval()
-            
-            # Disabilita i gradienti per tutti i parametri
-            for param in self.encoder.parameters():
-                param.requires_grad = False
-            for param in self.TACO.parameters():
-                param.requires_grad = False
-            for param in self.act_tok.parameters():
-                param.requires_grad = False
-        
-        print(f"Loaded pretrained model from {model_path}")
-        
-        return checkpoint.get('args', {})  # Return the saved args for reference
-    
-    def _get_model_fingerprint(self, model):
-        """Generate a unique fingerprint for model parameters"""
-        return {name: param.data.clone() for name, param in model.named_parameters()}
-        
-    def _check_frozen_models(self):
-        """Check if frozen models have been modified"""
-        if not hasattr(self, '_frozen_fingerprints'):
-            raise ValueError("No frozen fingerprints found. Did you load a pretrained model with freeze_encoder=True?")
-            
-        for model_name, fingerprint in self._frozen_fingerprints.items():
-            model = getattr(self, model_name.upper() if model_name == 'taco' else model_name)
-            current_fingerprint = self._get_model_fingerprint(model)
-            
-            for param_name, stored_param in fingerprint.items():
-                current_param = current_fingerprint[param_name]
-                assert torch.all(torch.eq(current_param, stored_param)), f"Parameter {param_name} in {model_name} has changed when it should be frozen!"
-
-    def unfreeze_encoder(self):
-        """Riattiva i gradienti per i modelli congelati"""
-        if hasattr(self, '_frozen_fingerprints'):
-            for param in self.encoder.parameters():
-                param.requires_grad = True
-            for param in self.TACO.parameters():
-                param.requires_grad = True
-            for param in self.act_tok.parameters():
-                param.requires_grad = True
-            
-            self.encoder.train()
-            self.TACO.train()
-            self.act_tok.train()
-            
-            del self._frozen_fingerprints
-            self.freeze_encoder = False
-            
     def train(self, training=True):
         self.training = training
         self.actor.train(training)
         self.critic.train(training)
         if not self.freeze_encoder:
             self.encoder.train(training)
-            self.TACO.train()
+            self.TACO.train(training)
+            if hasattr(self.act_tok, 'train'):
+                self.act_tok.train(training)
 
     def act(self, obs, step, eval_mode):
         obs = torch.as_tensor(obs, device=self.device)
@@ -385,12 +517,14 @@ class TACOAgent:
             metrics['critic_q2'] = Q2.mean().item()
             metrics['critic_loss'] = critic_loss.item()
 
-        # optimize encoder and critic
-        self.encoder_opt.zero_grad(set_to_none=True)
+        # optimize encoder and critic - only if encoder not frozen
+        if not self.freeze_encoder:
+            self.encoder_opt.zero_grad(set_to_none=True)
         self.critic_opt.zero_grad(set_to_none=True)
         critic_loss.backward()
         self.critic_opt.step()
-        self.encoder_opt.step()
+        if not self.freeze_encoder:
+            self.encoder_opt.step()
 
         return metrics
 
@@ -434,8 +568,13 @@ class TACOAgent:
             curl_loss = torch.tensor(0.)
         
         ### Compute action encodings
-        action_en = self.TACO.act_tok(action, seq=False) 
-        action_seq_en = self.TACO.act_tok(action_seq, seq=True)
+        if isinstance(self.TACO.act_tok, nn.Identity):
+            # When using Identity, pass actions directly
+            action_en = action
+            action_seq_en = action_seq.view(action_seq.size(0), -1)  # Flatten multistep actions
+        else:
+            action_en = self.TACO.act_tok(action, seq=False) 
+            action_seq_en = self.TACO.act_tok(action_seq, seq=True)
         
         ### Compute reward prediction loss
         if self.reward:
@@ -451,18 +590,19 @@ class TACOAgent:
         labels = torch.arange(logits.shape[0]).long().to(self.device)
         taco_loss = self.cross_entropy_loss(logits, labels)
         
-        if not self.freeze_encoder:
+        # Only update if not frozen and optimizer exists
+        if not self.freeze_encoder and self.taco_opt is not None:
             self.taco_opt.zero_grad()
             (taco_loss + curl_loss + reward_loss).backward()
             self.taco_opt.step()
+        
         if self.use_tb:
             metrics['reward_loss']  = reward_loss.item()
             metrics['curl_loss'] = curl_loss.item()
             metrics['taco_loss']  = taco_loss.item()
+        
         return metrics
         
-        
-    
     def update(self, replay_iter, step):
         metrics = dict()
         if step % self.update_every_steps != 0:
@@ -494,39 +634,8 @@ class TACOAgent:
         utils.soft_update_params(self.critic, self.critic_target,
                                  self.critic_target_tau)
         
+
         metrics.update(self.update_taco(obs, action, action_seq, r_next_obs, reward))       
-        
-        # # Verify that frozen models haven't been modified
-        # if self.freeze_encoder and self.pretrained_path is not None and self.pretrained_path.lower() != 'none':
-        #     self._check_frozen_models()
-        #     #check if the model corresponds to the pretrained one reloading from the pretrained path
-        #     pretrained_checkpoint = torch.load(self.pretrained_path, map_location=self.device)
-        #     pretrained_encoder_state = pretrained_checkpoint['encoder']
-        #     pretrained_taco_state = pretrained_checkpoint['taco'] 
-        #     pretrained_act_tok_state = pretrained_checkpoint['act_tok']
-            
-        #     # Compare current model states with pretrained states
-        #     current_encoder_state = self.encoder.state_dict()
-        #     current_taco_state = self.TACO.state_dict()
-        #     current_act_tok_state = self.act_tok.state_dict()
-            
-        #     # Check encoder parameters
-        #     for key in pretrained_encoder_state:
-        #         if not torch.all(torch.eq(pretrained_encoder_state[key], current_encoder_state[key])):
-        #             raise ValueError(f"Encoder parameter {key} has changed when it should be frozen!")
-            
-        #     # Check TACO parameters
-        #     for key in pretrained_taco_state:
-        #         if not torch.all(torch.eq(pretrained_taco_state[key], current_taco_state[key])):
-        #             raise ValueError(f"TACO parameter {key} has changed when it should be frozen!")
-            
-        #     # Check act_tok parameters
-        #     for key in pretrained_act_tok_state:
-        #         if not torch.all(torch.eq(pretrained_act_tok_state[key], current_act_tok_state[key])):
-        #             raise ValueError(f"act_tok parameter {key} has changed when it should be frozen!")
-            
-        #     # print("All frozen models are unchanged from the pretrained model.")
-            
 
         return metrics
     
@@ -544,12 +653,18 @@ class TACOAgent:
                 logits = self.TACO.compute_logits(z_a, z_pos)
                 labels = torch.arange(logits.shape[0]).long().to(self.device)
                 curl_loss = self.cross_entropy_loss(logits, labels)
+                print(f"curl_loss: {curl_loss.item()}")
             else:
                 curl_loss = torch.tensor(0.)
             
             ### Compute action encodings
-            action_en = self.TACO.act_tok(action, seq=False) 
-            action_seq_en = self.TACO.act_tok(action_seq, seq=True)
+            if isinstance(self.TACO.act_tok, nn.Identity):
+                # When using Identity, pass actions directly
+                action_en = action
+                action_seq_en = action_seq.view(action_seq.size(0), -1)  # Flatten multistep actions
+            else:
+                action_en = self.TACO.act_tok(action, seq=False) 
+                action_seq_en = self.TACO.act_tok(action_seq, seq=True)
             
             ### Compute reward prediction loss
             if self.reward:
@@ -557,7 +672,6 @@ class TACOAgent:
                 reward_loss = F.mse_loss(reward_pred, reward)
 
                 # Average percentage of reward prediction error
-                
                 metrics['avg_rew_pred_error_percentage'] = torch.mean(torch.abs(reward_pred - reward) / (reward + 1e-6)).item() 
                 error = reward_pred - reward
                 metrics['log_cosh'] = torch.mean(torch.log(torch.cosh(error + 1e-12))).item()

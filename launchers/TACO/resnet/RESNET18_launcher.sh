@@ -16,7 +16,7 @@ BATCH_SIZE="1024 512"
    
 random_hand_inital="true"
 random_goal_inital="false"
-wandb_tag="RESNET50"
+wandb_tag="RESNET18"
 
 for bs in $BATCH_SIZE; do
     for random_hand in $random_hand_inital; do
