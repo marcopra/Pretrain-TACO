@@ -386,7 +386,8 @@ class TACOAgent:
                  hidden_dim, critic_target_tau, num_expl_steps,
                  update_every_steps, stddev_schedule, stddev_clip, use_tb,
                  reward, multistep, latent_a_dim, curl, pretrained_path=None, 
-                 freeze_encoder=False):
+                 freeze_encoder=False, no_taco=False):
+    
     
         self.device = device
         self.critic_target_tau = critic_target_tau
@@ -400,6 +401,7 @@ class TACOAgent:
         self.multistep = multistep
         self.curl = curl
         self.freeze_encoder = freeze_encoder
+        self.no_taco = no_taco
 
         ### A heuristics to choose the dimensionality of latent actions
         if latent_a_dim == 'none':
@@ -438,20 +440,18 @@ class TACOAgent:
             # Only optimize non-frozen parameters
             parameters = []
             self.encoder_opt = None
+            self.taco_opt = None
 
         else:
             parameters = itertools.chain(self.encoder.parameters(),
                                          self.act_tok.parameters(),
             )
             self.encoder_opt = torch.optim.Adam(parameters, lr=encoder_lr)
+            self.taco_opt = torch.optim.Adam(self.TACO.parameters(), lr=encoder_lr)
         
         self.actor_opt = torch.optim.Adam(self.actor.parameters(), lr=lr)
         self.critic_opt = torch.optim.Adam(self.critic.parameters(), lr=lr)
         
-        if not freeze_encoder:
-            self.taco_opt = torch.optim.Adam(self.TACO.parameters(), lr=encoder_lr)
-        else:
-            self.taco_opt = None
         
         self.cross_entropy_loss = nn.CrossEntropyLoss()
         
@@ -635,6 +635,12 @@ class TACOAgent:
                                  self.critic_target_tau)
         
 
+        if self.no_taco:
+            metrics['reward_loss']  = torch.tensor(0.)
+            metrics['curl_loss'] = torch.tensor(0.)
+            metrics['taco_loss']  = torch.tensor(0.)
+            return metrics
+        
         metrics.update(self.update_taco(obs, action, action_seq, r_next_obs, reward))       
 
         return metrics
@@ -699,4 +705,6 @@ class TACOAgent:
                 metrics['curl_loss'] = curl_loss.item()
                 metrics['taco_loss']  = taco_loss.item()
             return metrics
+
+
 

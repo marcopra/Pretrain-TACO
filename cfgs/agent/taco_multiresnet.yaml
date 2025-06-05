@@ -19,7 +19,7 @@ agent:
   latent_a_dim: ${latent_a_dim}
   pretrained_path: ${pretrained_path}
   freeze_encoder: ${freeze_encoder}
-
+  no_taco: ${no_taco}
 ### TACO parameters
 curl: true
 reward: true
@@ -29,3 +29,4 @@ batch_size: 1024
 pretrained_path: resnet18_l5_pretrained
 freeze_encoder: false
 wandb_project: "taco_metaworld_resnet"
+no_taco: false

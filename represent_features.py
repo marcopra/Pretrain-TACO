@@ -4,7 +4,7 @@ Confronta le prime e ultime osservazioni degli episodi per vedere se stati simil
 sono rappresentati vicini nello spazio delle features.
 
 Usage:
-python represent_features.py --dataset_path data_episodes/repr_dataset/pretraining_datasets/push-wall-v2_task0_fs3_ar2_ri1_rg0_exp=99 --pretrained_path /home/mprattico/Pretrain-TACO/models/taco_MT_MT50_0.99_lr=0.0005_ts=50000896_curl_rew.pt --n_obs 10 --k_episodes 50 --save_plot 10obs_50eps_encoder_direct --use_encoder_direct
+python represent_features.py --dataset_path data_episodes/repr_dataset/pretraining_datasets/ --pretrained_path /home/mprattico/Pretrain-TACO/models/taco_MT_MT50_0.99_lr=0.0005_ts=50000896_curl_rew.pt --n_obs 3 --k_episodes 450 --save_plot 3obs_450eps_encoder_direct --use_encoder_direct
 python represent_features.py --dataset_path data_episodes/repr_dataset/pretraining_datasets/push-wall-v2_task0_fs3_ar2_ri1_rg0_exp=99 --pretrained_path /home/mprattico/Pretrain-TACO/models/taco_MT_MT50_0.99_lr=0.0005_ts=50000896_curl_rew.pt --n_obs 10 --k_episodes 50
 """
 
@@ -44,10 +44,10 @@ def load_episodes_from_dataset(dataset_path, k_episodes=None):
     if not dataset_path.exists():
         raise ValueError(f"Dataset path does not exist: {dataset_path}")
     
-    # Trova tutti i file .npz nella directory
-    episode_files = list(dataset_path.glob("*.npz"))
+    # Trova tutti i file .npz nella directory e nelle sottocartelle
+    episode_files = list(dataset_path.glob("**/*.npz"))
     if not episode_files:
-        raise ValueError(f"No .npz files found in {dataset_path}")
+        raise ValueError(f"No .npz files found in {dataset_path} or its subdirectories")
     
     # Ordina i file per nome
     episode_files.sort()
@@ -56,7 +56,7 @@ def load_episodes_from_dataset(dataset_path, k_episodes=None):
     if k_episodes is not None:
         episode_files = episode_files[:k_episodes]
     
-    print(f"Loading {len(episode_files)} episodes from {dataset_path}")
+    print(f"Loading {len(episode_files)} episodes from {dataset_path} (including subdirectories)")
     
     episodes = []
     for episode_file in episode_files:
@@ -252,7 +252,7 @@ def visualize_features_tsne(first_features, last_features,
     plt.scatter(features_2d[first_mask, 0], features_2d[first_mask, 1], 
                 c='red', alpha=0.6, s=30, label=f'First observations (n={len(first_features)})')
     
-    # Plot ultime osservazioni (blu)
+    # Plot ultime n osservazioni (blu)
     plt.scatter(features_2d[last_mask, 0], features_2d[last_mask, 1], 
                 c='blue', alpha=0.6, s=30, label=f'Last observations (n={len(last_features)})')
     

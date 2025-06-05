@@ -68,9 +68,9 @@ def load_tiny_imagenet(data_dir, batch_size, num_workers=4):
 def create_resnet_model(model_name, num_classes):
     """Create ResNet model"""
     if model_name == 'resnet18':
-        model = torchvision.models.resnet18(weights=None)
+        model = torchvision.models.resnet18(pretrained=True)
     elif model_name == 'resnet50':
-        model = torchvision.models.resnet50(weights=None)
+        model = torchvision.models.resnet50(pretrained=True)
     else:
         raise ValueError(f"Unsupported model: {model_name}")
     
@@ -164,7 +164,7 @@ def main():
                         help='Batch size for training')
     parser.add_argument('--lr', type=float, default=0.001,
                         help='Learning rate')
-    parser.add_argument('--weight_decay', type=float, default=1e-4,
+    parser.add_argument('--weight_decay', type=float, default=0.0,
                         help='Weight decay')
     parser.add_argument('--momentum', type=float, default=0.9,
                         help='SGD momentum')
@@ -236,7 +236,7 @@ def main():
                          momentum=args.momentum, weight_decay=args.weight_decay)
     
     # Learning rate scheduler
-    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.1)
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
     
     print("Starting training...")
     best_val_acc = 0.0

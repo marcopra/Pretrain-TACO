@@ -185,7 +185,7 @@ class TACOAgent:
     def __init__(self, obs_shape, action_shape, device, lr, encoder_lr, feature_dim,
                  hidden_dim, critic_target_tau, num_expl_steps,
                  update_every_steps, stddev_schedule, stddev_clip, use_tb,
-                 reward, multistep, latent_a_dim, curl, pretrained_path=None, freeze_encoder=False):
+                 reward, multistep, latent_a_dim, curl, pretrained_path=None, freeze_encoder=False, no_taco=False):
     
         self.device = device
         self.critic_target_tau = critic_target_tau
@@ -215,14 +215,17 @@ class TACOAgent:
         self.critic_target.load_state_dict(self.critic.state_dict())
         self.TACO = TACO(self.encoder.repr_dim, feature_dim, action_shape, latent_a_dim, hidden_dim, self.act_tok, self.encoder, multistep, device).to(device)
         self.freeze_encoder = freeze_encoder
+        self.no_taco = no_taco
         ### State & Action Encoders
         parameters = itertools.chain(self.encoder.parameters(),
                                      self.act_tok.parameters(),
         )
-        self.encoder_opt = torch.optim.Adam(parameters, lr=encoder_lr)
+        if not self.freeze_encoder:
+            self.encoder_opt = torch.optim.Adam(parameters, lr=encoder_lr)
+            if not self.no_taco:
+                self.taco_opt = torch.optim.Adam(self.TACO.parameters(), lr=encoder_lr)
         self.actor_opt = torch.optim.Adam(self.actor.parameters(), lr=lr)
         self.critic_opt = torch.optim.Adam(self.critic.parameters(), lr=lr)
-        self.taco_opt = torch.optim.Adam(self.TACO.parameters(), lr=encoder_lr)
         
         self.cross_entropy_loss = nn.CrossEntropyLoss()
         
@@ -359,11 +362,13 @@ class TACOAgent:
             metrics['critic_loss'] = critic_loss.item()
 
         # optimize encoder and critic
-        self.encoder_opt.zero_grad(set_to_none=True) # TODO check encoder were really frozen, I should put a if freeze don't optimize to be 100% sure
+        if not self.freeze_encoder:
+            self.encoder_opt.zero_grad(set_to_none=True) # TODO check encoder were really frozen, I should put a if freeze don't optimize to be 100% sure
         self.critic_opt.zero_grad(set_to_none=True)
         critic_loss.backward()
         self.critic_opt.step()
-        self.encoder_opt.step()
+        if not self.freeze_encoder:
+            self.encoder_opt.step()
 
         return metrics
 
@@ -467,6 +472,12 @@ class TACOAgent:
         utils.soft_update_params(self.critic, self.critic_target,
                                  self.critic_target_tau)
         
+        if self.no_taco:
+            metrics['reward_loss']  = torch.tensor(0.)
+            metrics['curl_loss'] = torch.tensor(0.)
+            metrics['taco_loss']  = torch.tensor(0.)
+            return metrics
+            
         metrics.update(self.update_taco(obs, action, action_seq, r_next_obs, reward))       
         
         # # Verify that frozen models haven't been modified
