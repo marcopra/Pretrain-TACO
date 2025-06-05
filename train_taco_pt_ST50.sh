@@ -54,38 +54,16 @@ else
     wandb_suffix=""
 fi
 
-# Run the Python command with the appropriate arguments
-python3 train_metaworld.py agent.pretrained_path="/home/mprattico/Pretrain-TACO/models/taco_MT_ST50_0.${exp}_lr\=0.0005_ts\=200000512_curl_rew.pt"  exp_name="/home/mprattico/Pretrain-TACO/models/taco_MT_ST50_0.${exp}_lr\=0.0005_ts\=200000512_curl_rew.pt" seed=1 env_name=push-v2 random_init=true random_goal=false wandb_tag=ST50${wandb_suffix} num_train_frames=300000 device=cuda:${cuda_device} agent.no_taco=${no_taco}
+# Number of runs
+num_runs=9
 
-# Cleanup command
-rm -rf exp_local/metaworld//home/mprattico/Pretrain-TACO/models/taco_MT_ST50_0.${exp}_lr\=0.0005_ts\=200000512_curl_rew.pt
+# Run experiments in a loop
+for ((i=1; i<=num_runs; i++)); do
+    echo "Running experiment $i of $num_runs"
+    
+    # Run the Python command with the appropriate arguments
+    python3 train_metaworld.py agent.pretrained_path="/home/mprattico/Pretrain-TACO/models/taco_MT_ST50_0.${exp}_lr\=0.0005_ts\=200000512_curl_rew.pt"  exp_name="/home/mprattico/Pretrain-TACO/models/taco_MT_ST50_0.${exp}_lr\=0.0005_ts\=200000512_curl_rew.pt" seed=1 env_name=push-v2 random_init=true random_goal=false wandb_tag=ST50${wandb_suffix} num_train_frames=300000 device=cuda:${cuda_device} agent.no_taco=${no_taco}
 
-# Run the Python command with the appropriate arguments
-python3 train_metaworld.py agent.pretrained_path="/home/mprattico/Pretrain-TACO/models/taco_MT_ST50_0.${exp}_lr\=0.0005_ts\=200000512_curl_rew.pt"  exp_name="/home/mprattico/Pretrain-TACO/models/taco_MT_ST50_0.${exp}_lr\=0.0005_ts\=200000512_curl_rew.pt" seed=1 env_name=push-v2 random_init=true random_goal=false wandb_tag=ST50${wandb_suffix} num_train_frames=300000 device=cuda:${cuda_device} agent.no_taco=${no_taco}
-
-# Cleanup command
-rm -rf exp_local/metaworld//home/mprattico/Pretrain-TACO/models/taco_MT_ST50_0.${exp}_lr\=0.0005_ts\=200000512_curl_rew.pt
-
-# Run the Python command with the appropriate arguments
-python3 train_metaworld.py agent.pretrained_path="/home/mprattico/Pretrain-TACO/models/taco_MT_ST50_0.${exp}_lr\=0.0005_ts\=200000512_curl_rew.pt"  exp_name="/home/mprattico/Pretrain-TACO/models/taco_MT_ST50_0.${exp}_lr\=0.0005_ts\=200000512_curl_rew.pt" seed=1 env_name=push-v2 random_init=true random_goal=false wandb_tag=ST50${wandb_suffix} num_train_frames=300000 device=cuda:${cuda_device} agent.no_taco=${no_taco}
-
-# Cleanup command
-rm -rf exp_local/metaworld//home/mprattico/Pretrain-TACO/models/taco_MT_ST50_0.${exp}_lr\=0.0005_ts\=200000512_curl_rew.pt
-
-# Run the Python command with the appropriate arguments
-python3 train_metaworld.py agent.pretrained_path="/home/mprattico/Pretrain-TACO/models/taco_MT_ST50_0.${exp}_lr\=0.0005_ts\=200000512_curl_rew.pt"  exp_name="/home/mprattico/Pretrain-TACO/models/taco_MT_ST50_0.${exp}_lr\=0.0005_ts\=200000512_curl_rew.pt" seed=1 env_name=push-v2 random_init=true random_goal=false wandb_tag=ST50${wandb_suffix} num_train_frames=300000 device=cuda:${cuda_device} agent.no_taco=${no_taco}
-
-# Cleanup command
-rm -rf exp_local/metaworld//home/mprattico/Pretrain-TACO/models/taco_MT_ST50_0.${exp}_lr\=0.0005_ts\=200000512_curl_rew.pt
-
-# Run the Python command with the appropriate arguments
-python3 train_metaworld.py agent.pretrained_path="/home/mprattico/Pretrain-TACO/models/taco_MT_ST50_0.${exp}_lr\=0.0005_ts\=200000512_curl_rew.pt"  exp_name="/home/mprattico/Pretrain-TACO/models/taco_MT_ST50_0.${exp}_lr\=0.0005_ts\=200000512_curl_rew.pt" seed=1 env_name=push-v2 random_init=true random_goal=false wandb_tag=ST50${wandb_suffix} num_train_frames=300000 device=cuda:${cuda_device} agent.no_taco=${no_taco}
-
-# Cleanup command
-rm -rf exp_local/metaworld//home/mprattico/Pretrain-TACO/models/taco_MT_ST50_0.${exp}_lr\=0.0005_ts\=200000512_curl_rew.pt
-
-# Run the Python command with the appropriate arguments
-python3 train_metaworld.py agent.pretrained_path="/home/mprattico/Pretrain-TACO/models/taco_MT_ST50_0.${exp}_lr\=0.0005_ts\=200000512_curl_rew.pt"  exp_name="/home/mprattico/Pretrain-TACO/models/taco_MT_ST50_0.${exp}_lr\=0.0005_ts\=200000512_curl_rew.pt" seed=1 env_name=push-v2 random_init=true random_goal=false wandb_tag=ST50${wandb_suffix} num_train_frames=300000 device=cuda:${cuda_device} agent.no_taco=${no_taco}
-
-# Cleanup command
-rm -rf exp_local/metaworld//home/mprattico/Pretrain-TACO/models/taco_MT_ST50_0.${exp}_lr\=0.0005_ts\=200000512_curl_rew.pt
+    # Cleanup command
+    rm -rf exp_local/metaworld//home/mprattico/Pretrain-TACO/models/taco_MT_ST50_0.${exp}_lr\=0.0005_ts\=200000512_curl_rew.pt
+done
