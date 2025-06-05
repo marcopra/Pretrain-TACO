@@ -65,7 +65,7 @@ fi
 num_runs=9
 
 # Run experiments in a loop
-for ((i=1; i<=num_runs; i++)); do
+for i in $(seq 1 $num_runs); do
     echo "Running experiment $i of $num_runs"
     
     # Run the Python command with the appropriate arguments

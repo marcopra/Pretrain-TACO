@@ -3,7 +3,7 @@
 # Check if cuda_device argument is provided
 if [ $# -lt 1 ] || [ $# -gt 3 ]; then
     echo "Error: Incorrect number of arguments provided"
-    echo "Usage: $0 <cuda_device> [no_taco] [exp]"
+    echo "Usage: <no_taco> <cuda_device> <exp>"
     echo "cuda_device: 0 to 7"
     echo "no_taco: true or false (default: false)"
     echo "exp: 0, 33, 66, 99 (default: 0)"
@@ -58,7 +58,7 @@ fi
 num_runs=9
 
 # Run experiments in a loop
-for ((i=1; i<=num_runs; i++)); do
+for i in $(seq 1 $num_runs); do
     echo "Running experiment $i of $num_runs"
     
     # Run the Python command with the appropriate arguments
