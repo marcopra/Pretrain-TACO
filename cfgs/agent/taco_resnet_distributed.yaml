@@ -20,7 +20,7 @@ agent:
   pretrained_path: ${pretrained_path}
   freeze_encoder: ${freeze_encoder}
   no_taco: ${no_taco}
-  gradient_accumulation_steps: ${gradient_accumulation_steps}
+  use_distributed_features: ${use_distributed_features}
 
 ### TACO parameters
 curl: true
@@ -28,14 +28,12 @@ reward: true
 multistep: 3
 latent_a_dim: none
 
-# Batch size configuration - TOTAL batch size across all GPUs
-total_batch_size: 2048  # This will be split automatically across GPUs
-max_batch_size_per_gpu: 256  # Maximum that each GPU can handle
+# Distributed feature computation
+use_distributed_features: true
 
-# Gradient accumulation (calcolato automaticamente)
-gradient_accumulation_steps: 1  # Will be calculated automatically
+# Large batch size for contrastive learning
+batch_size: 512  # Can be larger since features are distributed
 
-# Altri parametri
 pretrained_path: resnet18_l5_pretrained
 freeze_encoder: false
 wandb_project: "taco_metaworld_resnet_distributed"

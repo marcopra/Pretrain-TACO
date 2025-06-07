@@ -1,6 +1,8 @@
 import hydra
 import utils
 import torch
+import torch.distributed as dist
+import torch.multiprocessing as mp
 import itertools
 import numpy as np
 import torch.nn as nn
@@ -11,7 +13,6 @@ import torchvision.transforms as transforms
 from agents.resnet_models import resnet_conv3_compressed, resnet_conv4_compressed, resnet_conv5
 import re
 import os
-import torch.distributed as dist
 
 
 class RandomShiftsAug(nn.Module):
@@ -237,7 +238,7 @@ class Encoder(nn.Module):
     
 class TACO(nn.Module):
     """
-    TACO Constrastive loss with distributed training support
+    TACO Constrastive loss with distributed feature computation
     """
 
     def __init__(self, repr_dim, feature_dim, action_shape, latent_a_dim, hidden_dim, act_tok, encoder, multistep, device):
@@ -272,8 +273,6 @@ class TACO(nn.Module):
     def encode(self, x, ema=False):
         """
         Encoder: z_t = e(x_t)
-        :param x: x_t, x y coordinates
-        :return: z_t, value in r2
         """
         if ema:
             with torch.no_grad():
@@ -282,65 +281,72 @@ class TACO(nn.Module):
             z_out = self.proj_s(self.encoder(x))
         return z_out
     
-    def project_sa(self, s, a):
-        x = torch.concat([s,a], dim=-1)
-        return self.proj_sa(x)
+    def encode_distributed(self, x, ema=False, world_size=None):
+        """
+        Distributed feature computation across multiple GPUs
+        """
+        if world_size is None or world_size <= 1:
+            return self.encode(x, ema)
         
-    def compute_logits(self, z_a, z_pos):
-        """
-        - compute (B,B) matrix z_a (W z_pos.T)
-        - positives are all diagonal elements
-        - negatives are all other elements
-        - to compute loss use multiclass cross entropy with identity matrix for labels
-        """
+        # Split batch across GPUs
+        batch_size = x.size(0)
+        chunk_size = batch_size // world_size
+        remainder = batch_size % world_size
         
-        Wz = torch.matmul(self.W, z_pos.T)  # (z_dim,B)
-        logits = torch.matmul(z_a, Wz)  # (B,B)
-        logits = logits - torch.max(logits, 1)[0][:, None]
-        return logits
-    
-    def compute_logits_distributed(self, z_a, z_pos):
-        """
-        Compute logits using representations from all GPUs
-        """
-        if dist.is_initialized() and dist.get_world_size() > 1:
-            # Gather representations from all GPUs
-            world_size = dist.get_world_size()
+        # Create chunks for each GPU
+        chunks = []
+        start_idx = 0
+        for gpu_id in range(world_size):
+            end_idx = start_idx + chunk_size + (1 if gpu_id < remainder else 0)
+            if start_idx < batch_size:
+                chunks.append(x[start_idx:end_idx])
+                start_idx = end_idx
+        
+        # Use multiprocessing to compute features on each GPU
+        mp_ctx = mp.get_context('spawn')
+        with mp_ctx.Pool(processes=world_size) as pool:
+            args = [(chunk, gpu_id, self.encoder.state_dict(), self.proj_s.state_dict(), 
+                    self.encoder.__class__, self.proj_s.__class__, ema) for gpu_id, chunk in enumerate(chunks)]
             
-            # Gather z_a from all GPUs
-            z_a_list = [torch.zeros_like(z_a) for _ in range(world_size)]
-            dist.all_gather(z_a_list, z_a)
-            z_a_all = torch.cat(z_a_list, dim=0)
-            
-            # Gather z_pos from all GPUs
-            z_pos_list = [torch.zeros_like(z_pos) for _ in range(world_size)]
-            dist.all_gather(z_pos_list, z_pos)
-            z_pos_all = torch.cat(z_pos_list, dim=0)
-            
-            # Compute logits using all gathered representations
-            Wz = torch.matmul(self.W, z_pos_all.T)
-            logits = torch.matmul(z_a_all, Wz)
-            
-            # Extract logits for current GPU
-            rank = dist.get_rank()
-            batch_size = z_a.size(0)
-            start_idx = rank * batch_size
-            end_idx = start_idx + batch_size
-            logits = logits[start_idx:end_idx]
-            
-            # Create labels for current GPU (diagonal elements shifted by rank)
-            labels = torch.arange(batch_size, device=self.device) + rank * batch_size
-            
+            results = pool.starmap(self._compute_features_on_gpu, args)
+        
+        # Concatenate results
+        if results:
+            return torch.cat([r.to(self.device) for r in results if r is not None], dim=0)
         else:
-            # Single GPU case - use original implementation
-            Wz = torch.matmul(self.W, z_pos.T)
-            logits = torch.matmul(z_a, Wz)
-            labels = torch.arange(logits.shape[0]).long().to(self.device)
-        
-        logits = logits - torch.max(logits, 1)[0][:, None]
-        return logits, labels
-
+            return self.encode(x, ema)
     
+    @staticmethod
+    def _compute_features_on_gpu(chunk, gpu_id, encoder_state, proj_s_state, encoder_class, proj_s_class, ema):
+        """
+        Static method to compute features on a specific GPU
+        """
+        if chunk.size(0) == 0:
+            return None
+            
+        try:
+            device = f'cuda:{gpu_id}'
+            chunk = chunk.to(device)
+            
+            # Recreate encoder and proj_s on this GPU
+            # Note: This requires the encoder class to be properly reconstructible
+            encoder = encoder_class().to(device)
+            encoder.load_state_dict(encoder_state)
+            
+            proj_s = proj_s_class().to(device)  
+            proj_s.load_state_dict(proj_s_state)
+            
+            if ema:
+                with torch.no_grad():
+                    features = proj_s(encoder(chunk))
+            else:
+                features = proj_s(encoder(chunk))
+            
+            return features.cpu()
+        except Exception as e:
+            print(f"Error on GPU {gpu_id}: {e}")
+            return None
+
 class Actor(nn.Module):
     def __init__(self, repr_dim, action_shape, feature_dim, hidden_dim):
         super().__init__()
@@ -401,10 +407,13 @@ class TACOAgent:
                  hidden_dim, critic_target_tau, num_expl_steps,
                  update_every_steps, stddev_schedule, stddev_clip, use_tb,
                  reward, multistep, latent_a_dim, curl, pretrained_path=None, 
-                 freeze_encoder=False, no_taco=False, gradient_accumulation_steps=1):
+                 freeze_encoder=False, no_taco=False, use_distributed_features=False):
     
     
         self.device = device
+        self.use_distributed_features = use_distributed_features
+        self.world_size = torch.cuda.device_count() if use_distributed_features else 1
+        
         self.critic_target_tau = critic_target_tau
         self.update_every_steps = update_every_steps
         self.use_tb = use_tb
@@ -417,7 +426,6 @@ class TACOAgent:
         self.curl = curl
         self.freeze_encoder = freeze_encoder
         self.no_taco = no_taco
-        self.gradient_accumulation_steps = gradient_accumulation_steps
 
         ### A heuristics to choose the dimensionality of latent actions
         if latent_a_dim == 'none':
@@ -573,12 +581,19 @@ class TACOAgent:
         
         obs_anchor = self.aug(obs.float())
         obs_pos = self.aug(obs.float())
-        z_a = self.TACO.encode(obs_anchor)
-        z_pos = self.TACO.encode(obs_pos, ema=True)
         
-        ### Compute CURL loss with distributed support
+        # Use distributed feature computation if enabled
+        if self.use_distributed_features and self.world_size > 1:
+            z_a = self.TACO.encode_distributed(obs_anchor, ema=False, world_size=self.world_size)
+            z_pos = self.TACO.encode_distributed(obs_pos, ema=True, world_size=self.world_size)
+        else:
+            z_a = self.TACO.encode(obs_anchor)
+            z_pos = self.TACO.encode(obs_pos, ema=True)
+        
+        ### Compute CURL loss
         if self.curl:
-            logits, labels = self.TACO.compute_logits_distributed(z_a, z_pos)
+            logits = self.TACO.compute_logits(z_a, z_pos)
+            labels = torch.arange(logits.shape[0]).long().to(self.device)
             curl_loss = self.cross_entropy_loss(logits, labels)
         else:
             curl_loss = torch.tensor(0.)
@@ -598,42 +613,30 @@ class TACOAgent:
         else:
             reward_loss = torch.tensor(0.)
         
-        ### Compute TACO loss with distributed support
-        next_z = self.TACO.encode(self.aug(next_obs.float()), ema=True)
+        ### Compute TACO loss
+        if self.use_distributed_features and self.world_size > 1:
+            next_z = self.TACO.encode_distributed(self.aug(next_obs.float()), ema=True, world_size=self.world_size)
+        else:
+            next_z = self.TACO.encode(self.aug(next_obs.float()), ema=True)
+            
         curr_za = self.TACO.project_sa(z_a, action_seq_en) 
-        logits, labels = self.TACO.compute_logits_distributed(curr_za, next_z)
+        logits = self.TACO.compute_logits(curr_za, next_z)
+        labels = torch.arange(logits.shape[0]).long().to(self.device)
         taco_loss = self.cross_entropy_loss(logits, labels)
-        
-        # Accumulate losses
-        total_loss = (taco_loss + curl_loss + reward_loss) / self.gradient_accumulation_steps
-        self.accumulated_taco_loss += taco_loss.item()
-        self.accumulated_curl_loss += curl_loss.item()  
-        self.accumulated_reward_loss += reward_loss.item()
         
         # Only update if not frozen and optimizer exists
         if not self.freeze_encoder and self.taco_opt is not None:
-            total_loss.backward()
-            self.accumulation_counter += 1
-            
-            # Update when we've accumulated enough gradients
-            if self.accumulation_counter >= self.gradient_accumulation_steps:
-                self.taco_opt.step()
-                self.taco_opt.zero_grad()
-                
-                # Log accumulated metrics
-                if self.use_tb:
-                    metrics['reward_loss'] = self.accumulated_reward_loss / self.gradient_accumulation_steps
-                    metrics['curl_loss'] = self.accumulated_curl_loss / self.gradient_accumulation_steps
-                    metrics['taco_loss'] = self.accumulated_taco_loss / self.gradient_accumulation_steps
-                
-                # Reset counters
-                self.accumulation_counter = 0
-                self.accumulated_taco_loss = 0.0
-                self.accumulated_curl_loss = 0.0
-                self.accumulated_reward_loss = 0.0
+            self.taco_opt.zero_grad()
+            (taco_loss + curl_loss + reward_loss).backward()
+            self.taco_opt.step()
+        
+        if self.use_tb:
+            metrics['reward_loss'] = reward_loss.item()
+            metrics['curl_loss'] = curl_loss.item()
+            metrics['taco_loss'] = taco_loss.item()
         
         return metrics
-
+        
     def update(self, replay_iter, step):
         metrics = dict()
         if step % self.update_every_steps != 0:
