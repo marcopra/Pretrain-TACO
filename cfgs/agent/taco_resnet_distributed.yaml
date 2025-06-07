@@ -1,0 +1,42 @@
+agent:
+  _target_: agents.taco_resnet_distributed.TACOAgent
+  obs_shape: ??? # to be specified later
+  action_shape: ??? # to be specified later
+  device: ${device}
+  lr: ${lr}
+  encoder_lr: ${encoder_lr}
+  critic_target_tau: 0.01
+  update_every_steps: 2
+  use_tb: ${use_tb}
+  num_expl_steps: 2000
+  hidden_dim: 1024
+  feature_dim: ${feature_dim}
+  stddev_schedule: ${stddev_schedule}
+  stddev_clip: 0.3
+  curl: ${curl}
+  reward: ${reward}
+  multistep: ${multistep}
+  latent_a_dim: ${latent_a_dim}
+  pretrained_path: ${pretrained_path}
+  freeze_encoder: ${freeze_encoder}
+  no_taco: ${no_taco}
+  gradient_accumulation_steps: ${gradient_accumulation_steps}
+
+### TACO parameters
+curl: true
+reward: true
+multistep: 3
+latent_a_dim: none
+
+# Batch size configuration - TOTAL batch size across all GPUs
+total_batch_size: 2048  # This will be split automatically across GPUs
+max_batch_size_per_gpu: 256  # Maximum that each GPU can handle
+
+# Gradient accumulation (calcolato automaticamente)
+gradient_accumulation_steps: 1  # Will be calculated automatically
+
+# Altri parametri
+pretrained_path: resnet18_l5_pretrained
+freeze_encoder: false
+wandb_project: "taco_metaworld_resnet_distributed"
+no_taco: false
