@@ -53,14 +53,27 @@ class Workspace:
 
         if cfg.use_wandb:
            
-           wandb.init(
-            config=OmegaConf.to_container(cfg, resolve=True),
-            project=cfg.wandb_project,
-            name=cfg.wandb_run_name,
-            tags=cfg.wandb_tag.split('_') if cfg.wandb_tag and cfg.wandb_tag != "none" else None,
-            sync_tensorboard=True,
-            mode='online')
-           wandb.run.save()
+            
+            if cfg.wandb_id is not None and cfg.wandb_id != "none":
+               
+                wandb.init(
+                    id=cfg.wandb_id,
+                    resume='must',
+                    project=cfg.wandb_project,
+                    name=cfg.wandb_run_name,
+                    tags=cfg.wandb_tag.split('_') if cfg.wandb_tag and cfg.wandb_tag != "none" else None,
+                    sync_tensorboard=True,
+                    mode='online')
+            else:
+                wandb.init(
+                    config=OmegaConf.to_container(cfg, resolve=True),
+                    project=cfg.wandb_project,
+                    name=cfg.wandb_run_name,
+                    tags=cfg.wandb_tag.split('_') if cfg.wandb_tag and cfg.wandb_tag != "none" else None,
+                    sync_tensorboard=True,
+                    mode='online')
+                
+            wandb.run.save()
             
 
     def setup(self):
