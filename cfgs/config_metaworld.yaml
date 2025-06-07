@@ -49,6 +49,8 @@ wandb_project: "taco_metaworld"
 wandb_entity: "taco"
 wandb_tag: none
 wandb_run_name: ${now:%Y.%m.%d}_${now:%H%M}_metaworld_${env_name}
+wandb_id: none # needed for resuming runs
+
 # experiment
 experiment: mw_exp
 
