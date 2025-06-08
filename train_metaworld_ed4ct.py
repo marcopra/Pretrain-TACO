@@ -11,6 +11,8 @@ import hydra
 from omegaconf import OmegaConf
 import numpy as np
 import torch
+import torch.distributed as dist
+import torch.multiprocessing as mp
 from dm_env import specs
 
 import metaworld_env
@@ -23,6 +25,37 @@ from video import TrainVideoRecorder, VideoRecorder
 torch.backends.cudnn.benchmark = True
 
 
+def setup_ddp(rank, world_size):
+    """Initialize the process group for DDP"""
+    # Use environment variables set by torchrun
+    if 'MASTER_ADDR' not in os.environ:
+        os.environ['MASTER_ADDR'] = '127.0.0.1'
+    if 'MASTER_PORT' not in os.environ:
+        os.environ['MASTER_PORT'] = '29500'
+    
+    print(f"Rank {rank}: Initializing DDP with MASTER_ADDR={os.environ['MASTER_ADDR']}, MASTER_PORT={os.environ['MASTER_PORT']}")
+    
+    # Initialize the process group
+    try:
+        dist.init_process_group(
+            backend='nccl',
+            rank=rank,
+            world_size=world_size,
+            timeout=torch.distributed.default_pg_timeout
+        )
+        torch.cuda.set_device(rank)
+        print(f"Rank {rank}: DDP initialization successful")
+    except Exception as e:
+        print(f"Rank {rank}: DDP initialization failed: {e}")
+        raise
+
+
+def cleanup_ddp():
+    """Clean up the process group"""
+    if dist.is_initialized():
+        dist.destroy_process_group()
+
+
 def make_agent(obs_spec, action_spec, cfg):
     cfg.obs_shape = obs_spec.shape
     cfg.action_shape = action_spec.shape
@@ -30,25 +63,22 @@ def make_agent(obs_spec, action_spec, cfg):
 
 
 class Workspace:
-    def __init__(self, cfg):
+    def __init__(self, cfg, rank=0, world_size=1):
+        self.rank = rank
+        self.world_size = world_size
         self.work_dir = Path.cwd()
-        print(f'workspace: {self.work_dir}')
         
-        # Check for multi-GPU setup
-        self.num_gpus = torch.cuda.device_count()
-        if hasattr(cfg.agent, 'use_distributed_features') and cfg.agent.use_distributed_features:
-            print(f'Using distributed feature computation across {self.num_gpus} GPUs')
-            # Increase batch size for better contrastive learning
-            if self.num_gpus > 1:
-                original_batch_size = cfg.batch_size
-                cfg.batch_size = min(cfg.batch_size * self.num_gpus, 1024)  # Cap at reasonable size
-                print(f'Increased batch size from {original_batch_size} to {cfg.batch_size} for multi-GPU feature computation')
-        
+        # Only print from rank 0
+        if rank == 0:
+            print(f'workspace: {self.work_dir}')
+
         self.cfg = cfg
         if cfg.seed == 1:
             cfg.seed = np.random.randint(0, 10000)
-        utils.set_seed_everywhere(cfg.seed)
-        self.device = torch.device(cfg.device)
+        
+        # Set different seed for each process
+        utils.set_seed_everywhere(cfg.seed + rank)
+        self.device = torch.device(f'cuda:{rank}')
         self.setup()
 
         # Get observation and action specs for the agent
@@ -56,16 +86,25 @@ class Workspace:
         action_spec = metaworld_env.action_spec(self.train_env)
         
         self.agent = make_agent(obs_spec, action_spec, self.cfg.agent)
+        
+        # Wrap agent components with DDP (only the ones that need gradient synchronization)
+        if world_size > 1 and hasattr(self.agent, 'actor'):
+            self.agent.actor = torch.nn.parallel.DistributedDataParallel(
+                self.agent.actor, device_ids=[rank], output_device=rank
+            )
+            self.agent.critic = torch.nn.parallel.DistributedDataParallel(
+                self.agent.critic, device_ids=[rank], output_device=rank
+            )
+            # Don't wrap encoder and TACO with DDP since we handle their gradients manually with ED4CT
+        
         self.timer = utils.Timer()
         self._global_step = 0
         self._global_episode = 0
         self.saved_medium_policy = False
 
-        if cfg.use_wandb:
-           
-            
+        # Only initialize wandb from rank 0
+        if cfg.use_wandb and rank == 0:
             if cfg.wandb_id is not None and cfg.wandb_id != "none":
-               
                 wandb.init(
                     id=cfg.wandb_id,
                     resume='must',
@@ -82,13 +121,14 @@ class Workspace:
                     tags=cfg.wandb_tag.split('_') if cfg.wandb_tag and cfg.wandb_tag != "none" else None,
                     sync_tensorboard=True,
                     mode='online')
-                
             wandb.run.save()
-            
 
     def setup(self):
-        # Create logger
-        self.logger = Logger(self.work_dir, use_tb=self.cfg.use_tb)
+        # Create logger only on rank 0
+        if self.rank == 0:
+            self.logger = Logger(self.work_dir, use_tb=self.cfg.use_tb)
+        else:
+            self.logger = None
         
         # Create environments
         self.train_env = metaworld_env.make(
@@ -243,9 +283,11 @@ class Workspace:
         while train_until_step(self.global_step):
             if time_step.last():
                 self._global_episode += 1
-                self.train_video_recorder.save(f'{self.global_frame}.mp4')
+                if self.rank == 0:  # Only save video from rank 0
+                    self.train_video_recorder.save(f'{self.global_frame}.mp4')
+                
                 # wait until all the metrics schema is populated
-                if metrics is not None:
+                if metrics is not None and self.rank == 0:  # Only log from rank 0
                     # log stats
                     elapsed_time, total_time = self.timer.reset()
                     episode_frame = episode_step * self.cfg.action_repeat
@@ -260,7 +302,8 @@ class Workspace:
                         log('step', self.global_step)
                     # Log also on wandb:
                     if self.cfg.use_wandb:
-                        wandb.log({
+                        # Add distributed training info
+                        wandb_metrics = {
                             'fps': episode_frame / elapsed_time,
                             'total_time': total_time,
                             'episode_reward': episode_reward,
@@ -268,16 +311,11 @@ class Workspace:
                             'episode': self.global_episode,
                             'buffer_size': len(self.replay_storage),
                             'global_frame': self.global_frame,
-                            'step': self.global_step
-                        })
-                        
-                    
-                    # Save medium policy if we reach a certain reward threshold
-                    if hasattr(self.cfg, 'medium_reward_threshold') and \
-                       episode_reward >= self.cfg.medium_reward_threshold and \
-                       self.saved_medium_policy == False:
-                        self.save_policy('medium')
-                        self.saved_medium_policy = True
+                            'step': self.global_step,
+                            'world_size': self.world_size,
+                            'rank': self.rank
+                        }
+                        wandb.log(wandb_metrics)
 
                 # reset env
                 time_step = self.train_env.reset()
@@ -289,10 +327,10 @@ class Workspace:
                 episode_step = 0
                 episode_reward = 0
 
-            # try to evaluate
-            if eval_every_step(self.global_step):
-                self.logger.log('eval_total_time', self.timer.total_time(),
-                                self.global_frame)
+            # try to evaluate (only from rank 0)
+            if eval_every_step(self.global_step) and self.rank == 0:
+                if self.logger:
+                    self.logger.log('eval_total_time', self.timer.total_time(), self.global_frame)
                 self.eval()
 
             # sample action
@@ -304,17 +342,20 @@ class Workspace:
             # try to update the agent
             if not seed_until_step(self.global_step):
                 metrics = self.agent.update(self.replay_iter, self.global_step)
-                self.logger.log_metrics(metrics, self.global_frame, ty='train')
+                if self.rank == 0 and self.logger:  # Only log from rank 0
+                    self.logger.log_metrics(metrics, self.global_frame, ty='train')
 
-                if self.cfg.use_wandb:
-                    metrics.update({'global_step': self.global_step,
-                            'episode': self.global_episode,
-                            'buffer_size': len(self.replay_storage),
-                            'step': self.global_step,
-                            'global_frame': self.global_frame
-                            })
+                if self.cfg.use_wandb and self.rank == 0:
+                    metrics.update({
+                        'global_step': self.global_step,
+                        'episode': self.global_episode,
+                        'buffer_size': len(self.replay_storage),
+                        'step': self.global_step,
+                        'global_frame': self.global_frame,
+                        'world_size': self.world_size,
+                        'rank': self.rank
+                    })
                     wandb.log(metrics)
-
 
             # take env step
             time_step = self.train_env.step(action)
@@ -324,7 +365,8 @@ class Workspace:
             episode_step += 1
             self._global_step += 1
             
-        self.save_policy('expert')
+        if self.rank == 0:  # Only save from rank 0
+            self.save_policy('expert')
 
     def save_snapshot(self):
         snapshot = self.work_dir / 'snapshot.pt'
@@ -342,19 +384,69 @@ class Workspace:
             self.__dict__[k] = v
 
 
+def run_training(rank, world_size, cfg):
+    """Run training on a single process"""
+    try:
+        # Setup DDP
+        if world_size > 1:
+            setup_ddp(rank, world_size)
+        
+        # Create workspace
+        workspace = Workspace(cfg, rank, world_size)
+        
+        # Load snapshot if exists (only check from rank 0)
+        if rank == 0:
+            snapshot = workspace.work_dir / 'snapshot.pt'
+            if snapshot.exists():
+                print(f'resuming: {snapshot}')
+                workspace.load_snapshot()
+        
+        # Synchronize all processes
+        if world_size > 1:
+            print(f"Rank {rank}: Waiting for all processes to sync...")
+            dist.barrier()
+            print(f"Rank {rank}: All processes synced")
+        
+        # Start training
+        workspace.train()
+        
+    except Exception as e:
+        print(f"Rank {rank}: Training failed with error: {e}")
+        raise
+    finally:
+        # Clean up
+        if world_size > 1:
+            cleanup_ddp()
+
+
 @hydra.main(config_path='cfgs', config_name='config_metaworld')
 def main(cfg):
     from pathlib import Path
-    if cfg.use_wandb:
-        wandb.tensorboard.patch(root_logdir=str(Path.cwd()))
-    from train_metaworld import Workspace as W
-    root_dir = Path.cwd()
-    workspace = W(cfg)
-    snapshot = root_dir / 'snapshot.pt'
-    if snapshot.exists():
-        print(f'resuming: {snapshot}')
-        workspace.load_snapshot()
-    workspace.train()
+    
+    # Check if running with torchrun (distributed)
+    if 'LOCAL_RANK' in os.environ:
+        # Running with torchrun - use environment variables
+        rank = int(os.environ['LOCAL_RANK'])
+        world_size = int(os.environ['WORLD_SIZE'])
+        print(f"Detected torchrun environment: rank={rank}, world_size={world_size}")
+        
+        if cfg.use_wandb and rank == 0:
+            wandb.tensorboard.patch(root_logdir=str(Path.cwd()))
+        
+        run_training(rank, world_size, cfg)
+    else:
+        # Determine number of GPUs to use for spawn method
+        world_size = torch.cuda.device_count() if cfg.get('use_ed4ct', False) else 1
+        
+        if world_size > 1:
+            print(f"Starting distributed training with spawn method using {world_size} GPUs")
+            # Use spawn method for multi-GPU training
+            mp.spawn(run_training, args=(world_size, cfg), nprocs=world_size, join=True)
+        else:
+            print("Starting single-GPU training")
+            if cfg.use_wandb:
+                wandb.tensorboard.patch(root_logdir=str(Path.cwd()))
+            run_training(0, 1, cfg)
 
 
 if __name__ == '__main__':

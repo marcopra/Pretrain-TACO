@@ -1,5 +1,5 @@
 agent:
-  _target_: agents.taco_resnet_distributed.TACOAgent
+  _target_: agents.taco_resnet_ed4ct.TACOAgent
   obs_shape: ??? # to be specified later
   action_shape: ??? # to be specified later
   device: ${device}
@@ -20,21 +20,17 @@ agent:
   pretrained_path: ${pretrained_path}
   freeze_encoder: ${freeze_encoder}
   no_taco: ${no_taco}
-  use_distributed_features: ${use_distributed_features}
+  use_ed4ct: ${use_ed4ct}
 
 ### TACO parameters
 curl: true
 reward: true
 multistep: 3
 latent_a_dim: none
-
-# Distributed feature computation
-use_distributed_features: true
-
-# Large batch size for contrastive learning
-batch_size: 512  # Can be larger since features are distributed
-
+batch_size: 128  # Smaller batch size for stability
 pretrained_path: resnet18_l5_pretrained
 freeze_encoder: false
-wandb_project: "taco_metaworld_resnet_distributed"
+wandb_project: "taco_metaworld_resnet_ed4ct"
 no_taco: false
+use_ed4ct: true
+
