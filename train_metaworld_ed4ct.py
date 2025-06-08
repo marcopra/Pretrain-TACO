@@ -104,6 +104,12 @@ class Workspace:
 
         # Only initialize wandb from rank 0
         if cfg.use_wandb and rank == 0:
+            tmp_cfg = cfg.copy()
+            tmp_cfg.batch_size = cfg.batch_size*world_size if hasattr(cfg, 'batch_size') else None
+            tmp_cfg.local_batch_size = cfg.batch_size if hasattr(cfg, 'batch_size') else None
+            tmp_cfg.world_size = world_size
+            tmp_cfg.rank = rank
+
             if cfg.wandb_id is not None and cfg.wandb_id != "none":
                 wandb.init(
                     id=cfg.wandb_id,
@@ -115,7 +121,7 @@ class Workspace:
                     mode='online')
             else:
                 wandb.init(
-                    config=OmegaConf.to_container(cfg, resolve=True),
+                    config=OmegaConf.to_container(tmp_cfg, resolve=True),
                     project=cfg.wandb_project,
                     name=cfg.wandb_run_name,
                     tags=cfg.wandb_tag.split('_') if cfg.wandb_tag and cfg.wandb_tag != "none" else None,
