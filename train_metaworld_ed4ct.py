@@ -104,7 +104,9 @@ class Workspace:
 
         # Only initialize wandb from rank 0
         if cfg.use_wandb and rank == 0:
-            tmp_cfg = cfg.copy()
+            tmp_cfg = OmegaConf.to_container(cfg, resolve=True)
+            tmp_cfg = OmegaConf.create(tmp_cfg)
+            print(f'wandb config: {tmp_cfg}')
             tmp_cfg.batch_size = cfg.batch_size*world_size if hasattr(cfg, 'batch_size') else None
             tmp_cfg.local_batch_size = cfg.batch_size if hasattr(cfg, 'batch_size') else None
             tmp_cfg.world_size = world_size
