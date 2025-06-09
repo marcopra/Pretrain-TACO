@@ -25,6 +25,62 @@ from video import TrainVideoRecorder, VideoRecorder
 torch.backends.cudnn.benchmark = True
 
 
+def aggregate_metrics_across_gpus(metrics, world_size):
+    """Aggregate metrics across all GPUs"""
+    if world_size == 1:
+        return metrics
+    
+    aggregated = {}
+    for key, value in metrics.items():
+        if isinstance(value, (int, float, torch.Tensor)):
+            # Convert to tensor if needed
+            if not isinstance(value, torch.Tensor):
+                value = torch.tensor(float(value), device=torch.cuda.current_device())
+            elif value.device.type != 'cuda':
+                value = value.cuda()
+            
+            # Aggregate across GPUs (sum for counters, mean for rates/losses)
+            if 'step' in key or 'episode' in key or 'frame' in key or 'buffer_size' in key:
+                # Sum counters
+                dist.all_reduce(value, op=dist.ReduceOp.SUM)
+            else:
+                # Average other metrics
+                dist.all_reduce(value, op=dist.ReduceOp.SUM)
+                value = value / world_size
+            
+            aggregated[key] = value.item() if isinstance(value, torch.Tensor) else value
+        else:
+            aggregated[key] = value
+    
+    return aggregated
+
+
+def sync_global_counters(workspace):
+    """Synchronize global counters across all processes"""
+    if workspace.world_size == 1:
+        return
+    
+    # Create tensors for global counters
+    counters = torch.tensor([
+        workspace._global_step,
+        workspace._global_episode,
+        len(workspace.replay_storage)
+    ], dtype=torch.long, device=workspace.device)
+    
+    # Sum counters across all processes
+    dist.all_reduce(counters, op=dist.ReduceOp.SUM)
+    
+    # Update global counters (only on rank 0 for logging purposes)
+    if workspace.rank == 0:
+        workspace._global_step_total = counters[0].item()
+        workspace._global_episode_total = counters[1].item()
+        workspace._global_buffer_size = counters[2].item()
+    else:
+        workspace._global_step_total = 0
+        workspace._global_episode_total = 0
+        workspace._global_buffer_size = 0
+
+
 def setup_ddp(rank, world_size):
     """Initialize the process group for DDP"""
     # Use environment variables set by torchrun
@@ -67,6 +123,11 @@ class Workspace:
         self.rank = rank
         self.world_size = world_size
         self.work_dir = Path.cwd()
+        
+        # Initialize global counters for distributed tracking
+        self._global_step_total = 0
+        self._global_episode_total = 0
+        self._global_buffer_size = 0
         
         # Only print from rank 0
         if rank == 0:
@@ -231,6 +292,21 @@ class Workspace:
             self._replay_iter = iter(self.replay_loader)
         return self._replay_iter
 
+    @property
+    def global_step_total(self):
+        """Total steps across all GPUs"""
+        return self._global_step_total
+
+    @property
+    def global_episode_total(self):
+        """Total episodes across all GPUs"""
+        return self._global_episode_total
+
+    @property
+    def global_frame_total(self):
+        """Total frames across all GPUs"""
+        return self._global_step_total * self.cfg.action_repeat
+
     def eval(self):
         step, episode, total_reward, success = 0, 0, 0, 0
         eval_until_episode = utils.Until(self.cfg.num_eval_episodes)
@@ -259,6 +335,10 @@ class Workspace:
             log('episode', self.global_episode)
             log('step', self.global_step)
             log('success_rate', success / episode)
+            # Add global counters
+            log('global_step_total', self.global_step_total)
+            log('global_episode_total', self.global_episode_total)
+            log('global_frame_total', self.global_frame_total)
 
         if self.cfg.use_wandb:
             wandb.log({
@@ -268,7 +348,14 @@ class Workspace:
                 'eval/step': self.global_step,
                 'eval/success_rate': success / episode,
                 'buffer_size': len(self.replay_storage),
-                'global_frame': self.global_frame
+                'global_frame': self.global_frame,
+                # Add global distributed metrics
+                'eval/global_step_total': self.global_step_total,
+                'eval/global_episode_total': self.global_episode_total,
+                'eval/global_frame_total': self.global_frame_total,
+                'eval/global_buffer_size': self._global_buffer_size,
+                'distributed/world_size': self.world_size,
+                'distributed/rank': self.rank
             })
 
     def train(self):
@@ -285,12 +372,16 @@ class Workspace:
         self.replay_storage.add(time_step)
         self.train_video_recorder.init(time_step.observation)
         metrics = None
-        synced_befor_training = False
+        synced_before_training = False
         # self.save_policy('random')
         
         while train_until_step(self.global_step):
             if time_step.last():
                 self._global_episode += 1
+                
+                # Sync global counters
+                sync_global_counters(self)
+                
                 if self.rank == 0:  # Only save video from rank 0
                     self.train_video_recorder.save(f'{self.global_frame}.mp4')
                 
@@ -308,6 +399,12 @@ class Workspace:
                         log('episode', self.global_episode)
                         log('buffer_size', len(self.replay_storage))
                         log('step', self.global_step)
+                        # Add global counters
+                        log('global_step_total', self.global_step_total)
+                        log('global_episode_total', self.global_episode_total)
+                        log('global_frame_total', self.global_frame_total)
+                        log('global_buffer_size', self._global_buffer_size)
+                    
                     # Log also on wandb:
                     if self.cfg.use_wandb:
                         # Add distributed training info
@@ -320,8 +417,14 @@ class Workspace:
                             'buffer_size': len(self.replay_storage),
                             'global_frame': self.global_frame,
                             'step': self.global_step,
-                            'world_size': self.world_size,
-                            'rank': self.rank
+                            # Global distributed metrics
+                            'distributed/global_step_total': self.global_step_total,
+                            'distributed/global_episode_total': self.global_episode_total,
+                            'distributed/global_frame_total': self.global_frame_total,
+                            'distributed/global_buffer_size': self._global_buffer_size,
+                            'distributed/world_size': self.world_size,
+                            'distributed/rank': self.rank,
+                            'distributed/effective_fps': (episode_frame / elapsed_time) * self.world_size
                         }
                         wandb.log(wandb_metrics)
 
@@ -349,28 +452,45 @@ class Workspace:
 
             # try to update the agent
             if not seed_until_step(self.global_step):
-                if not synced_befor_training:
+                if not synced_before_training:
                     # Synchronize all processes before starting training
                     if self.world_size > 1:
                         print(f"Rank {self.rank}: Waiting for all processes to sync before training...")
                         dist.barrier()
                         print(f"Rank {self.rank}: All processes synced")
-                    synced_befor_training = True
+                    synced_before_training = True
+                
                 metrics = self.agent.update(self.replay_iter, self.global_step)
+                
+                # Aggregate metrics across GPUs for logging
+                if self.world_size > 1:
+                    aggregated_metrics = aggregate_metrics_across_gpus(metrics.copy(), self.world_size)
+                else:
+                    aggregated_metrics = metrics
+                
                 if self.rank == 0 and self.logger:  # Only log from rank 0
-                    self.logger.log_metrics(metrics, self.global_frame, ty='train')
+                    self.logger.log_metrics(aggregated_metrics, self.global_frame, ty='train')
+                
+                # Sync global counters for consistent reporting
+                sync_global_counters(self)
 
                 if self.cfg.use_wandb and self.rank == 0:
-                    metrics.update({
+                    wandb_metrics = aggregated_metrics.copy()
+                    wandb_metrics.update({
                         'global_step': self.global_step,
                         'episode': self.global_episode,
                         'buffer_size': len(self.replay_storage),
                         'step': self.global_step,
                         'global_frame': self.global_frame,
-                        'world_size': self.world_size,
-                        'rank': self.rank
+                        # Global distributed counters
+                        'distributed/global_step_total': self.global_step_total,
+                        'distributed/global_episode_total': self.global_episode_total,
+                        'distributed/global_frame_total': self.global_frame_total,
+                        'distributed/global_buffer_size': self._global_buffer_size,
+                        'distributed/world_size': self.world_size,
+                        'distributed/rank': self.rank
                     })
-                    wandb.log(metrics)
+                    wandb.log(wandb_metrics)
 
             # take env step
             time_step = self.train_env.step(action)
@@ -434,7 +554,7 @@ def run_training(rank, world_size, cfg):
             cleanup_ddp()
 
 
-@hydra.main(config_path='cfgs', config_name='config_metaworld')
+@hydra.main(config_path='cfgs', config_name='config_metaworld_ed4c')
 def main(cfg):
     from pathlib import Path
     
