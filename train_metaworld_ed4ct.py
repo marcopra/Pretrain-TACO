@@ -285,6 +285,7 @@ class Workspace:
         self.replay_storage.add(time_step)
         self.train_video_recorder.init(time_step.observation)
         metrics = None
+        synced_befor_training = False
         # self.save_policy('random')
         
         while train_until_step(self.global_step):
@@ -348,6 +349,13 @@ class Workspace:
 
             # try to update the agent
             if not seed_until_step(self.global_step):
+                if not synced_befor_training:
+                    # Synchronize all processes before starting training
+                    if self.world_size > 1:
+                        print(f"Rank {self.rank}: Waiting for all processes to sync before training...")
+                        dist.barrier()
+                        print(f"Rank {self.rank}: All processes synced")
+                    synced_befor_training = True
                 metrics = self.agent.update(self.replay_iter, self.global_step)
                 if self.rank == 0 and self.logger:  # Only log from rank 0
                     self.logger.log_metrics(metrics, self.global_frame, ty='train')
