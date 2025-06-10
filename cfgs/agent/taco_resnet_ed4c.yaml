@@ -28,7 +28,7 @@ reward: true
 multistep: 3
 latent_a_dim: none
 batch_size: 128  # Smaller batch size for stability
-pretrained_path: resnet18_l5_pretrained
+pretrained_path: resnet50_l5_pretrained
 freeze_encoder: false
 wandb_project: "taco_metaworld_resnet_ed4ct"
 no_taco: false
