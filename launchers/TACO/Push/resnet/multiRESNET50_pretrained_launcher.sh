@@ -12,7 +12,7 @@ BATCH_SIZE="1024"
    
 random_hand_inital="true"
 random_goal_inital="false"
-wandb_tag="multiRESNET50-FREEZE"
+wandb_tag="multiRESNET50"
 
 for bs in $BATCH_SIZE; do
     for random_hand in $random_hand_inital; do
@@ -21,7 +21,7 @@ for bs in $BATCH_SIZE; do
                 for env_name in "${env_names[@]}"; do
                     for model_path in "${model_paths[@]}"; do
                         echo "Submitting job: ENV_NAME=${env_name}, RANDOM_HAND=${random_hand}, RANDOM_GOAL=${random_goal}, SEED=${seed}, BATCH_SIZE=${bs}, MODEL_PATH=${model_path}"
-                        qsub -v SEED="${seed}",ENV_NAME="${env_name}",RANDOM_HAND="${random_hand}",RANDOM_GOAL="${random_goal}",MODEL_PATH="${model_path}",WANDB_TAG="${wandb_tag},BATCH_SIZE=${bs}" launchers/TACO/resnet/multiRESNET.sh
+                        qsub -v SEED="${seed}",ENV_NAME="${env_name}",RANDOM_HAND="${random_hand}",RANDOM_GOAL="${random_goal}",MODEL_PATH="${model_path}",WANDB_TAG="${wandb_tag},BATCH_SIZE=${bs}" launchers/TACO/Push/resnet/multiRESNET.sh
                     done
                 done
             done

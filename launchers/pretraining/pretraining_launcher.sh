@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Define parameter combinations
-dataset_names=("ST50" "MT50")
+dataset_names=("MT50_OOD_Basketball" "MT50_OOD_BinPicking" "MT50_OOD_ButtonPress" "MT50_OOD_ShelfPlace")
 exps_values=("0.0" "0.33" "0.66" "0.99")
 
 # Submit jobs for all combinations

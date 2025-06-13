@@ -4,7 +4,7 @@ python pretrain_taco_multi_task_episodes.py --dataset_config exp_local/metaworld
 python pretrain_taco_multi_task_episodes.py --dataset_config data_episodes/my_config --save_path models/debug/ --total_steps 300_000_000 --checkpoint "1_000_000, 2_000_000, 20_000_000,200_000_000" --lr 5e-4
 
 Examples for resuming a run:
-python pretrain_taco_multi_task_episodes_from_checkpoint.py --dataset_config data_episodes/MT50/0.33 --save_path models/ --total_steps 300_000_000 --checkpoint "250_000_000,300_000_000" --lr 5e-4 --resume_checkpoint models/taco_MT_MT50_0.33_lr=0.0005_ts=200000512_curl_rew.pt --resume_wandb_run ze7o8oaq
+python pretrain_taco_multi_task_episodes_from_checkpoint.py --dataset_config data_episodes/MT50/0.33 --save_path models/ --total_steps 300_000_000 --checkpoint "250_000_000,300_000_000" --lr 5e-4 --resume_checkpoint models/taco_MT_MT50_OOD_Push_0.33_lr=0.0005_ts=200000512_curl_rew.pt --resume_wandb_run ze7o8oaq
 """
 import os
 import numpy as np
@@ -107,7 +107,7 @@ if __name__ == "__main__":
         # Extract dataset config from checkpoint path
         checkpoint_basename = os.path.basename(args.resume_checkpoint)
         if "taco_MT_" in checkpoint_basename:
-            # Extract dataset config from path format like "taco_MT_ST50_0.66_lr=0.0005_ts=100352_curl_rew.pt"
+            # Extract dataset config from path format like "taco_MT_ST50_OOD_Push_0.66_lr=0.0005_ts=100352_curl_rew.pt"
             parts = checkpoint_basename.split("_")
             # Find dataset and ratio parts (e.g., "ST50" and "0.66")
             if len(parts) >= 4:

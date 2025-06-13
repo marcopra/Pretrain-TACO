@@ -4,8 +4,8 @@ Confronta le prime e ultime osservazioni degli episodi per vedere se stati simil
 sono rappresentati vicini nello spazio delle features.
 
 Usage:
-python represent_features.py --dataset_path data_episodes/repr_dataset/pretraining_datasets/ --pretrained_path /home/mprattico/Pretrain-TACO/models/taco_MT_MT50_0.99_lr=0.0005_ts=50000896_curl_rew.pt --n_obs 3 --k_episodes 450 --save_plot 3obs_450eps_encoder_direct --use_encoder_direct
-python represent_features.py --dataset_path data_episodes/repr_dataset/pretraining_datasets/push-wall-v2_task0_fs3_ar2_ri1_rg0_exp=99 --pretrained_path /home/mprattico/Pretrain-TACO/models/taco_MT_MT50_0.99_lr=0.0005_ts=50000896_curl_rew.pt --n_obs 10 --k_episodes 50
+python represent_features.py --dataset_path data_episodes/repr_dataset/pretraining_datasets/ --pretrained_path /home/mprattico/Pretrain-TACO/models/taco_MT_MT50_OOD_Push_0.99_lr=0.0005_ts=50000896_curl_rew.pt --n_obs 3 --k_episodes 450 --save_plot 3obs_450eps_encoder_direct --use_encoder_direct
+python represent_features.py --dataset_path data_episodes/repr_dataset/pretraining_datasets/push-wall-v2_task0_fs3_ar2_ri1_rg0_exp=99 --pretrained_path /home/mprattico/Pretrain-TACO/models/taco_MT_MT50_OOD_Push_0.99_lr=0.0005_ts=50000896_curl_rew.pt --n_obs 10 --k_episodes 50
 """
 
 import argparse

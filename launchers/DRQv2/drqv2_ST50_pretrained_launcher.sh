@@ -3,10 +3,10 @@
 seeds="1"
 env_names=("push-v2")
 model_paths=(
-    "/home/mprattico/Pretrain-TACO/models/taco_MT_ST50_0.0_lr=0.0005_ts=200000512_curl_rew.pt"
-    "/home/mprattico/Pretrain-TACO/models/taco_MT_ST50_0.33_lr=0.0005_ts=200000512_curl_rew.pt"
-    "/home/mprattico/Pretrain-TACO/models/taco_MT_ST50_0.66_lr=0.0005_ts=200000512_curl_rew.pt"
-    "/home/mprattico/Pretrain-TACO/models/taco_MT_ST50_0.99_lr=0.0005_ts=200000512_curl_rew.pt"
+    "/home/mprattico/Pretrain-TACO/models/taco_MT_ST50_OOD_Push_0.0_lr=0.0005_ts=200000512_curl_rew.pt"
+    "/home/mprattico/Pretrain-TACO/models/taco_MT_ST50_OOD_Push_0.33_lr=0.0005_ts=200000512_curl_rew.pt"
+    "/home/mprattico/Pretrain-TACO/models/taco_MT_ST50_OOD_Push_0.66_lr=0.0005_ts=200000512_curl_rew.pt"
+    "/home/mprattico/Pretrain-TACO/models/taco_MT_ST50_OOD_Push_0.99_lr=0.0005_ts=200000512_curl_rew.pt"
 )
 random_hand_inital="true"
 random_goal_inital="false"

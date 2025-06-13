@@ -1,5 +1,5 @@
 """
-python eval_taco_multi_task_episodes.py --pretrained_path "models/debug/taco_MT_ST50_0.0_lr=0.0005_ts=5000192.pt" --dataset_config "data_episodes/my_config/0"
+python eval_taco_multi_task_episodes.py --pretrained_path "models/debug/taco_MT_ST50_OOD_Push_0.0_lr=0.0005_ts=5000192.pt" --dataset_config "data_episodes/my_config/0"
 """
 import os
 import numpy as np
