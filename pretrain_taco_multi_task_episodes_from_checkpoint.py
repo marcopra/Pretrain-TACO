@@ -66,8 +66,8 @@ if __name__ == "__main__":
     valid_datset_path = args.dataset_config + "/test_dataset"
 
     if args.fastwork:
-        pretraining_dataset_path = "/home/mprattico/fastwork/" + pretraining_dataset_path
-        valid_datset_path = "/home/mprattico/fastwork/" + valid_datset_path
+        pretraining_dataset_path = "/fastwork/mprattico/" + pretraining_dataset_path
+        valid_datset_path = "/fastwork/mprattico/" + valid_datset_path
     
     # Check for overlapping subdirectories between training and validation datasets
     if os.path.exists(pretraining_dataset_path) and os.path.exists(valid_datset_path):
