@@ -3,10 +3,10 @@
 seeds="1"
 env_names=("shelf-place-v2")
 model_paths=(
-    "/home/mprattico/Pretrain-TACO/models/taco_MT_MT50_OOD_SelfPlace_0.0_lr=0.0005_ts=200000512_curl_rew.pt"
-    "/home/mprattico/Pretrain-TACO/models/taco_MT_MT50_OOD_SelfPlace_0.33_lr=0.0005_ts=200000512_curl_rew.pt"
-    "/home/mprattico/Pretrain-TACO/models/taco_MT_MT50_OOD_SelfPlace_0.66_lr=0.0005_ts=200000512_curl_rew.pt"
-    "/home/mprattico/Pretrain-TACO/models/taco_MT_MT50_OOD_SelfPlace_0.99_lr=0.0005_ts=50000896_curl_rew.pt" 
+    "/home/mprattico/Pretrain-TACO/models/taco_MT_MT50_OOD_ShelfPlace_0.0_lr=0.0005_ts=200000512_curl_rew.pt"
+    "/home/mprattico/Pretrain-TACO/models/taco_MT_MT50_OOD_ShelfPlace_0.33_lr=0.0005_ts=200000512_curl_rew.pt"
+    "/home/mprattico/Pretrain-TACO/models/taco_MT_MT50_OOD_ShelfPlace_0.66_lr=0.0005_ts=200000512_curl_rew.pt"
+    "/home/mprattico/Pretrain-TACO/models/taco_MT_MT50_OOD_ShelfPlace_0.99_lr=0.0005_ts=50000896_curl_rew.pt" 
 )
    
 random_hand_inital="true"
