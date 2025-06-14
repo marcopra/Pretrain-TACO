@@ -167,3 +167,4 @@ data*
 exp_local*
 models
 *.png
+test_model/
