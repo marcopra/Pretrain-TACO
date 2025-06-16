@@ -480,6 +480,11 @@ class TACOAgent:
             
         metrics.update(self.update_taco(obs, action, action_seq, r_next_obs, reward))       
         
+        # # save model periodically
+        # if step % 10000 == 0:
+        #     save_path = f"/home/mprattico/Pretrain-TACO/test_model/model_step_{step}.pt"
+        #     self.save(save_path, step)
+        #     print(f"Model saved at step {step} to {save_path}")
         # # Verify that frozen models haven't been modified
         # if self.freeze_encoder and self.pretrained_path is not None and self.pretrained_path.lower() != 'none':
         #     self._check_frozen_models()
@@ -514,6 +519,30 @@ class TACOAgent:
 
         return metrics
     
+    def save(self, save_path, step):
+        """
+        Save the model state to a file.
+        
+        Args:
+            save_path: Path to save the model state
+            step: Current training step (for naming purposes)
+        """
+        state = {
+            'encoder': self.encoder.state_dict(),
+            'taco': self.TACO.state_dict(),
+            'act_tok': self.act_tok.state_dict(),
+            'actor': self.actor.state_dict(),
+            'critic': self.critic.state_dict(),
+            'critic_target': self.critic_target.state_dict(),
+            'args': {
+                'step': step,
+                'freeze_encoder': self.freeze_encoder,
+                'no_taco': self.no_taco
+            }
+        }
+        torch.save(state, save_path)
+        print(f"Model saved to {save_path}")
+        
     def evaluate_taco(self, obs, action, action_seq, next_obs, reward):
         with torch.no_grad():
             metrics = dict()
@@ -568,5 +597,6 @@ class TACOAgent:
                 metrics['reward_loss']  = reward_loss.item()
                 metrics['curl_loss'] = curl_loss.item()
                 metrics['taco_loss']  = taco_loss.item()
+                metrics['total_loss'] = taco_loss.item() + curl_loss.item() + reward_loss.item()
             return metrics
 

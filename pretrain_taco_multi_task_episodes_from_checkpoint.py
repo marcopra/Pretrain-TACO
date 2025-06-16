@@ -97,6 +97,10 @@ if __name__ == "__main__":
     steps = 0
     epoch = 0
     
+    # Initialize best model tracking
+    best_eval_loss = float('inf')
+    best_model_path = None
+    
     # Load saved checkpoint if provided
     saved_args = None
     if args.resume_checkpoint:
@@ -111,8 +115,8 @@ if __name__ == "__main__":
             parts = checkpoint_basename.split("_")
             # Find dataset and ratio parts (e.g., "ST50" and "0.66")
             if len(parts) >= 4:
-                dataset_type = parts[2]  # e.g., "ST50" or "MT50"
-                ratio = parts[3]  # e.g., "0.33" or "0.66"
+                dataset_type = "_".join(parts[2:4])  # e.g., "ST50" or "MT50" #TODO to test
+                ratio = parts[5]  # e.g., "0.33" or "0.66"
                 expected_config = f"data_episodes/{dataset_type}/{ratio}"
                 
                 # Check if the dataset config matches
@@ -214,6 +218,7 @@ if __name__ == "__main__":
                     'eval/reward_loss': 0,
                     'eval/curl_loss': 0,
                     'eval/taco_loss': 0,
+                    'eval/total_loss': 0,
                     'eval/batch_reward': 0,
                     'eval/avg_rew_pred_error_percentage': 0,
                     'eval/log_cosh': 0,
@@ -240,6 +245,7 @@ if __name__ == "__main__":
                     eval_metrics_sum['eval/taco_loss'] += eval_metrics['taco_loss']
                     eval_metrics_sum['eval/batch_reward'] += eval_metrics['batch_reward']
                     eval_metrics_sum['eval/avg_rew_pred_error_percentage'] += eval_metrics['avg_rew_pred_error_percentage']
+                    eval_metrics_sum['eval/total_loss'] += eval_metrics['total_loss']
                     if 'log_cosh' in eval_metrics:
                         eval_metrics_sum['eval/log_cosh'] += eval_metrics['log_cosh']
                     if 'rel_error_filtered' in eval_metrics:
@@ -252,10 +258,38 @@ if __name__ == "__main__":
                 for key in eval_metrics_sum:
                     eval_metrics_sum[key] /= num_eval_batches
                 
+                # Check if this is the best model so far
+                current_eval_loss = eval_metrics_sum['eval/total_loss']
+                if current_eval_loss < best_eval_loss:
+                    print(f"New best model found! eval/total_loss: {current_eval_loss:.6f} (previous best: {best_eval_loss:.6f})")
+                    best_eval_loss = current_eval_loss
+                    
+                    # Delete previous best model if it exists
+                    if best_model_path is not None and os.path.exists(best_model_path):
+                        print(f"Deleting previous best model: {best_model_path}")
+                        os.remove(best_model_path)
+                    
+                    # Save new best model
+                    curl_str = "curl" if not args.no_curl else "nocurl"
+                    reward_str = "rew" if not args.no_reward else "norew"
+                    best_model_path = f"{args.save_path}/taco_MT_{'_'.join(args.dataset_config.split('/')[1:])}_lr={args.lr}_ts={steps}_{curl_str}_{reward_str}_best.pt"
+                    print(f"Saving new best model to {best_model_path} at step {steps}")
+                    os.makedirs(args.save_path, exist_ok=True)
+                    torch.save({
+                        'encoder': taco_agent.encoder.state_dict(),
+                        'taco': taco_agent.TACO.state_dict(),
+                        'act_tok': taco_agent.act_tok.state_dict(),
+                        'args': vars(args),
+                        'steps': steps,
+                        'epoch': epoch,
+                        'best_eval_loss': best_eval_loss,
+                    }, best_model_path)
+                
                 # Log eval metrics to wandb
                 if args.use_wandb:
                     eval_metrics_sum['steps'] = steps
                     eval_metrics_sum['epoch'] = epoch
+                    eval_metrics_sum['best_eval_loss'] = best_eval_loss
                     wandb.log(eval_metrics_sum)
                 
                 print(f"Validation metrics: {eval_metrics_sum}")

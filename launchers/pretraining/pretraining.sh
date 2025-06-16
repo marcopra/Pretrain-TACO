@@ -14,4 +14,4 @@ source ~/.bashrc
 conda activate metataco
 
 echo "Running pretraining with dataset: ${DATASET_NAME}, exps: ${EXPS}"
-python pretrain_taco_multi_task_episodes.py --dataset_config "data_episodes/${DATASET_NAME}/${EXPS}" --use_wandb --total_steps 200_000_000 --checkpoint "50_000_000, 100_000_000, 200_000_000" --lr 5e-4 --fastwork
+python pretrain_taco_multi_task_episodes_from_checkpoint.py --dataset_config "data_episodes/${DATASET_NAME}/${EXPS}" --use_wandb --total_steps 200_000_000 --checkpoint "50_000_000, 100_000_000, 200_000_000" --lr 5e-4 --fastwork
