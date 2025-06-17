@@ -11,7 +11,7 @@ cuda_device=$1
 
 # Validate cuda_device value
 case $cuda_device in
-    0|1|2|3)
+    0|1|2|3|4|5|6|7)
         # Valid value
         ;;
     *)
