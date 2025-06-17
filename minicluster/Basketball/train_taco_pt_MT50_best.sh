@@ -57,16 +57,16 @@ fi
 # Set ts value based on exp
 case $exp in
     0)
-        ts_value="177766400"
+        ts_value="66457600"
         ;;
     33)
-        ts_value="153600"
+        ts_value="0"
         ;;
     66)
-        ts_value="153139200"
+        ts_value="8550400"
         ;;
     99)
-        ts_value="43315200"
+        ts_value="409600"
         ;;
 esac
 
@@ -78,8 +78,8 @@ for i in $(seq 1 $num_runs); do
     echo "Running experiment $i of $num_runs"
     
     # Run the Python command with the appropriate arguments
-    python3 train_metaworld.py agent.pretrained_path="/home/mprattico/Pretrain-TACO/models/taco_MT_MT50_OOD_ShelfPlace_0.${exp}_lr\=0.0005_ts\=${ts_value}_curl_rew_best.pt"  exp_name="/home/mprattico/Pretrain-TACO/models/taco_MT_MT50_OOD_ShelfPlace_0.${exp}_lr\=0.0005_ts\=${ts_value}_curl_rew_best.pt" seed=1 env_name=shelf-place-v2 random_init=true random_goal=false wandb_tag=MT50${wandb_suffix} num_train_frames=300000 device=cuda:${cuda_device} agent.no_taco=${no_taco}
+    python3 train_metaworld.py agent.pretrained_path="/home/mprattico/Pretrain-TACO/models/taco_MT_MT50_OOD_Basketball_0.${exp}_lr\=0.0005_ts\=${ts_value}_curl_rew_best.pt"  exp_name="/home/mprattico/Pretrain-TACO/models/taco_MT_MT50_OOD_Basketball_0.${exp}_lr\=0.0005_ts\=${ts_value}_curl_rew_best.pt" seed=1 env_name=basketball-v2 random_init=true random_goal=false wandb_tag=MT50${wandb_suffix} num_train_frames=300000 device=cuda:${cuda_device} agent.no_taco=${no_taco}
 
     # Cleanup command
-    rm -rf exp_local/metaworld/home/mprattico/Pretrain-TACO/models/taco_MT_MT50_OOD_ShelfPlace_0.${exp}_lr\=0.0005_ts\=${ts_value}_curl_rew_best.pt
+    rm -rf exp_local/metaworld/home/mprattico/Pretrain-TACO/models/taco_MT_MT50_OOD_Basketball_0.${exp}_lr\=0.0005_ts\=${ts_value}_curl_rew_best.pt
 done
