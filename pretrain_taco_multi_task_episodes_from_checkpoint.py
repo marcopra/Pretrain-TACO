@@ -50,6 +50,7 @@ if __name__ == "__main__":
     parser.add_argument('--fastwork', action='store_true', help='Prepend /home/mprattico/fastwork/ to dataset paths')
     parser.add_argument('--no_curl', action='store_true', help='Disable CURL loss (enabled by default)')
     parser.add_argument('--no_reward', action='store_true', help='Disable reward loss (enabled by default)')
+    parser.add_argument('--optimizer', type=str, default='adam', choices=['adam', 'sgd'], help='Optimizer to use for training (default: adam)')
     # New arguments for resuming training
     parser.add_argument('--resume_checkpoint', type=str, default=None, help='Path to the checkpoint to resume training from')
     parser.add_argument('--resume_wandb_run', type=str, default=None, help='ID of wandb run to resume')
@@ -198,7 +199,8 @@ if __name__ == "__main__":
         multistep=args.multistep,
         latent_a_dim='none',
         curl=not args.no_curl,
-        pretrained_path=args.resume_checkpoint
+        pretrained_path=args.resume_checkpoint,
+        optimizer_type=args.optimizer
     )
 
     # Now that the agent is initialized with the loaded checkpoint, we're ready to continue training
@@ -272,7 +274,8 @@ if __name__ == "__main__":
                     # Save new best model
                     curl_str = "curl" if not args.no_curl else "nocurl"
                     reward_str = "rew" if not args.no_reward else "norew"
-                    best_model_path = f"{args.save_path}/taco_MT_{'_'.join(args.dataset_config.split('/')[1:])}_lr={args.lr}_ts={steps}_{curl_str}_{reward_str}_best.pt"
+                    optimizer_str = f"_{args.optimizer}" if args.optimizer != "adam" else ""
+                    best_model_path = f"{args.save_path}/taco_MT_{'_'.join(args.dataset_config.split('/')[1:])}_lr={args.lr}{optimizer_str}_ts={steps}_{curl_str}_{reward_str}_best.pt"
                     print(f"Saving new best model to {best_model_path} at step {steps}")
                     os.makedirs(args.save_path, exist_ok=True)
                     torch.save({
@@ -316,7 +319,8 @@ if __name__ == "__main__":
             if any(s <= steps < s + args.batch_size for s in checkpoint_steps):
                 curl_str = "curl" if not args.no_curl else "nocurl"
                 reward_str = "rew" if not args.no_reward else "norew"
-                checkpoint_path = f"{args.save_path}/taco_MT_{'_'.join(args.dataset_config.split('/')[1:])}_lr={args.lr}_ts={steps}_{curl_str}_{reward_str}.pt"
+                optimizer_str = f"_{args.optimizer}" if args.optimizer != "adam" else ""
+                checkpoint_path = f"{args.save_path}/taco_MT_{'_'.join(args.dataset_config.split('/')[1:])}_lr={args.lr}{optimizer_str}_ts={steps}_{curl_str}_{reward_str}.pt"
                 print(f"Saving checkpoint at step {steps} to {checkpoint_path}")
                 os.makedirs(args.save_path, exist_ok=True)
                 torch.save({
@@ -336,6 +340,7 @@ if __name__ == "__main__":
     os.makedirs(args.save_path, exist_ok=True)
     curl_str = "curl" if not args.no_curl else "nocurl"
     reward_str = "rew" if not args.no_reward else "norew"
+    optimizer_str = f"_{args.optimizer}" if args.optimizer != "adam" else ""
     torch.save({
         'encoder': taco_agent.encoder.state_dict(),
         'taco': taco_agent.TACO.state_dict(),
@@ -343,7 +348,7 @@ if __name__ == "__main__":
         'args': vars(args),  # Save configuration for easier loading
         'steps': steps,
         'epoch': epoch,
-    }, f"{args.save_path}/taco_MT_{'_'.join(args.dataset_config.split('/')[1:])}_lr={args.lr}_ts={args.total_steps}_{curl_str}_{reward_str}.pt")
+    }, f"{args.save_path}/taco_MT_{'_'.join(args.dataset_config.split('/')[1:])}_lr={args.lr}{optimizer_str}_ts={args.total_steps}_{curl_str}_{reward_str}.pt")
     
     print(f"Training completed after {steps} steps and {epoch} epochs")
     if args.use_wandb:

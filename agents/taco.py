@@ -185,7 +185,7 @@ class TACOAgent:
     def __init__(self, obs_shape, action_shape, device, lr, encoder_lr, feature_dim,
                  hidden_dim, critic_target_tau, num_expl_steps,
                  update_every_steps, stddev_schedule, stddev_clip, use_tb,
-                 reward, multistep, latent_a_dim, curl, pretrained_path=None, freeze_encoder=False, no_taco=False):
+                 reward, multistep, latent_a_dim, curl, pretrained_path=None, freeze_encoder=False, no_taco=False, optimizer_type="adam"):
     
         self.device = device
         self.critic_target_tau = critic_target_tau
@@ -198,6 +198,7 @@ class TACOAgent:
         self.reward = reward
         self.multistep = multistep
         self.curl = curl
+        self.optimizer_type = optimizer_type.lower()
 
         ### A heuristics to choose the dimensionality of latent actions
         if latent_a_dim == 'none':
@@ -220,12 +221,21 @@ class TACOAgent:
         parameters = itertools.chain(self.encoder.parameters(),
                                      self.act_tok.parameters(),
         )
+        
+        # Selezione dell'optimizer
+        if self.optimizer_type == "adam":
+            optimizer_class = torch.optim.Adam
+        elif self.optimizer_type == "sgd":
+            optimizer_class = torch.optim.SGD
+        else:
+            raise ValueError(f"Optimizer type '{self.optimizer_type}' not supported. Use 'adam' or 'sgd'.")
+        
         if not self.freeze_encoder:
-            self.encoder_opt = torch.optim.Adam(parameters, lr=encoder_lr)
+            self.encoder_opt = optimizer_class(parameters, lr=encoder_lr)
             if not self.no_taco:
-                self.taco_opt = torch.optim.Adam(self.TACO.parameters(), lr=encoder_lr)
-        self.actor_opt = torch.optim.Adam(self.actor.parameters(), lr=lr)
-        self.critic_opt = torch.optim.Adam(self.critic.parameters(), lr=lr)
+                self.taco_opt = optimizer_class(self.TACO.parameters(), lr=encoder_lr)
+        self.actor_opt = optimizer_class(self.actor.parameters(), lr=lr)
+        self.critic_opt = optimizer_class(self.critic.parameters(), lr=lr)
         
         self.cross_entropy_loss = nn.CrossEntropyLoss()
         
