@@ -57,25 +57,25 @@ fi
 # Set ts value and lr value based on exp
 case $exp in
     0)
-        ts_value="102400"
+        ts_value="66457600"
         lr_value="0.0005"
         ;;
     33)
-        ts_value="204800"
-        lr_value="0.0005"
+        ts_value="178176000"
+        lr_value="0.0001"
         ;;
     66)
-        ts_value="256000"
+        ts_value="8550400"
         lr_value="0.0005"
         ;;
     99)
-        ts_value="36300800"
+        ts_value="409600"
         lr_value="0.0005"
         ;;
 esac
 
 # Construct model path
-model_path="/home/mprattico/Pretrain-TACO/models/taco_MT_MT50_OOD_BinPicking_0.${exp}_lr\=${lr_value}_ts\=${ts_value}_curl_rew_best.pt"
+model_path="/home/mprattico/Pretrain-TACO/models/taco_MT_MT50_OOD_Basketball_0.${exp}_lr\=${lr_value}_ts\=${ts_value}_curl_rew_best.pt"
 
 # Number of runs
 num_runs=9
@@ -85,7 +85,7 @@ for i in $(seq 1 $num_runs); do
     echo "Running experiment $i of $num_runs"
     
     # Run the Python command with the appropriate arguments
-    python3 train_metaworld.py agent.pretrained_path="${model_path}" exp_name="${model_path}" seed=1 env_name=bin-picking-v2 random_init=true random_goal=false wandb_tag=MT50${wandb_suffix} num_train_frames=300000 device=cuda:${cuda_device} agent.no_taco=${no_taco}
+    python3 train_metaworld.py agent.pretrained_path="${model_path}" exp_name="${model_path}" seed=1 env_name=basketball-v2 random_init=true random_goal=false wandb_tag=MT50${wandb_suffix} num_train_frames=300000 device=cuda:${cuda_device} agent.no_taco=${no_taco}
 
     # Cleanup command
     rm -rf exp_local/metaworld${model_path}
