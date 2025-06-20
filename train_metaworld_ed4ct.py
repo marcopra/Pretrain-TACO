@@ -102,6 +102,11 @@ def clean_master_port(port_str):
 
 def setup_ddp(rank, world_size):
     """Initialize the process group for DDP"""
+    # Check if already initialized
+    if dist.is_initialized():
+        print(f"Rank {rank}: Process group already initialized, skipping...")
+        return
+    
     # Set NCCL environment variables for InfiniBand/Leonardo cluster
     nccl_env_vars = {
         'NCCL_IB_DISABLE': '0',  # Enable InfiniBand
@@ -149,6 +154,17 @@ def setup_ddp(rank, world_size):
     except:
         pass
     
+    # Determine local rank and CUDA device
+    local_rank = int(os.environ.get('LOCAL_RANK', 0))
+    # For multi-node setup with 1 GPU per node, always use device 0
+    cuda_device = 0 if torch.cuda.device_count() > 0 else None
+    
+    print(f"Rank {rank}: Available CUDA devices: {torch.cuda.device_count()}")
+    print(f"Rank {rank}: Using CUDA device: {cuda_device}")
+    
+    if cuda_device is not None:
+        torch.cuda.set_device(cuda_device)
+    
     # Initialize the process group
     try:
         # For InfiniBand networks like Leonardo, use NCCL backend
@@ -166,13 +182,9 @@ def setup_ddp(rank, world_size):
             timeout=timeout
         )
         
-        # For multi-node setup, use LOCAL_RANK for CUDA device
-        local_rank = int(os.environ.get('LOCAL_RANK', 0))
-        cuda_device = local_rank if local_rank < torch.cuda.device_count() else 0
-        torch.cuda.set_device(cuda_device)
         print(f"Rank {rank}: DDP initialization successful with backend={backend}, CUDA device={cuda_device}")
         
-        # Simple synchronization test without tensor operations that might fail
+        # Simple synchronization test
         if world_size > 1:
             print(f"Rank {rank}: Testing basic synchronization...")
             dist.barrier()
@@ -190,9 +202,6 @@ def setup_ddp(rank, world_size):
                 world_size=world_size,
                 timeout=torch.distributed.default_pg_timeout
             )
-            local_rank = int(os.environ.get('LOCAL_RANK', 0))
-            cuda_device = local_rank if local_rank < torch.cuda.device_count() else 0
-            torch.cuda.set_device(cuda_device)
             print(f"Rank {rank}: DDP initialization successful with Gloo backend, CUDA device={cuda_device}")
             
             if world_size > 1:
@@ -246,9 +255,10 @@ class Workspace:
         
         # For multi-node setup, use LOCAL_RANK for CUDA device, not global rank
         local_rank = int(os.environ.get('LOCAL_RANK', 0))
-        cuda_device = local_rank if local_rank < torch.cuda.device_count() else 0
+        # Each node has only one GPU, so always use device 0
+        cuda_device = 0 if torch.cuda.device_count() > 0 else 0
         self.device = torch.device(f'cuda:{cuda_device}')
-        print(f'Rank {rank}: Using device {self.device} (LOCAL_RANK={local_rank})')
+        print(f'Rank {rank}: Using device {self.device} (LOCAL_RANK={local_rank}, CUDA devices available: {torch.cuda.device_count()})')
         
         self.setup()
 
@@ -261,7 +271,8 @@ class Workspace:
         # Wrap agent components with DDP (only the ones that need gradient synchronization)
         if world_size > 1 and hasattr(self.agent, 'actor'):
             local_rank = int(os.environ.get('LOCAL_RANK', 0))
-            cuda_device = local_rank if local_rank < torch.cuda.device_count() else 0
+            # For multi-node setup with 1 GPU per node, always use device 0
+            cuda_device = 0 if torch.cuda.device_count() > 0 else 0
             self.agent.actor = torch.nn.parallel.DistributedDataParallel(
                 self.agent.actor, device_ids=[cuda_device], output_device=cuda_device
             )
@@ -635,8 +646,8 @@ class Workspace:
 def run_training(rank, world_size, cfg):
     """Run training on a single process"""
     try:
-        # Setup DDP
-        if world_size > 1:
+        # Setup DDP only if not already initialized
+        if world_size > 1 and not dist.is_initialized():
             setup_ddp(rank, world_size)
         
         # Create workspace
@@ -660,6 +671,8 @@ def run_training(rank, world_size, cfg):
         
     except Exception as e:
         print(f"Rank {rank}: Training failed with error: {e}")
+        import traceback
+        traceback.print_exc()
         raise
     finally:
         # Clean up
@@ -693,7 +706,7 @@ def main(cfg):
         print(f"Detected SLURM/srun environment: rank={rank}, world_size={world_size}")
         
         # For multi-node setup with 1 task per node, LOCAL_RANK should be 0 for each node
-        # but we need to use the global rank for CUDA device selection
+        # SLURM_LOCALID is the local task ID within a node
         local_rank = int(os.environ.get('SLURM_LOCALID', 0))
         
         # Set torchrun-like environment variables for compatibility
@@ -702,10 +715,11 @@ def main(cfg):
         os.environ['LOCAL_RANK'] = str(local_rank)
         
         print(f"SLURM setup: RANK={rank}, WORLD_SIZE={world_size}, LOCAL_RANK={local_rank}")
+        print(f"SLURM node info: NODEID={os.environ.get('SLURM_NODEID')}, NUM_NODES={os.environ.get('SLURM_JOB_NUM_NODES')}")
     
     # Check torchrun environment variables
     elif 'LOCAL_RANK' in os.environ and 'WORLD_SIZE' in os.environ:
-        rank = int(os.environ['LOCAL_RANK'])
+        rank = int(os.environ.get('RANK', int(os.environ['LOCAL_RANK'])))
         world_size = int(os.environ['WORLD_SIZE'])
         distributed = True
         print(f"Detected torchrun environment: rank={rank}, world_size={world_size}")

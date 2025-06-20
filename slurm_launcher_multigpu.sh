@@ -6,12 +6,11 @@
 #SBATCH --gres=gpu:1
 #SBATCH --time=24:00:00
 #SBATCH --output=job_%j.out
-#SBATCH --error=%j.err
+#SBATCH --error=job_%j.err
 
 # set -x  # Enable debug mode
 
 cd $SLURM_SUBMIT_DIR
-
 
 source ~/.bashrc
 module unload anaconda3/2023.09-0
@@ -48,6 +47,12 @@ export LOCAL_RANK=$SLURM_LOCALID
 echo "RANK: $RANK"
 echo "WORLD_SIZE: $WORLD_SIZE"
 echo "LOCAL_RANK: $LOCAL_RANK"
+
+# Debug info
+echo "SLURM_PROCID: $SLURM_PROCID"
+echo "SLURM_LOCALID: $SLURM_LOCALID"
+echo "SLURM_NODEID: $SLURM_NODEID"
+echo "CUDA_VISIBLE_DEVICES: $CUDA_VISIBLE_DEVICES"
 
 # Run with srun (no torchrun needed)
 srun --unbuffered python train_metaworld_ed4ct.py \
