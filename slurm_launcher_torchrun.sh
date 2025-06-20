@@ -12,7 +12,6 @@
 
 cd $SLURM_SUBMIT_DIR
 
-
 source ~/.bashrc
 module unload anaconda3/2023.09-0
 module load anaconda3/2023.09-0
@@ -40,18 +39,28 @@ export MASTER_PORT=$(shuf -i 30000-50000 -n 1)
 echo "MASTER_ADDR: $MASTER_ADDR"
 echo "MASTER_PORT: $MASTER_PORT"
 
-# Set additional environment variables for distributed training
-export RANK=$SLURM_PROCID
-export WORLD_SIZE=$SLURM_NTASKS
-export LOCAL_RANK=$SLURM_LOCALID
+# For torchrun, we need to run on each node separately
+# Get node rank
+NODELIST=$(scontrol show hostnames $SLURM_JOB_NODELIST)
+NODE_RANK=0
+for node in $NODELIST; do
+    if [[ "$node" == "$(hostname)" ]]; then
+        break
+    fi
+    ((NODE_RANK++))
+done
 
-echo "RANK: $RANK"
-echo "WORLD_SIZE: $WORLD_SIZE"
-echo "LOCAL_RANK: $LOCAL_RANK"
+echo "NODE_RANK: $NODE_RANK"
 
-# Run with srun (no torchrun needed)
-srun --unbuffered python train_metaworld_ed4ct.py \
+# Run with torchrun (each node runs this independently)
+torchrun \
+    --nproc_per_node=1 \
+    --nnodes=2 \
+    --node_rank=$NODE_RANK \
+    --master_addr=$MASTER_ADDR \
+    --master_port=$MASTER_PORT \
+    train_metaworld_ed4ct.py \
     batch_size=128 env_name=push-v3 \
-    wandb_tag="SLURM" \
-    agent.pretrained_path=/leonardo/home/userexternal/mprattic/Pretrain-TACO/models/resnet50_l5.tar \
+    wandb_tag="SLURM_TORCHRUN" \
+    agent.pretrained_path=/leonardo/home/userexternal/mprattico/Pretrain-TACO/models/resnet50_l5.tar \
     wandb_mode=offline
