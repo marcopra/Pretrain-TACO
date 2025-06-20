@@ -42,7 +42,7 @@ export NCCL_TIMEOUT=1800  # 30 minutes timeoutSIZE=1
 
 # Set PyTorch distributed environment variables manuallyecho "Starting training with RANK=$RANK, WORLD_SIZE=$WORLD_SIZE, LOCAL_RANK=$LOCAL_RANK"
 export WORLD_SIZE=$SLURM_JOB_NUM_NODES
-export RANK=$SLURM_NODEID# Launch with srun directly (no torchrun)
+export RANK=$SLURM_NODEID # Launch with srun directly (no torchrun)
 export LOCAL_RANK=0
 export LOCAL_WORLD_SIZE=1
 
