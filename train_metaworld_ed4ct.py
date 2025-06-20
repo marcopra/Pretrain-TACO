@@ -563,8 +563,19 @@ def run_training(rank, world_size, cfg):
 def main(cfg):
     from pathlib import Path
     
-    # Check if running with torchrun (distributed)
-    if 'LOCAL_RANK' in os.environ and 'RANK' in os.environ:
+    # Check if running with SLURM environment variables
+    if 'SLURM_NODEID' in os.environ and 'WORLD_SIZE' in os.environ:
+        # Running with SLURM + srun
+        rank = int(os.environ['RANK'])
+        local_rank = int(os.environ.get('LOCAL_RANK', 0))
+        world_size = int(os.environ['WORLD_SIZE'])
+        print(f"Detected SLURM environment: global_rank={rank}, local_rank={local_rank}, world_size={world_size}")
+        
+        if cfg.use_wandb and rank == 0:
+            wandb.tensorboard.patch(root_logdir=str(Path.cwd()))
+        
+        run_training(rank, world_size, cfg)
+    elif 'LOCAL_RANK' in os.environ and 'RANK' in os.environ:
         # Running with torchrun - use environment variables
         rank = int(os.environ['RANK'])  # Global rank
         local_rank = int(os.environ['LOCAL_RANK'])  # Local rank within node

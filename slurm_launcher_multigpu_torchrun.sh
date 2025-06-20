@@ -32,17 +32,18 @@ export NCCL_IB_TIMEOUT=23
 export NCCL_IB_RETRY_CNT=7
 export NCCL_NET_GDR_LEVEL=0
 
-# Set PyTorch distributed environment variables manually
-export WORLD_SIZE=$SLURM_JOB_NUM_NODES
-export RANK=$SLURM_NODEID
-export LOCAL_RANK=0
-export LOCAL_WORLD_SIZE=1
-
-echo "Starting training with RANK=$RANK, WORLD_SIZE=$WORLD_SIZE, LOCAL_RANK=$LOCAL_RANK"
-
-# Launch with srun directly (no torchrun)
-srun python train_metaworld_ed4ct.py \
-    batch_size=128 env_name=push-v3 \
-    wandb_tag="SLURM" \
-    agent.pretrained_path=/leonardo/home/userexternal/mprattic/Pretrain-TACO/models/resnet50_l5.tar \
-    wandb_mode=offline
+# Launch with torchrun directly (no srun)
+if [ "$SLURM_NODEID" -eq 0 ]; then
+    # Only launch from the first node
+    torchrun \
+      --nnodes=$SLURM_JOB_NUM_NODES \
+      --nproc_per_node=1 \
+      --node_rank=$SLURM_NODEID \
+      --master_addr=$MASTER_ADDR \
+      --master_port=$MASTER_PORT \
+      train_metaworld_ed4ct.py \
+        batch_size=128 env_name=push-v3 \
+        wandb_tag="SLURM" \
+        agent.pretrained_path=/leonardo/home/userexternal/mprattico/Pretrain-TACO/models/resnet50_l5.tar \
+        wandb_mode=offline
+fi
