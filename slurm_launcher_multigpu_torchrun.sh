@@ -15,24 +15,24 @@ module load anaconda3/2023.09-0
 conda activate metataco
 module unload anaconda3/2023.09-0
 
-# Get master node and find available port
-export MASTER_ADDR=$(scontrol show hostnames "$SLURM_JOB_NODELIST" | head -n 1)
-export MASTER_PORT=$(python -c 'import socket; s=socket.socket(); s.bind(("", 0)); print(s.getsockname()[1]); s.close()')
+# Set master node
+export MASTER_ADDR=$(scontrol show hostnames $SLURM_JOB_NODELIST | head -n 1)
+export MASTER_PORT=$(shuf -i 30000-50000 -n 1)
 
 echo "MASTER_ADDR: $MASTER_ADDR"
 echo "MASTER_PORT: $MASTER_PORT"
 echo "SLURM_NODEID: $SLURM_NODEID"
 echo "SLURM_JOB_NUM_NODES: $SLURM_JOB_NUM_NODES"
 
-# NCCL configuration for InfiniBand
+## NCCL configuration for InfiniBand on Leonardo
 export NCCL_IB_DISABLE=0
-export NCCL_IB_HCA=mlx5_0,mlx5_1,mlx5_2,mlx5_3
-export NCCL_SOCKET_IFNAME=ib0
+export NCCL_NET_GDR_LEVEL=2
+export NCCL_IB_GID_INDEX=3
 export NCCL_DEBUG=INFO
-export NCCL_TREE_THRESHOLD=0
-export NCCL_IB_TIMEOUT=23
+export NCCL_SOCKET_IFNAME=^lo,docker
+export NCCL_IB_HCA=mlx5
+export NCCL_IB_TIMEOUT=22
 export NCCL_IB_RETRY_CNT=7
-export NCCL_NET_GDR_LEVEL=0
 
 # Launch with torchrun directly (no srun)
 if [ "$SLURM_NODEID" -eq 0 ]; then
