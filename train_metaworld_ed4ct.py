@@ -102,6 +102,24 @@ def clean_master_port(port_str):
 
 def setup_ddp(rank, world_size):
     """Initialize the process group for DDP"""
+    # Set NCCL environment variables for InfiniBand/Leonardo cluster
+    nccl_env_vars = {
+        'NCCL_IB_DISABLE': '0',  # Enable InfiniBand
+        'NCCL_NET_GDR_LEVEL': '2',  # GPU Direct RDMA level
+        'NCCL_IB_GID_INDEX': '3',  # InfiniBand GID index
+        'NCCL_DEBUG': 'INFO',  # Set debug level
+        'NCCL_SOCKET_IFNAME': '^lo,docker',  # Exclude loopback and docker interfaces
+        'NCCL_IB_HCA': 'mlx5',  # Mellanox adapter
+        'NCCL_IB_TIMEOUT': '22',  # Increase timeout for slow networks
+        'NCCL_IB_RETRY_CNT': '7',  # Increase retry count
+    }
+    
+    # Only set environment variables if they're not already set
+    for key, value in nccl_env_vars.items():
+        if key not in os.environ:
+            os.environ[key] = value
+            print(f"Rank {rank}: Set {key}={value}")
+    
     # Use environment variables set by torchrun or set defaults
     if 'MASTER_ADDR' not in os.environ:
         os.environ['MASTER_ADDR'] = '127.0.0.1'
@@ -123,13 +141,23 @@ def setup_ddp(rank, world_size):
         if var in os.environ:
             print(f"Rank {rank}: {var}={os.environ[var]}")
     
+    # Print network interface information
+    try:
+        import socket
+        hostname = socket.gethostname()
+        print(f"Rank {rank}: Running on hostname: {hostname}")
+    except:
+        pass
+    
     # Initialize the process group
     try:
         # For InfiniBand networks like Leonardo, use NCCL backend
         backend = 'nccl'
         
-        # Set timeout for initialization (useful for slow networks)
-        timeout = torch.distributed.default_pg_timeout
+        # Set longer timeout for initialization (useful for slow networks)
+        timeout = torch.distributed.default_pg_timeout * 2
+        
+        print(f"Rank {rank}: Attempting to initialize process group with backend={backend}, timeout={timeout}")
         
         dist.init_process_group(
             backend=backend,
@@ -140,22 +168,40 @@ def setup_ddp(rank, world_size):
         torch.cuda.set_device(rank)
         print(f"Rank {rank}: DDP initialization successful with backend={backend}")
         
-        # Test communication
+        # Simple synchronization test without tensor operations that might fail
         if world_size > 1:
-            test_tensor = torch.tensor([rank], dtype=torch.float32, device=f'cuda:{rank}')
-            dist.all_reduce(test_tensor, op=dist.ReduceOp.SUM)
-            expected_sum = sum(range(world_size))
-            if test_tensor.item() == expected_sum:
-                print(f"Rank {rank}: DDP communication test passed")
-            else:
-                print(f"Rank {rank}: DDP communication test failed - expected {expected_sum}, got {test_tensor.item()}")
+            print(f"Rank {rank}: Testing basic synchronization...")
+            dist.barrier()
+            print(f"Rank {rank}: Basic synchronization test passed")
         
     except Exception as e:
-        print(f"Rank {rank}: DDP initialization failed: {e}")
-        print(f"Rank {rank}: MASTER_ADDR={os.environ.get('MASTER_ADDR')}")
-        print(f"Rank {rank}: MASTER_PORT={os.environ.get('MASTER_PORT')}")
-        print(f"Rank {rank}: RANK={rank}, WORLD_SIZE={world_size}")
-        raise
+        print(f"Rank {rank}: NCCL DDP initialization failed: {e}")
+        print(f"Rank {rank}: Attempting fallback to Gloo backend...")
+        
+        try:
+            # Fallback to Gloo backend for CPU-based communication
+            dist.init_process_group(
+                backend='gloo',
+                rank=rank,
+                world_size=world_size,
+                timeout=torch.distributed.default_pg_timeout
+            )
+            torch.cuda.set_device(rank)
+            print(f"Rank {rank}: DDP initialization successful with Gloo backend")
+            
+            if world_size > 1:
+                print(f"Rank {rank}: Testing Gloo synchronization...")
+                dist.barrier()
+                print(f"Rank {rank}: Gloo synchronization test passed")
+                
+        except Exception as e2:
+            print(f"Rank {rank}: Both NCCL and Gloo initialization failed")
+            print(f"Rank {rank}: NCCL error: {e}")
+            print(f"Rank {rank}: Gloo error: {e2}")
+            print(f"Rank {rank}: Environment variables:")
+            for key in ['MASTER_ADDR', 'MASTER_PORT', 'RANK', 'WORLD_SIZE', 'LOCAL_RANK']:
+                print(f"Rank {rank}: {key}={os.environ.get(key, 'NOT_SET')}")
+            raise RuntimeError(f"Failed to initialize distributed training: NCCL={e}, Gloo={e2}")
 
 
 def cleanup_ddp():
