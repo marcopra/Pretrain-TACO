@@ -165,8 +165,12 @@ def setup_ddp(rank, world_size):
             world_size=world_size,
             timeout=timeout
         )
-        torch.cuda.set_device(rank)
-        print(f"Rank {rank}: DDP initialization successful with backend={backend}")
+        
+        # For multi-node setup, use LOCAL_RANK for CUDA device
+        local_rank = int(os.environ.get('LOCAL_RANK', 0))
+        cuda_device = local_rank if local_rank < torch.cuda.device_count() else 0
+        torch.cuda.set_device(cuda_device)
+        print(f"Rank {rank}: DDP initialization successful with backend={backend}, CUDA device={cuda_device}")
         
         # Simple synchronization test without tensor operations that might fail
         if world_size > 1:
@@ -186,8 +190,10 @@ def setup_ddp(rank, world_size):
                 world_size=world_size,
                 timeout=torch.distributed.default_pg_timeout
             )
-            torch.cuda.set_device(rank)
-            print(f"Rank {rank}: DDP initialization successful with Gloo backend")
+            local_rank = int(os.environ.get('LOCAL_RANK', 0))
+            cuda_device = local_rank if local_rank < torch.cuda.device_count() else 0
+            torch.cuda.set_device(cuda_device)
+            print(f"Rank {rank}: DDP initialization successful with Gloo backend, CUDA device={cuda_device}")
             
             if world_size > 1:
                 print(f"Rank {rank}: Testing Gloo synchronization...")
@@ -237,7 +243,13 @@ class Workspace:
         
         # Set different seed for each process
         utils.set_seed_everywhere(cfg.seed + rank)
-        self.device = torch.device(f'cuda:{rank}')
+        
+        # For multi-node setup, use LOCAL_RANK for CUDA device, not global rank
+        local_rank = int(os.environ.get('LOCAL_RANK', 0))
+        cuda_device = local_rank if local_rank < torch.cuda.device_count() else 0
+        self.device = torch.device(f'cuda:{cuda_device}')
+        print(f'Rank {rank}: Using device {self.device} (LOCAL_RANK={local_rank})')
+        
         self.setup()
 
         # Get observation and action specs for the agent
@@ -248,11 +260,13 @@ class Workspace:
         
         # Wrap agent components with DDP (only the ones that need gradient synchronization)
         if world_size > 1 and hasattr(self.agent, 'actor'):
+            local_rank = int(os.environ.get('LOCAL_RANK', 0))
+            cuda_device = local_rank if local_rank < torch.cuda.device_count() else 0
             self.agent.actor = torch.nn.parallel.DistributedDataParallel(
-                self.agent.actor, device_ids=[rank], output_device=rank
+                self.agent.actor, device_ids=[cuda_device], output_device=cuda_device
             )
             self.agent.critic = torch.nn.parallel.DistributedDataParallel(
-                self.agent.critic, device_ids=[rank], output_device=rank
+                self.agent.critic, device_ids=[cuda_device], output_device=cuda_device
             )
             # Don't wrap encoder and TACO with DDP since we handle their gradients manually with ED4CT
         
@@ -678,10 +692,16 @@ def main(cfg):
         distributed = True
         print(f"Detected SLURM/srun environment: rank={rank}, world_size={world_size}")
         
+        # For multi-node setup with 1 task per node, LOCAL_RANK should be 0 for each node
+        # but we need to use the global rank for CUDA device selection
+        local_rank = int(os.environ.get('SLURM_LOCALID', 0))
+        
         # Set torchrun-like environment variables for compatibility
         os.environ['RANK'] = str(rank)
         os.environ['WORLD_SIZE'] = str(world_size)
-        os.environ['LOCAL_RANK'] = str(int(os.environ.get('SLURM_LOCALID', rank)))
+        os.environ['LOCAL_RANK'] = str(local_rank)
+        
+        print(f"SLURM setup: RANK={rank}, WORLD_SIZE={world_size}, LOCAL_RANK={local_rank}")
     
     # Check torchrun environment variables
     elif 'LOCAL_RANK' in os.environ and 'WORLD_SIZE' in os.environ:
