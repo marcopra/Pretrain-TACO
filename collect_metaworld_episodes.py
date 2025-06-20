@@ -18,74 +18,130 @@ np.set_printoptions(precision=6, suppress=True)  # Configure NumPy display optio
 from pathlib import Path
 from PIL import Image
 from metaworld_env import *
-from metaworld.policies import *
 from video import VideoRecorder
 import traceback
+from metaworld.policies import *
 
 # Set up logging
 logger = logging.getLogger("metaworld_episodes")
 
+def check_metaworld_version():
+    """Check if v2 environments are available, otherwise use v3."""
+    import metaworld
+    try:
+        # Try to create a v2 environment to check availability
+        mt50 = metaworld.MT50(seed=42)
+        test_env_name = 'push-v2'
+        if test_env_name in mt50.train_classes:
+            logger.info("MetaWorld v2 environments detected")
+            return 'v2'
+    except:
+        pass
+    
+    # If v2 fails, assume v3
+    logger.info("MetaWorld v2 not available, using v3 environments")
+    return 'v3'
+
+def convert_env_name_to_v3(env_name):
+    """Convert v2 environment name to v3."""
+    return env_name.replace('-v2', '-v3')
+
 def get_policy(env_name):
-    """Load dataset paths from config file."""
-    # Map environment names to their corresponding policy classes
-    env_to_policy = {
-        'assembly-v2': SawyerAssemblyV2Policy,
-        'basketball-v2': SawyerBasketballV2Policy,
-        'bin-picking-v2': SawyerBinPickingV2Policy,
-        'box-close-v2': SawyerBoxCloseV2Policy,
-        'button-press-topdown-v2': SawyerButtonPressTopdownV2Policy,
-        'button-press-topdown-wall-v2': SawyerButtonPressTopdownWallV2Policy,
-        'button-press-v2': SawyerButtonPressV2Policy,
-        'button-press-wall-v2': SawyerButtonPressWallV2Policy,
-        'coffee-button-v2': SawyerCoffeeButtonV2Policy,
-        'coffee-pull-v2': SawyerCoffeePullV2Policy,
-        'coffee-push-v2': SawyerCoffeePushV2Policy,
-        'dial-turn-v2': SawyerDialTurnV2Policy,
-        'disassemble-v2': SawyerDisassembleV2Policy,
-        'door-close-v2': SawyerDoorCloseV2Policy,
-        'door-lock-v2': SawyerDoorLockV2Policy,
-        'door-open-v2': SawyerDoorOpenV2Policy,
-        'door-unlock-v2': SawyerDoorUnlockV2Policy,
-        'drawer-close-v2': SawyerDrawerCloseV2Policy,
-        'drawer-open-v2': SawyerDrawerOpenV2Policy,
-        'faucet-close-v2': SawyerFaucetCloseV2Policy,
-        'faucet-open-v2': SawyerFaucetOpenV2Policy,
-        'hammer-v2': SawyerHammerV2Policy,
-        'hand-insert-v2': SawyerHandInsertV2Policy,
-        'handle-press-side-v2': SawyerHandlePressSideV2Policy,
-        'handle-press-v2': SawyerHandlePressV2Policy,
-        'handle-pull-side-v2': SawyerHandlePullSideV2Policy,
-        'handle-pull-v2': SawyerHandlePullV2Policy,
-        'lever-pull-v2': SawyerLeverPullV2Policy,
-        'peg-insert-side-v2': SawyerPegInsertionSideV2Policy,
-        'peg-unplug-side-v2': SawyerPegUnplugSideV2Policy,
-        'pick-out-of-hole-v2': SawyerPickOutOfHoleV2Policy,
-        'pick-place-v2': SawyerPickPlaceV2Policy,
-        'pick-place-wall-v2': SawyerPickPlaceWallV2Policy,
-        'plate-slide-v2': SawyerPlateSlideV2Policy,
-        'plate-slide-back-v2': SawyerPlateSlideBackV2Policy,
-        'plate-slide-back-side-v2': SawyerPlateSlideBackSideV2Policy,
-        'plate-slide-side-v2': SawyerPlateSlideSideV2Policy,
-        'push-back-v2': SawyerPushBackV2Policy,
-        'push-v2': SawyerPushV2Policy,
-        'push-wall-v2': SawyerPushWallV2Policy,
-        'reach-v2': SawyerReachV2Policy,
-        'reach-wall-v2': SawyerReachWallV2Policy,
-        'shelf-place-v2': SawyerShelfPlaceV2Policy,
-        'soccer-v2': SawyerSoccerV2Policy,
-        'stick-pull-v2': SawyerStickPullV2Policy,
-        'stick-push-v2': SawyerStickPushV2Policy,
-        'sweep-into-v2': SawyerSweepIntoV2Policy,
-        'sweep-v2': SawyerSweepV2Policy,
-        'window-close-v2': SawyerWindowCloseV2Policy,
-        'window-open-v2': SawyerWindowOpenV2Policy
+    """Load policy based on available MetaWorld version."""
+    import metaworld.policies as policies_module
+    
+    # Extract base environment name (remove version suffix)
+    base_name = env_name.replace('-v2', '').replace('-v3', '')
+    
+    # Create policy class names for both versions
+    v2_policy_name = f"Sawyer{base_name.replace('-', '').title()}V2Policy"
+    v3_policy_name = f"Sawyer{base_name.replace('-', '').title()}V3Policy"
+    
+    # Determine which version to try first based on environment name
+    if '-v3' in env_name or check_metaworld_version() == 'v3':
+        primary_policy = v3_policy_name
+        fallback_policy = v2_policy_name
+    else:
+        primary_policy = v2_policy_name
+        fallback_policy = v3_policy_name
+    
+    # Try primary policy first
+    if hasattr(policies_module, primary_policy):
+        try:
+            policy_class = getattr(policies_module, primary_policy)
+            logger.info(f"Using policy: {primary_policy}")
+            return policy_class()
+        except Exception as e:
+            logger.warning(f"Failed to instantiate {primary_policy}: {e}")
+    
+    # Try fallback policy
+    if hasattr(policies_module, fallback_policy):
+        try:
+            policy_class = getattr(policies_module, fallback_policy)
+            logger.warning(f"Using fallback policy: {fallback_policy}")
+            return policy_class()
+        except Exception as e:
+            logger.warning(f"Failed to instantiate fallback {fallback_policy}: {e}")
+    
+    # If automatic naming fails, try manual mapping for special cases
+    manual_mapping = {
+        'bin-picking': 'BinPicking',
+        'button-press-topdown': 'ButtonPressTopdown', 
+        'button-press-topdown-wall': 'ButtonPressTopdownWall',
+        'button-press-wall': 'ButtonPressWall',
+        'coffee-button': 'CoffeeButton',
+        'coffee-pull': 'CoffeePull',
+        'coffee-push': 'CoffeePush',
+        'dial-turn': 'DialTurn',
+        'door-close': 'DoorClose',
+        'door-lock': 'DoorLock',
+        'door-open': 'DoorOpen',
+        'door-unlock': 'DoorUnlock',
+        'drawer-close': 'DrawerClose',
+        'drawer-open': 'DrawerOpen',
+        'faucet-close': 'FaucetClose',
+        'faucet-open': 'FaucetOpen',
+        'hand-insert': 'HandInsert',
+        'handle-press-side': 'HandlePressSide',
+        'handle-press': 'HandlePress',
+        'handle-pull-side': 'HandlePullSide',
+        'handle-pull': 'HandlePull',
+        'lever-pull': 'LeverPull',
+        'peg-insert-side': 'PegInsertionSide',
+        'peg-unplug-side': 'PegUnplugSide',
+        'pick-out-of-hole': 'PickOutOfHole',
+        'pick-place': 'PickPlace',
+        'pick-place-wall': 'PickPlaceWall',
+        'plate-slide': 'PlateSlide',
+        'plate-slide-back': 'PlateSlideBack',
+        'plate-slide-back-side': 'PlateSlideBackSide',
+        'plate-slide-side': 'PlateSlideSide',
+        'push-back': 'PushBack',
+        'push-wall': 'PushWall',
+        'reach-wall': 'ReachWall',
+        'shelf-place': 'ShelfPlace',
+        'stick-pull': 'StickPull',
+        'stick-push': 'StickPush',
+        'sweep-into': 'SweepInto',
+        'window-close': 'WindowClose',
+        'window-open': 'WindowOpen'
     }
     
-    if env_name not in env_to_policy:
-        raise ValueError(f"No policy found for environment {env_name}")
+    if base_name in manual_mapping:
+        corrected_name = manual_mapping[base_name]
+        v2_manual = f"Sawyer{corrected_name}V2Policy"
+        v3_manual = f"Sawyer{corrected_name}V3Policy"
+        
+        for policy_name in [v3_manual, v2_manual]:
+            if hasattr(policies_module, policy_name):
+                try:
+                    policy_class = getattr(policies_module, policy_name)
+                    logger.info(f"Using manual mapping policy: {policy_name}")
+                    return policy_class()
+                except Exception as e:
+                    logger.warning(f"Failed to instantiate manual policy {policy_name}: {e}")
     
-    # Return the policy instance
-    return env_to_policy[env_name]()
+    raise ValueError(f"Could not find or instantiate any policy for environment {env_name}")
 
 def save_episode_video(frames, video_dir, env_name, expert_prob, episode_num):
     """

@@ -274,6 +274,21 @@ def make(env_name, task, frame_stack, action_repeat, seed, resolution=84, camera
     mt50 = metaworld.MT50(seed=42)  # Use the provided seed instead of hardcoded 42 # THIS IS VERY SLOW
     
     task_number = task
+    
+    # Check if v2 environment exists, otherwise try v3
+    original_env_name = env_name
+    if env_name not in mt50.train_classes:
+        if '-v2' in env_name:
+            # Try converting to v3
+            v3_env_name = env_name.replace('-v2', '-v3')
+            if v3_env_name in mt50.train_classes:
+                env_name = v3_env_name
+                print(f"Environment {original_env_name} not found, using {env_name} instead")
+            else:
+                raise ValueError(f"Neither {original_env_name} nor {v3_env_name} found in mt50 tasks")
+        else:
+            raise ValueError(f"Environment {env_name} not found in mt50 tasks")
+    
     env_task_indices = [i for i, task in enumerate(mt50.train_tasks) if task.env_name == env_name]
     if not env_task_indices:
         raise ValueError(f"Environment {env_name} not found in mt50 tasks")

@@ -180,7 +180,7 @@ class Workspace:
                     name=cfg.wandb_run_name,
                     tags=cfg.wandb_tag.split('_') if cfg.wandb_tag and cfg.wandb_tag != "none" else None,
                     sync_tensorboard=True,
-                    mode='online')
+                    mode=cfg.wandb_mode if cfg.wandb_mode else 'online')
             else:
                 wandb.init(
                     config=OmegaConf.to_container(tmp_cfg, resolve=True),
@@ -188,7 +188,7 @@ class Workspace:
                     name=cfg.wandb_run_name,
                     tags=cfg.wandb_tag.split('_') if cfg.wandb_tag and cfg.wandb_tag != "none" else None,
                     sync_tensorboard=True,
-                    mode='online')
+                    mode=cfg.wandb_mode if cfg.wandb_mode else 'online')
             wandb.run.save()
 
     def setup(self):

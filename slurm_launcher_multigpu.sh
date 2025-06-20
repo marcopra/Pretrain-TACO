@@ -17,4 +17,4 @@ module load anaconda3/2023.09-0
 conda activate metataco
 module unload anaconda3/2023.09-0
 
-srun torchrun --nproc-per-node=4 train_metaworld_ed4ct.py batch_size=256 env_name=push-v3
+srun torchrun --nproc-per-node=4 train_metaworld_ed4ct.py batch_size=256 env_name=push-v3 wandb_tag="SLURM" agent.pretrained_path=/leonardo/home/userexternal/mprattic/Pretrain-TACO/models/resnet50_l5.tar wandb_mode=offline

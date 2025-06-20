@@ -48,6 +48,7 @@ use_wandb: true
 wandb_project: "taco_metaworld_resnet_ed4ct"
 wandb_entity: "taco"
 wandb_tag: none
+wandb_mode: online
 wandb_run_name: ${now:%Y.%m.%d}_${now:%H%M}_metaworld_${env_name}
 wandb_id: none # needed for resuming runs
 
