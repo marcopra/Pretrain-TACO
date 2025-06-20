@@ -70,7 +70,7 @@ case $exp in
         ;;
     99)
         ts_value="409600"
-        lr_value="0.0005"
+        lr_value="0.001"
         ;;
 esac
 
