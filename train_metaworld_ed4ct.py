@@ -92,18 +92,24 @@ def setup_ddp(rank, world_size):
     
     # Initialize the process group
     try:
+        print(f"Rank {rank}: Calling dist.init_process_group...")
         dist.init_process_group(
             backend='nccl',
             rank=rank,
             world_size=world_size,
             timeout=torch.distributed.default_pg_timeout
         )
+        print(f"Rank {rank}: dist.init_process_group completed")
+        
         # Set the GPU device based on local rank, not global rank
         local_rank = int(os.environ.get('LOCAL_RANK', rank))
         torch.cuda.set_device(local_rank)
         print(f"Rank {rank} (local_rank {local_rank}): DDP initialization successful")
+        print(f"Rank {rank}: Current CUDA device: {torch.cuda.current_device()}")
     except Exception as e:
         print(f"Rank {rank}: DDP initialization failed: {e}")
+        import traceback
+        traceback.print_exc()
         raise
 
 
@@ -121,6 +127,7 @@ def make_agent(obs_spec, action_spec, cfg):
 
 class Workspace:
     def __init__(self, cfg, rank=0, world_size=1):
+        print(f"Rank {rank}: Initializing Workspace...")
         self.rank = rank
         self.world_size = world_size
         # Get local rank for GPU assignment
@@ -147,25 +154,29 @@ class Workspace:
         self.setup()
 
         # Get observation and action specs for the agent
+        print(f"Rank {rank}: Getting observation and action specs...")
         obs_spec = metaworld_env.observation_spec(self.train_env)
         action_spec = metaworld_env.action_spec(self.train_env)
         
+        print(f"Rank {rank}: Creating agent...")
         self.agent = make_agent(obs_spec, action_spec, self.cfg.agent)
+        print(f"Rank {rank}: Agent created")
         
         # Wrap agent components with DDP (only the ones that need gradient synchronization)
         if world_size > 1 and hasattr(self.agent, 'actor'):
+            print(f"Rank {rank}: Wrapping agent components with DDP...")
             self.agent.actor = torch.nn.parallel.DistributedDataParallel(
                 self.agent.actor, device_ids=[self.local_rank], output_device=self.local_rank
             )
             self.agent.critic = torch.nn.parallel.DistributedDataParallel(
                 self.agent.critic, device_ids=[self.local_rank], output_device=self.local_rank
             )
+            print(f"Rank {rank}: DDP wrapping complete")
             # Don't wrap encoder and TACO with DDP since we handle their gradients manually with ED4CT
         
-        self.timer = utils.Timer()
-        self._global_step = 0
-        self._global_episode = 0
-        self.saved_medium_policy = False
+        # ...existing code...
+        
+        print(f"Rank {rank}: Workspace initialization complete")
 
         # Only initialize wandb from rank 0
         if cfg.use_wandb and rank == 0:
@@ -204,6 +215,7 @@ class Workspace:
             self.logger = None
         
         # Create environments
+        print(f"Rank {self.rank}: Creating environments...")
         self.train_env = metaworld_env.make(
             self.cfg.env_name, 
             self.cfg.task,
@@ -227,6 +239,7 @@ class Workspace:
             random_init=self.cfg.random_init,
             randomize_goal_and_object_pos=self.cfg.random_goal
         )
+        print(f"Rank {self.rank}: Environments created")
         
         # Create replay buffer specs
         data_specs = (
@@ -237,6 +250,7 @@ class Workspace:
         )
 
         # Create replay buffer
+        print(f"Rank {self.rank}: Creating replay buffer...")
         self.replay_storage = ReplayBufferStorage(
             data_specs,
             self.work_dir / 'buffer'
@@ -252,10 +266,12 @@ class Workspace:
             self.cfg.multistep, 
             self.cfg.discount
         )
+        print(f"Rank {self.rank}: Replay buffer created")
         
         self._replay_iter = None
 
         # Setup video recorders
+        print(f"Rank {self.rank}: Setting up video recorders...")
         self.video_recorder = VideoRecorder(
             self.work_dir if self.cfg.save_video else None,
             metaworld = True
@@ -265,6 +281,7 @@ class Workspace:
             self.work_dir if self.cfg.save_train_video else None,
             metaworld = True
         )
+        print(f"Rank {self.rank}: Video recorders setup complete")
     
     def save_policy(self, policy_type):
         checkpoint_path = self.work_dir / f'{policy_type}_policy.pt'
@@ -526,13 +543,19 @@ class Workspace:
 
 def run_training(rank, world_size, cfg):
     """Run training on a single process"""
+    print(f"Rank {rank}: Entering run_training function")
+    
     try:
         # Setup DDP
         if world_size > 1:
+            print(f"Rank {rank}: Setting up DDP...")
             setup_ddp(rank, world_size)
+            print(f"Rank {rank}: DDP setup complete")
         
         # Create workspace
+        print(f"Rank {rank}: Creating workspace...")
         workspace = Workspace(cfg, rank, world_size)
+        print(f"Rank {rank}: Workspace created successfully")
         
         # Load snapshot if exists (only check from rank 0)
         if rank == 0:
@@ -548,20 +571,28 @@ def run_training(rank, world_size, cfg):
             print(f"Rank {rank}: All processes synced")
         
         # Start training
+        print(f"Rank {rank}: Starting training loop...")
         workspace.train()
         
     except Exception as e:
         print(f"Rank {rank}: Training failed with error: {e}")
+        import traceback
+        traceback.print_exc()
         raise
     finally:
         # Clean up
         if world_size > 1:
+            print(f"Rank {rank}: Cleaning up DDP...")
             cleanup_ddp()
 
 
 @hydra.main(config_path='cfgs', config_name='config_metaworld_ed4c')
 def main(cfg):
     from pathlib import Path
+    
+    print(f"Starting main function...")
+    print(f"CUDA available: {torch.cuda.is_available()}")
+    print(f"CUDA device count: {torch.cuda.device_count()}")
     
     # Check if running with SLURM environment variables
     if 'SLURM_NODEID' in os.environ and 'WORLD_SIZE' in os.environ:
@@ -571,9 +602,16 @@ def main(cfg):
         world_size = int(os.environ['WORLD_SIZE'])
         print(f"Detected SLURM environment: global_rank={rank}, local_rank={local_rank}, world_size={world_size}")
         
+        # Set CUDA device early
+        if torch.cuda.is_available():
+            torch.cuda.set_device(local_rank)
+            print(f"Rank {rank}: Set CUDA device to {local_rank}")
+        
         if cfg.use_wandb and rank == 0:
+            print(f"Rank {rank}: Initializing wandb...")
             wandb.tensorboard.patch(root_logdir=str(Path.cwd()))
         
+        print(f"Rank {rank}: Starting training...")
         run_training(rank, world_size, cfg)
     elif 'LOCAL_RANK' in os.environ and 'RANK' in os.environ:
         # Running with torchrun - use environment variables
