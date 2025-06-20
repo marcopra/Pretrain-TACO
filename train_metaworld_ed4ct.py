@@ -657,30 +657,64 @@ def run_training(rank, world_size, cfg):
 def main(cfg):
     from pathlib import Path
     
-    # Check if running with torchrun (distributed)
-    if 'LOCAL_RANK' in os.environ:
-        # Running with torchrun - use environment variables
+    # Print environment variables for debugging
+    print("=== Environment Variables Debug ===")
+    env_vars = ['LOCAL_RANK', 'RANK', 'WORLD_SIZE', 'SLURM_PROCID', 'SLURM_NTASKS', 
+                'SLURM_LOCALID', 'SLURM_NODEID', 'SLURM_JOB_NUM_NODES', 'SLURM_NODELIST',
+                'MASTER_ADDR', 'MASTER_PORT', 'CUDA_VISIBLE_DEVICES']
+    for var in env_vars:
+        print(f"{var}: {os.environ.get(var, 'NOT_SET')}")
+    print("=====================================")
+    
+    # Determine if we're running in distributed mode
+    distributed = False
+    rank = 0
+    world_size = 1
+    
+    # Check SLURM environment variables first (srun)
+    if 'SLURM_PROCID' in os.environ and 'SLURM_NTASKS' in os.environ:
+        rank = int(os.environ['SLURM_PROCID'])
+        world_size = int(os.environ['SLURM_NTASKS'])
+        distributed = True
+        print(f"Detected SLURM/srun environment: rank={rank}, world_size={world_size}")
+        
+        # Set torchrun-like environment variables for compatibility
+        os.environ['RANK'] = str(rank)
+        os.environ['WORLD_SIZE'] = str(world_size)
+        os.environ['LOCAL_RANK'] = str(int(os.environ.get('SLURM_LOCALID', rank)))
+    
+    # Check torchrun environment variables
+    elif 'LOCAL_RANK' in os.environ and 'WORLD_SIZE' in os.environ:
         rank = int(os.environ['LOCAL_RANK'])
         world_size = int(os.environ['WORLD_SIZE'])
+        distributed = True
         print(f"Detected torchrun environment: rank={rank}, world_size={world_size}")
+    
+    # Fallback to spawn method for multi-GPU on single node
+    elif cfg.get('use_ed4ct', False):
+        available_gpus = torch.cuda.device_count()
+        if available_gpus > 1:
+            world_size = available_gpus
+            print(f"No distributed environment detected, using spawn method with {world_size} GPUs")
+            mp.spawn(run_training, args=(world_size, cfg), nprocs=world_size, join=True)
+            return
+        else:
+            print("Single GPU available, running in single-GPU mode")
+    
+    if distributed:
+        print(f"Running distributed training: rank={rank}, world_size={world_size}")
+        print(f"MASTER_ADDR: {os.environ.get('MASTER_ADDR')}")
+        print(f"MASTER_PORT: {os.environ.get('MASTER_PORT')}")
         
         if cfg.use_wandb and rank == 0:
             wandb.tensorboard.patch(root_logdir=str(Path.cwd()))
         
         run_training(rank, world_size, cfg)
     else:
-        # Determine number of GPUs to use for spawn method
-        world_size = torch.cuda.device_count() if cfg.get('use_ed4ct', False) else 1
-        
-        if world_size > 1:
-            print(f"Starting distributed training with spawn method using {world_size} GPUs")
-            # Use spawn method for multi-GPU training
-            mp.spawn(run_training, args=(world_size, cfg), nprocs=world_size, join=True)
-        else:
-            print("Starting single-GPU training")
-            if cfg.use_wandb:
-                wandb.tensorboard.patch(root_logdir=str(Path.cwd()))
-            run_training(0, 1, cfg)
+        print("Starting single-GPU training")
+        if cfg.use_wandb:
+            wandb.tensorboard.patch(root_logdir=str(Path.cwd()))
+        run_training(0, 1, cfg)
 
 
 if __name__ == '__main__':
