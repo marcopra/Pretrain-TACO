@@ -83,13 +83,12 @@ def sync_global_counters(workspace):
 
 def setup_ddp(rank, world_size):
     """Initialize the process group for DDP"""
-    # Use environment variables set by torchrun
-    if 'MASTER_ADDR' not in os.environ:
-        os.environ['MASTER_ADDR'] = '127.0.0.1'
-    if 'MASTER_PORT' not in os.environ:
-        os.environ['MASTER_PORT'] = '29500'
+    # For multi-node setup, use environment variables set by torchrun/srun
+    master_addr = os.environ.get('MASTER_ADDR', '127.0.0.1')
+    master_port = os.environ.get('MASTER_PORT', '29500')
     
-    print(f"Rank {rank}: Initializing DDP with MASTER_ADDR={os.environ['MASTER_ADDR']}, MASTER_PORT={os.environ['MASTER_PORT']}")
+    print(f"Rank {rank}: Initializing DDP with MASTER_ADDR={master_addr}, MASTER_PORT={master_port}")
+    print(f"Rank {rank}: World size={world_size}")
     
     # Initialize the process group
     try:
@@ -99,8 +98,10 @@ def setup_ddp(rank, world_size):
             world_size=world_size,
             timeout=torch.distributed.default_pg_timeout
         )
-        torch.cuda.set_device(rank)
-        print(f"Rank {rank}: DDP initialization successful")
+        # Set the GPU device based on local rank, not global rank
+        local_rank = int(os.environ.get('LOCAL_RANK', rank))
+        torch.cuda.set_device(local_rank)
+        print(f"Rank {rank} (local_rank {local_rank}): DDP initialization successful")
     except Exception as e:
         print(f"Rank {rank}: DDP initialization failed: {e}")
         raise
@@ -122,6 +123,8 @@ class Workspace:
     def __init__(self, cfg, rank=0, world_size=1):
         self.rank = rank
         self.world_size = world_size
+        # Get local rank for GPU assignment
+        self.local_rank = int(os.environ.get('LOCAL_RANK', rank))
         self.work_dir = Path.cwd()
         
         # Initialize global counters for distributed tracking
@@ -137,9 +140,10 @@ class Workspace:
         if cfg.seed == 1:
             cfg.seed = np.random.randint(0, 10000)
         
-        # Set different seed for each process
+        # Set different seed for each process using global rank
         utils.set_seed_everywhere(cfg.seed + rank)
-        self.device = torch.device(f'cuda:{rank}')
+        # Use local rank for device assignment
+        self.device = torch.device(f'cuda:{self.local_rank}')
         self.setup()
 
         # Get observation and action specs for the agent
@@ -151,10 +155,10 @@ class Workspace:
         # Wrap agent components with DDP (only the ones that need gradient synchronization)
         if world_size > 1 and hasattr(self.agent, 'actor'):
             self.agent.actor = torch.nn.parallel.DistributedDataParallel(
-                self.agent.actor, device_ids=[rank], output_device=rank
+                self.agent.actor, device_ids=[self.local_rank], output_device=self.local_rank
             )
             self.agent.critic = torch.nn.parallel.DistributedDataParallel(
-                self.agent.critic, device_ids=[rank], output_device=rank
+                self.agent.critic, device_ids=[self.local_rank], output_device=self.local_rank
             )
             # Don't wrap encoder and TACO with DDP since we handle their gradients manually with ED4CT
         
@@ -560,11 +564,12 @@ def main(cfg):
     from pathlib import Path
     
     # Check if running with torchrun (distributed)
-    if 'LOCAL_RANK' in os.environ:
+    if 'LOCAL_RANK' in os.environ and 'RANK' in os.environ:
         # Running with torchrun - use environment variables
-        rank = int(os.environ['LOCAL_RANK'])
+        rank = int(os.environ['RANK'])  # Global rank
+        local_rank = int(os.environ['LOCAL_RANK'])  # Local rank within node
         world_size = int(os.environ['WORLD_SIZE'])
-        print(f"Detected torchrun environment: rank={rank}, world_size={world_size}")
+        print(f"Detected torchrun environment: global_rank={rank}, local_rank={local_rank}, world_size={world_size}")
         
         if cfg.use_wandb and rank == 0:
             wandb.tensorboard.patch(root_logdir=str(Path.cwd()))
