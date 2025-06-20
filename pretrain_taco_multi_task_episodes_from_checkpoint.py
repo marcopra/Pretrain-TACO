@@ -140,6 +140,7 @@ if __name__ == "__main__":
     if args.use_wandb:
         wandb_config = {
             "learning_rate": args.lr,
+            "optimizer": args.optimizer,
             "batch_size": args.batch_size,
             "feature_dim": args.feature_dim,
             "hidden_dim": args.hidden_dim,
