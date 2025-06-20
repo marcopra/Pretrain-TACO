@@ -156,10 +156,21 @@ def setup_ddp(rank, world_size):
     
     # Determine local rank and CUDA device
     local_rank = int(os.environ.get('LOCAL_RANK', 0))
-    # For multi-node setup with 1 GPU per node, always use device 0
-    cuda_device = 0 if torch.cuda.device_count() > 0 else None
+    
+    # For SLURM: use SLURM_LOCALID to distribute across GPUs within a node
+    # For torchrun: use LOCAL_RANK to distribute across GPUs
+    if 'SLURM_PROCID' in os.environ:
+        # SLURM environment: use SLURM_LOCALID for local GPU assignment
+        slurm_local_id = int(os.environ.get('SLURM_LOCALID', 0))
+        cuda_device = slurm_local_id if slurm_local_id < torch.cuda.device_count() else 0
+        print(f"Rank {rank}: SLURM detected, using SLURM_LOCALID={slurm_local_id} for GPU assignment")
+    else:
+        # torchrun environment: use LOCAL_RANK to distribute across GPUs
+        cuda_device = local_rank if local_rank < torch.cuda.device_count() else 0
+        print(f"Rank {rank}: torchrun detected, using LOCAL_RANK={local_rank} for GPU assignment")
     
     print(f"Rank {rank}: Available CUDA devices: {torch.cuda.device_count()}")
+    print(f"Rank {rank}: LOCAL_RANK: {local_rank}")
     print(f"Rank {rank}: Using CUDA device: {cuda_device}")
     
     if cuda_device is not None:
@@ -253,12 +264,19 @@ class Workspace:
         # Set different seed for each process
         utils.set_seed_everywhere(cfg.seed + rank)
         
-        # For multi-node setup, use LOCAL_RANK for CUDA device, not global rank
+        # Determine device assignment based on environment
         local_rank = int(os.environ.get('LOCAL_RANK', 0))
-        # Each node has only one GPU, so always use device 0
-        cuda_device = 0 if torch.cuda.device_count() > 0 else 0
+        
+        if 'SLURM_PROCID' in os.environ:
+            # SLURM environment: use SLURM_LOCALID for local GPU assignment
+            slurm_local_id = int(os.environ.get('SLURM_LOCALID', 0))
+            cuda_device = slurm_local_id if slurm_local_id < torch.cuda.device_count() else 0
+        else:
+            # torchrun environment: use LOCAL_RANK to distribute across GPUs
+            cuda_device = local_rank if local_rank < torch.cuda.device_count() else 0
+            
         self.device = torch.device(f'cuda:{cuda_device}')
-        print(f'Rank {rank}: Using device {self.device} (LOCAL_RANK={local_rank}, CUDA devices available: {torch.cuda.device_count()})')
+        print(f'Rank {rank}: Using device {self.device} (LOCAL_RANK={local_rank}, SLURM_LOCALID={os.environ.get("SLURM_LOCALID", "N/A")}, CUDA devices available: {torch.cuda.device_count()})')
         
         self.setup()
 
@@ -271,8 +289,15 @@ class Workspace:
         # Wrap agent components with DDP (only the ones that need gradient synchronization)
         if world_size > 1 and hasattr(self.agent, 'actor'):
             local_rank = int(os.environ.get('LOCAL_RANK', 0))
-            # For multi-node setup with 1 GPU per node, always use device 0
-            cuda_device = 0 if torch.cuda.device_count() > 0 else 0
+            
+            if 'SLURM_PROCID' in os.environ:
+                # SLURM environment: use SLURM_LOCALID for local GPU assignment
+                slurm_local_id = int(os.environ.get('SLURM_LOCALID', 0))
+                cuda_device = slurm_local_id if slurm_local_id < torch.cuda.device_count() else 0
+            else:
+                # torchrun environment: use LOCAL_RANK to distribute across GPUs
+                cuda_device = local_rank if local_rank < torch.cuda.device_count() else 0
+                
             self.agent.actor = torch.nn.parallel.DistributedDataParallel(
                 self.agent.actor, device_ids=[cuda_device], output_device=cuda_device
             )
