@@ -189,7 +189,7 @@ class Workspace:
                     tags=cfg.wandb_tag.split('_') if cfg.wandb_tag and cfg.wandb_tag != "none" else None,
                     sync_tensorboard=True,
                     mode=cfg.wandb_mode if cfg.wandb_mode else 'online')
-            wandb.run.save()
+            wandb.run.save(self.work_dir)
 
     def setup(self):
         # Create logger only on rank 0
