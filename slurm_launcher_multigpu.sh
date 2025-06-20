@@ -11,9 +11,14 @@
 set -x  # Enable debug mode
 
 cd $SLURM_SUBMIT_DIR
-module purge
+#set -x  # Enable debug mode
+
+
+source ~/.bashrc
+module unload anaconda3/2023.09-0
 module load anaconda3/2023.09-0
 conda activate metataco
+module unload anaconda3/2023.09-0
 ble port
 echo "Node: $(hostname)"
 echo "Node list: $SLURM_JOB_NODELIST"
@@ -34,7 +39,7 @@ export NCCL_IB_DISABLE=0
 export NCCL_IB_HCA=mlx5_0,mlx5_1,mlx5_2,mlx5_37
 export NCCL_SOCKET_IFNAME=ib00
 export NCCL_DEBUG=INFO
-export NCCL_TREE_THRESHOLD=0# Set PyTorch distributed environment variables manually
+export NCCL_TREE_THRESHOLD=0 #Set PyTorch distributed environment variables manually
 export NCCL_IB_TIMEOUT=23
 export NCCL_IB_RETRY_CNT=7
 export NCCL_NET_GDR_LEVEL=0

@@ -81,28 +81,80 @@ def sync_global_counters(workspace):
         workspace._global_buffer_size = 0
 
 
+def clean_master_port(port_str):
+    """Clean and validate MASTER_PORT environment variable"""
+    if not port_str:
+        return '29500'  # default port
+    
+    # Extract only the numeric part from the string
+    import re
+    numeric_part = re.search(r'\d+', port_str)
+    if numeric_part:
+        port = numeric_part.group()
+        # Validate port range
+        port_int = int(port)
+        if 1024 <= port_int <= 65535:
+            return port
+    
+    print(f"Warning: Invalid MASTER_PORT '{port_str}', using default 29500")
+    return '29500'
+
+
 def setup_ddp(rank, world_size):
     """Initialize the process group for DDP"""
-    # Use environment variables set by torchrun
+    # Use environment variables set by torchrun or set defaults
     if 'MASTER_ADDR' not in os.environ:
         os.environ['MASTER_ADDR'] = '127.0.0.1'
     if 'MASTER_PORT' not in os.environ:
         os.environ['MASTER_PORT'] = '29500'
     
+    # Clean the MASTER_PORT variable to ensure it's a valid port number
+    raw_master_port = os.environ.get('MASTER_PORT', '29500')
+    clean_port = clean_master_port(raw_master_port)
+    os.environ['MASTER_PORT'] = clean_port
+    
+    print(f"Rank {rank}: Raw MASTER_PORT='{raw_master_port}'")
+    print(f"Rank {rank}: Cleaned MASTER_PORT='{clean_port}'")
     print(f"Rank {rank}: Initializing DDP with MASTER_ADDR={os.environ['MASTER_ADDR']}, MASTER_PORT={os.environ['MASTER_PORT']}")
+    
+    # Print additional debugging info for SLURM environment
+    slurm_vars = ['SLURM_PROCID', 'SLURM_LOCALID', 'SLURM_NODEID', 'SLURM_JOB_NUM_NODES', 'SLURM_NODELIST']
+    for var in slurm_vars:
+        if var in os.environ:
+            print(f"Rank {rank}: {var}={os.environ[var]}")
     
     # Initialize the process group
     try:
+        # For InfiniBand networks like Leonardo, use NCCL backend
+        backend = 'nccl'
+        
+        # Set timeout for initialization (useful for slow networks)
+        timeout = torch.distributed.default_pg_timeout
+        
         dist.init_process_group(
-            backend='nccl',
+            backend=backend,
             rank=rank,
             world_size=world_size,
-            timeout=torch.distributed.default_pg_timeout
+            timeout=timeout
         )
         torch.cuda.set_device(rank)
-        print(f"Rank {rank}: DDP initialization successful")
+        print(f"Rank {rank}: DDP initialization successful with backend={backend}")
+        
+        # Test communication
+        if world_size > 1:
+            test_tensor = torch.tensor([rank], dtype=torch.float32, device=f'cuda:{rank}')
+            dist.all_reduce(test_tensor, op=dist.ReduceOp.SUM)
+            expected_sum = sum(range(world_size))
+            if test_tensor.item() == expected_sum:
+                print(f"Rank {rank}: DDP communication test passed")
+            else:
+                print(f"Rank {rank}: DDP communication test failed - expected {expected_sum}, got {test_tensor.item()}")
+        
     except Exception as e:
         print(f"Rank {rank}: DDP initialization failed: {e}")
+        print(f"Rank {rank}: MASTER_ADDR={os.environ.get('MASTER_ADDR')}")
+        print(f"Rank {rank}: MASTER_PORT={os.environ.get('MASTER_PORT')}")
+        print(f"Rank {rank}: RANK={rank}, WORLD_SIZE={world_size}")
         raise
 
 
