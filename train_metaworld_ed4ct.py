@@ -175,6 +175,7 @@ class Workspace:
             if cfg.wandb_id is not None and cfg.wandb_id != "none":
                 wandb.init(
                     id=cfg.wandb_id,
+                    config=OmegaConf.to_container(tmp_cfg, resolve=True),
                     resume='must',
                     project=cfg.wandb_project,
                     name=cfg.wandb_run_name,
