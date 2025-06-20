@@ -9,9 +9,11 @@
 #SBATCH --error=%j.err
 
 cd $SLURM_SUBMIT_DIR
-module purge
+source ~/.bashrc
+module unload anaconda3/2023.09-0
 module load anaconda3/2023.09-0
 conda activate metataco
+module unload anaconda3/2023.09-0
 
 # Get master node and find available port
 export MASTER_ADDR=$(scontrol show hostnames "$SLURM_JOB_NODELIST" | head -n 1)
