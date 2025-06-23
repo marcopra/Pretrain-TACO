@@ -39,20 +39,17 @@ export MASTER_PORT=$(shuf -i 30000-50000 -n 1)
 echo "MASTER_ADDR: $MASTER_ADDR"
 echo "MASTER_PORT: $MASTER_PORT"
 
+# Set CUDA_VISIBLE_DEVICES based on SLURM_LOCALID
+# This ensures each process sees only its assigned GPU as device 0
+export CUDA_VISIBLE_DEVICES=$SLURM_LOCALID
+
+echo "SLURM_LOCALID: $SLURM_LOCALID"
+echo "CUDA_VISIBLE_DEVICES: $CUDA_VISIBLE_DEVICES"
+
 # Set additional environment variables for distributed training
 export RANK=$SLURM_PROCID
 export WORLD_SIZE=$SLURM_NTASKS
 export LOCAL_RANK=$SLURM_LOCALID
-
-echo "RANK: $RANK"
-echo "WORLD_SIZE: $WORLD_SIZE"
-echo "LOCAL_RANK: $LOCAL_RANK"
-
-# Debug info
-echo "SLURM_PROCID: $SLURM_PROCID"
-echo "SLURM_LOCALID: $SLURM_LOCALID"
-echo "SLURM_NODEID: $SLURM_NODEID"
-echo "CUDA_VISIBLE_DEVICES: $CUDA_VISIBLE_DEVICES"
 
 # Run with srun (no torchrun needed)
 srun --unbuffered python train_metaworld_ed4ct.py \

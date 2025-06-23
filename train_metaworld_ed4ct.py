@@ -173,28 +173,38 @@ def setup_ddp(rank, world_size):
     print(f"Rank {rank}: LOCAL_RANK: {local_rank}")
     print(f"Rank {rank}: Using CUDA device: {cuda_device}")
     
+    # Set the device BEFORE initializing process group
     if cuda_device is not None:
         torch.cuda.set_device(cuda_device)
+        device = torch.device(f'cuda:{cuda_device}')
+        print(f"Rank {rank}: Set device to {device}")
     
-    # Initialize the process group
+    # Initialize the process group with device_id
     try:
-        # For InfiniBand networks like Leonardo, use NCCL backend
         backend = 'nccl'
-        
-        # Set longer timeout for initialization (useful for slow networks)
         timeout = torch.distributed.default_pg_timeout * 2
         
-        print(f"Rank {rank}: Attempting to initialize process group with backend={backend}, timeout={timeout}")
+        print(f"Rank {rank}: Attempting to initialize process group with backend={backend}, device_id={cuda_device}")
         
-        dist.init_process_group(
-            backend=backend,
-            rank=rank,
-            world_size=world_size,
-            timeout=timeout
-        )
+        # Pass device_id to init_process_group to avoid the warning
+        if torch.cuda.is_available():
+            dist.init_process_group(
+                backend=backend,
+                rank=rank,
+                world_size=world_size,
+                timeout=timeout,
+                device_id=torch.device(f'cuda:{cuda_device}')
+            )
+        else:
+            dist.init_process_group(
+                backend=backend,
+                rank=rank,
+                world_size=world_size,
+                timeout=timeout
+            )
         
         print(f"Rank {rank}: DDP initialization successful with backend={backend}, CUDA device={cuda_device}")
-        
+              
         # Simple synchronization test
         if world_size > 1:
             print(f"Rank {rank}: Testing basic synchronization...")
