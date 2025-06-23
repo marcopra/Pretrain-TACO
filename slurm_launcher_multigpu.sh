@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH --job-name=metataco_train
 #SBATCH --nodes=2
-#SBATCH --ntasks-per-node=1
+#SBATCH --ntasks-per-node=4
 #SBATCH --cpus-per-task=8
-#SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:4
 #SBATCH --time=24:00:00
 #SBATCH --output=job_%j.out
 #SBATCH --error=job_%j.err
