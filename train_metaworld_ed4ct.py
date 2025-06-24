@@ -545,7 +545,7 @@ class Workspace:
                     self.train_video_recorder.save(f'{self.global_frame}.mp4')
                 
                 # wait until all the metrics schema is populated
-                if metrics is not None and self.rank == 0:  # Only log from rank 0
+                if metrics is not None and self.rank == 0 and self._global_step % 1000 == 0:  # Only log from rank 0
                     # log stats
                     elapsed_time, total_time = self.timer.reset()
                     episode_frame = episode_step * self.cfg.action_repeat
