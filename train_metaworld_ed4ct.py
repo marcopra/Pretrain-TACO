@@ -100,144 +100,6 @@ def clean_master_port(port_str):
     return '29500'
 
 
-# def setup_ddp(rank, world_size):
-#     """Initialize the process group for DDP"""
-#     # Check if already initialized
-#     if dist.is_initialized():
-#         print(f"Rank {rank}: Process group already initialized, skipping...")
-#         return
-    
-#     # Set NCCL environment variables for InfiniBand/Leonardo cluster
-#     nccl_env_vars = {
-#         'NCCL_IB_DISABLE': '0',  # Enable InfiniBand
-#         'NCCL_NET_GDR_LEVEL': '2',  # GPU Direct RDMA level
-#         'NCCL_IB_GID_INDEX': '3',  # InfiniBand GID index
-#         'NCCL_DEBUG': 'INFO',  # Set debug level
-#         'NCCL_SOCKET_IFNAME': '^lo,docker',  # Exclude loopback and docker interfaces
-#         'NCCL_IB_HCA': 'mlx5',  # Mellanox adapter
-#         'NCCL_IB_TIMEOUT': '22',  # Increase timeout for slow networks
-#         'NCCL_IB_RETRY_CNT': '7',  # Increase retry count
-#     }
-    
-#     # Only set environment variables if they're not already set
-#     for key, value in nccl_env_vars.items():
-#         if key not in os.environ:
-#             os.environ[key] = value
-#             print(f"Rank {rank}: Set {key}={value}")
-    
-#     # Use environment variables set by torchrun or set defaults
-#     if 'MASTER_ADDR' not in os.environ:
-#         os.environ['MASTER_ADDR'] = '127.0.0.1'
-#     if 'MASTER_PORT' not in os.environ:
-#         os.environ['MASTER_PORT'] = '29500'
-    
-#     # Clean the MASTER_PORT variable to ensure it's a valid port number
-#     raw_master_port = os.environ.get('MASTER_PORT', '29500')
-#     clean_port = clean_master_port(raw_master_port)
-#     os.environ['MASTER_PORT'] = clean_port
-    
-#     print(f"Rank {rank}: Raw MASTER_PORT='{raw_master_port}'")
-#     print(f"Rank {rank}: Cleaned MASTER_PORT='{clean_port}'")
-#     print(f"Rank {rank}: Initializing DDP with MASTER_ADDR={os.environ['MASTER_ADDR']}, MASTER_PORT={os.environ['MASTER_PORT']}")
-    
-#     # Print additional debugging info for SLURM environment
-#     slurm_vars = ['SLURM_PROCID', 'SLURM_LOCALID', 'SLURM_NODEID', 'SLURM_JOB_NUM_NODES', 'SLURM_NODELIST']
-#     for var in slurm_vars:
-#         if var in os.environ:
-#             print(f"Rank {rank}: {var}={os.environ[var]}")
-    
-#     # Print network interface information
-#     try:
-#         import socket
-#         hostname = socket.gethostname()
-#         print(f"Rank {rank}: Running on hostname: {hostname}")
-#     except:
-#         pass
-    
-#     # Determine local rank and CUDA device
-#     local_rank = int(os.environ.get('LOCAL_RANK', 0))
-    
-#     # For SLURM: use SLURM_LOCALID to distribute across GPUs within a node
-#     # For torchrun: use LOCAL_RANK to distribute across GPUs
-#     if 'SLURM_PROCID' in os.environ:
-#         # SLURM environment: use SLURM_LOCALID for local GPU assignment
-#         slurm_local_id = int(os.environ.get('SLURM_LOCALID', 0))
-#         cuda_device = slurm_local_id if slurm_local_id < torch.cuda.device_count() else 0
-#         print(f"Rank {rank}: SLURM detected, using SLURM_LOCALID={slurm_local_id} for GPU assignment")
-#     else:
-#         # torchrun environment: use LOCAL_RANK to distribute across GPUs
-#         cuda_device = local_rank if local_rank < torch.cuda.device_count() else 0
-#         print(f"Rank {rank}: torchrun detected, using LOCAL_RANK={local_rank} for GPU assignment")
-    
-#     print(f"Rank {rank}: Available CUDA devices: {torch.cuda.device_count()}")
-#     print(f"Rank {rank}: LOCAL_RANK: {local_rank}")
-#     print(f"Rank {rank}: Using CUDA device: {cuda_device}")
-    
-#     # Set the device BEFORE initializing process group
-#     if cuda_device is not None:
-#         torch.cuda.set_device(cuda_device)
-#         device = torch.device(f'cuda:{cuda_device}')
-#         print(f"Rank {rank}: Set device to {device}")
-    
-#     # Initialize the process group with device_id
-#     try:
-#         backend = 'nccl'
-#         timeout = torch.distributed.default_pg_timeout * 2
-        
-#         print(f"Rank {rank}: Attempting to initialize process group with backend={backend}, device_id={cuda_device}")
-        
-#         # Pass device_id to init_process_group to avoid the warning
-#         if torch.cuda.is_available():
-#             dist.init_process_group(
-#                 backend=backend,
-#                 rank=rank,
-#                 world_size=world_size,
-#                 timeout=timeout,
-#                 device_id=torch.device(f'cuda:{cuda_device}')
-#             )
-#         else:
-#             dist.init_process_group(
-#                 backend=backend,
-#                 rank=rank,
-#                 world_size=world_size,
-#                 timeout=timeout
-#             )
-        
-#         print(f"Rank {rank}: DDP initialization successful with backend={backend}, CUDA device={cuda_device}")
-              
-#         # Simple synchronization test
-#         if world_size > 1:
-#             print(f"Rank {rank}: Testing basic synchronization...")
-#             dist.barrier()
-#             print(f"Rank {rank}: Basic synchronization test passed")
-        
-#     except Exception as e:
-#         print(f"Rank {rank}: NCCL DDP initialization failed: {e}")
-#         print(f"Rank {rank}: Attempting fallback to Gloo backend...")
-        
-#         try:
-#             # Fallback to Gloo backend for CPU-based communication
-#             dist.init_process_group(
-#                 backend='gloo',
-#                 rank=rank,
-#                 world_size=world_size,
-#                 timeout=torch.distributed.default_pg_timeout
-#             )
-#             print(f"Rank {rank}: DDP initialization successful with Gloo backend, CUDA device={cuda_device}")
-            
-#             if world_size > 1:
-#                 print(f"Rank {rank}: Testing Gloo synchronization...")
-#                 dist.barrier()
-#                 print(f"Rank {rank}: Gloo synchronization test passed")
-                
-#         except Exception as e2:
-#             print(f"Rank {rank}: Both NCCL and Gloo initialization failed")
-#             print(f"Rank {rank}: NCCL error: {e}")
-#             print(f"Rank {rank}: Gloo error: {e2}")
-#             print(f"Rank {rank}: Environment variables:")
-#             for key in ['MASTER_ADDR', 'MASTER_PORT', 'RANK', 'WORLD_SIZE', 'LOCAL_RANK']:
-#                 print(f"Rank {rank}: {key}={os.environ.get(key, 'NOT_SET')}")
-#             raise RuntimeError(f"Failed to initialize distributed training: NCCL={e}, Gloo={e2}")
 def setup_ddp(rank, world_size):
     """Initialize the process group for DDP"""
     # Check if already initialized
@@ -245,21 +107,16 @@ def setup_ddp(rank, world_size):
         print(f"Rank {rank}: Process group already initialized, skipping...")
         return
     
-    # Set NCCL environment variables for InfiniBand HDR/Leonardo cluster
+    # Set NCCL environment variables for InfiniBand/Leonardo cluster
     nccl_env_vars = {
-        'NCCL_IB_DISABLE': '0',
-        'NCCL_NET_GDR_LEVEL': '2',
-        'NCCL_IB_GID_INDEX': '3',
-        'NCCL_DEBUG': 'INFO',
-        'NCCL_SOCKET_IFNAME': '^lo,docker',
-        'NCCL_IB_HCA': 'mlx5',
-        'NCCL_IB_TIMEOUT': '30',
-        'NCCL_IB_RETRY_CNT': '10',
-        'NCCL_CROSS_NIC': '1',
-        'NCCL_IB_QPS_PER_CONNECTION': '1',
-        'NCCL_NET_GDR_READ': '1',
-        'NCCL_IB_CUDA_SUPPORT': '1',
-        'NCCL_ALGO': 'Tree',  # Usa Tree algorithm per multi-node
+        'NCCL_IB_DISABLE': '0',  # Enable InfiniBand
+        'NCCL_NET_GDR_LEVEL': '2',  # GPU Direct RDMA level
+        'NCCL_IB_GID_INDEX': '3',  # InfiniBand GID index
+        'NCCL_DEBUG': 'INFO',  # Set debug level
+        'NCCL_SOCKET_IFNAME': '^lo,docker',  # Exclude loopback and docker interfaces
+        'NCCL_IB_HCA': 'mlx5',  # Mellanox adapter
+        'NCCL_IB_TIMEOUT': '22',  # Increase timeout for slow networks
+        'NCCL_IB_RETRY_CNT': '7',  # Increase retry count
     }
     
     # Only set environment variables if they're not already set
@@ -268,57 +125,86 @@ def setup_ddp(rank, world_size):
             os.environ[key] = value
             print(f"Rank {rank}: Set {key}={value}")
     
-    # Use environment variables set by SLURM
+    # Use environment variables set by torchrun or set defaults
     if 'MASTER_ADDR' not in os.environ:
         os.environ['MASTER_ADDR'] = '127.0.0.1'
     if 'MASTER_PORT' not in os.environ:
         os.environ['MASTER_PORT'] = '29500'
     
-    # Clean the MASTER_PORT variable
+    # Clean the MASTER_PORT variable to ensure it's a valid port number
     raw_master_port = os.environ.get('MASTER_PORT', '29500')
     clean_port = clean_master_port(raw_master_port)
     os.environ['MASTER_PORT'] = clean_port
     
+    print(f"Rank {rank}: Raw MASTER_PORT='{raw_master_port}'")
+    print(f"Rank {rank}: Cleaned MASTER_PORT='{clean_port}'")
     print(f"Rank {rank}: Initializing DDP with MASTER_ADDR={os.environ['MASTER_ADDR']}, MASTER_PORT={os.environ['MASTER_PORT']}")
     
-    # Determine local rank and CUDA device - CORRETTA GESTIONE GPU
+    # Print additional debugging info for SLURM environment
+    slurm_vars = ['SLURM_PROCID', 'SLURM_LOCALID', 'SLURM_NODEID', 'SLURM_JOB_NUM_NODES', 'SLURM_NODELIST']
+    for var in slurm_vars:
+        if var in os.environ:
+            print(f"Rank {rank}: {var}={os.environ[var]}")
+    
+    # Print network interface information
+    try:
+        import socket
+        hostname = socket.gethostname()
+        print(f"Rank {rank}: Running on hostname: {hostname}")
+    except:
+        pass
+    
+    # Determine local rank and CUDA device
     local_rank = int(os.environ.get('LOCAL_RANK', 0))
     
     # For SLURM: use SLURM_LOCALID to distribute across GPUs within a node
+    # For torchrun: use LOCAL_RANK to distribute across GPUs
     if 'SLURM_PROCID' in os.environ:
+        # SLURM environment: use SLURM_LOCALID for local GPU assignment
         slurm_local_id = int(os.environ.get('SLURM_LOCALID', 0))
-        # Ogni nodo ha 4 GPU, quindi il local_rank è uguale a SLURM_LOCALID
-        cuda_device = slurm_local_id
+        cuda_device = slurm_local_id if slurm_local_id < torch.cuda.device_count() else 0
         print(f"Rank {rank}: SLURM detected, using SLURM_LOCALID={slurm_local_id} for GPU assignment")
     else:
-        cuda_device = local_rank
-        print(f"Rank {rank}: Using LOCAL_RANK={local_rank} for GPU assignment")
+        # torchrun environment: use LOCAL_RANK to distribute across GPUs
+        cuda_device = local_rank if local_rank < torch.cuda.device_count() else 0
+        print(f"Rank {rank}: torchrun detected, using LOCAL_RANK={local_rank} for GPU assignment")
     
+    print(f"Rank {rank}: Available CUDA devices: {torch.cuda.device_count()}")
+    print(f"Rank {rank}: LOCAL_RANK: {local_rank}")
     print(f"Rank {rank}: Using CUDA device: {cuda_device}")
     
     # Set the device BEFORE initializing process group
-    if torch.cuda.is_available():
+    if cuda_device is not None:
         torch.cuda.set_device(cuda_device)
         device = torch.device(f'cuda:{cuda_device}')
         print(f"Rank {rank}: Set device to {device}")
     
-    # Initialize the process group
+    # Initialize the process group with device_id
     try:
         backend = 'nccl'
-        # Aumenta il timeout per reti lente
-        timeout = torch.distributed.default_pg_timeout * 4
+        timeout = torch.distributed.default_pg_timeout * 2
         
-        print(f"Rank {rank}: Attempting to initialize process group with backend={backend}")
+        print(f"Rank {rank}: Attempting to initialize process group with backend={backend}, device_id={cuda_device}")
         
-        dist.init_process_group(
-            backend=backend,
-            rank=rank,
-            world_size=world_size,
-            timeout=timeout
-        )
+        # Pass device_id to init_process_group to avoid the warning
+        if torch.cuda.is_available():
+            dist.init_process_group(
+                backend=backend,
+                rank=rank,
+                world_size=world_size,
+                timeout=timeout,
+                device_id=torch.device(f'cuda:{cuda_device}')
+            )
+        else:
+            dist.init_process_group(
+                backend=backend,
+                rank=rank,
+                world_size=world_size,
+                timeout=timeout
+            )
         
-        print(f"Rank {rank}: DDP initialization successful with backend={backend}")
-        
+        print(f"Rank {rank}: DDP initialization successful with backend={backend}, CUDA device={cuda_device}")
+              
         # Simple synchronization test
         if world_size > 1:
             print(f"Rank {rank}: Testing basic synchronization...")
@@ -327,12 +213,32 @@ def setup_ddp(rank, world_size):
         
     except Exception as e:
         print(f"Rank {rank}: NCCL DDP initialization failed: {e}")
-        # Per debug, prova solo con un processo
-        if world_size == 1:
-            print(f"Rank {rank}: Single process, no DDP needed")
-            return
-        else:
-            raise RuntimeError(f"Failed to initialize distributed training: {e}")
+        print(f"Rank {rank}: Attempting fallback to Gloo backend...")
+        
+        try:
+            # Fallback to Gloo backend for CPU-based communication
+            dist.init_process_group(
+                backend='gloo',
+                rank=rank,
+                world_size=world_size,
+                timeout=torch.distributed.default_pg_timeout
+            )
+            print(f"Rank {rank}: DDP initialization successful with Gloo backend, CUDA device={cuda_device}")
+            
+            if world_size > 1:
+                print(f"Rank {rank}: Testing Gloo synchronization...")
+                dist.barrier()
+                print(f"Rank {rank}: Gloo synchronization test passed")
+                
+        except Exception as e2:
+            print(f"Rank {rank}: Both NCCL and Gloo initialization failed")
+            print(f"Rank {rank}: NCCL error: {e}")
+            print(f"Rank {rank}: Gloo error: {e2}")
+            print(f"Rank {rank}: Environment variables:")
+            for key in ['MASTER_ADDR', 'MASTER_PORT', 'RANK', 'WORLD_SIZE', 'LOCAL_RANK']:
+                print(f"Rank {rank}: {key}={os.environ.get(key, 'NOT_SET')}")
+            raise RuntimeError(f"Failed to initialize distributed training: NCCL={e}, Gloo={e2}")
+
 
 def cleanup_ddp():
     """Clean up the process group"""
@@ -357,6 +263,7 @@ class Workspace:
         self._global_episode_total = 0
         self._global_buffer_size = 0
         
+        # Only print from rank 0
         if rank == 0:
             print(f'workspace: {self.work_dir}')
 
@@ -367,16 +274,19 @@ class Workspace:
         # Set different seed for each process
         utils.set_seed_everywhere(cfg.seed + rank)
         
-        # CORRETTA gestione del device per SLURM multi-GPU
+        # Determine device assignment based on environment
+        local_rank = int(os.environ.get('LOCAL_RANK', 0))
+        
         if 'SLURM_PROCID' in os.environ:
-            # SLURM environment: usa SLURM_LOCALID
-            cuda_device = int(os.environ.get('SLURM_LOCALID', 0))
+            # SLURM environment: use SLURM_LOCALID for local GPU assignment
+            slurm_local_id = int(os.environ.get('SLURM_LOCALID', 0))
+            cuda_device = slurm_local_id if slurm_local_id < torch.cuda.device_count() else 0
         else:
-            # torchrun environment: usa LOCAL_RANK
-            cuda_device = int(os.environ.get('LOCAL_RANK', 0))
+            # torchrun environment: use LOCAL_RANK to distribute across GPUs
+            cuda_device = local_rank if local_rank < torch.cuda.device_count() else 0
             
         self.device = torch.device(f'cuda:{cuda_device}')
-        print(f'Rank {rank}: Using device {self.device} (CUDA devices available: {torch.cuda.device_count()})')
+        print(f'Rank {rank}: Using device {self.device} (LOCAL_RANK={local_rank}, SLURM_LOCALID={os.environ.get("SLURM_LOCALID", "N/A")}, CUDA devices available: {torch.cuda.device_count()})')
         
         self.setup()
 
