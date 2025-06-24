@@ -8,8 +8,6 @@
 #SBATCH --output=job_%j.out
 #SBATCH --error=job_%j.err
 
-# set -x  # Enable debug mode
-
 cd $SLURM_SUBMIT_DIR
 
 source ~/.bashrc
@@ -18,11 +16,7 @@ module load anaconda3/2023.09-0
 conda activate metataco
 module unload anaconda3/2023.09-0
 
-echo "Node: $(hostname)"
-echo "Node list: $SLURM_JOB_NODELIST"
-echo "Available GPUs: $(nvidia-smi -L)"
-
-## NCCL configuration for InfiniBand on Leonardo
+# NCCL configuration for InfiniBand
 export NCCL_IB_DISABLE=0
 export NCCL_NET_GDR_LEVEL=2
 export NCCL_IB_GID_INDEX=3
@@ -36,24 +30,23 @@ export NCCL_IB_RETRY_CNT=7
 export MASTER_ADDR=$(scontrol show hostnames $SLURM_JOB_NODELIST | head -n 1)
 export MASTER_PORT=$(shuf -i 30000-50000 -n 1)
 
-echo "MASTER_ADDR: $MASTER_ADDR"
-echo "MASTER_PORT: $MASTER_PORT"
+# IMPORTANTE: NON impostare CUDA_VISIBLE_DEVICES qui
+# Lascia che ogni processo veda tutte le 4 GPU e scelga quella corretta
 
-# Set CUDA_VISIBLE_DEVICES based on SLURM_LOCALID
-# This ensures each process sees only its assigned GPU as device 0
-export CUDA_VISIBLE_DEVICES=$SLURM_LOCALID
-
-echo "SLURM_LOCALID: $SLURM_LOCALID"
-echo "CUDA_VISIBLE_DEVICES: $CUDA_VISIBLE_DEVICES"
-
-# Set additional environment variables for distributed training
+# Set environment variables for distributed training
 export RANK=$SLURM_PROCID
 export WORLD_SIZE=$SLURM_NTASKS
 export LOCAL_RANK=$SLURM_LOCALID
 
-# Run with srun (no torchrun needed)
+echo "MASTER_ADDR: $MASTER_ADDR"
+echo "MASTER_PORT: $MASTER_PORT"
+echo "RANK: $RANK"
+echo "WORLD_SIZE: $WORLD_SIZE"
+echo "LOCAL_RANK: $LOCAL_RANK"
+
+# Run with srun
 srun --unbuffered python train_metaworld_ed4ct.py \
     batch_size=128 env_name=push-v3 \
     wandb_tag="SLURM" \
-    agent.pretrained_path=/leonardo/home/userexternal/mprattic/Pretrain-TACO/models/resnet50_l5.tar \
+    agent.pretrained_path=/leonardo/home/userexternal/mprattico/Pretrain-TACO/models/resnet50_l5.tar \
     wandb_mode=offline

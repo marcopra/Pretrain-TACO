@@ -157,27 +157,22 @@ def setup_ddp(rank, world_size):
     # Determine local rank and CUDA device
     local_rank = int(os.environ.get('LOCAL_RANK', 0))
     
-    # For SLURM: use SLURM_LOCALID to distribute across GPUs within a node
-    # For torchrun: use LOCAL_RANK to distribute across GPUs
+    # For SLURM: use SLURM_LOCALID directly as CUDA device
     if 'SLURM_PROCID' in os.environ:
-        # SLURM environment: use SLURM_LOCALID for local GPU assignment
         slurm_local_id = int(os.environ.get('SLURM_LOCALID', 0))
-        cuda_device = slurm_local_id if slurm_local_id < torch.cuda.device_count() else 0
-        print(f"Rank {rank}: SLURM detected, using SLURM_LOCALID={slurm_local_id} for GPU assignment")
+        cuda_device = slurm_local_id  # Rimuovi il controllo device_count()
+        print(f"Rank {rank}: SLURM detected, using SLURM_LOCALID={slurm_local_id} as CUDA device")
     else:
-        # torchrun environment: use LOCAL_RANK to distribute across GPUs
-        cuda_device = local_rank if local_rank < torch.cuda.device_count() else 0
-        print(f"Rank {rank}: torchrun detected, using LOCAL_RANK={local_rank} for GPU assignment")
+        cuda_device = local_rank
+        print(f"Rank {rank}: torchrun detected, using LOCAL_RANK={local_rank} as CUDA device")
     
     print(f"Rank {rank}: Available CUDA devices: {torch.cuda.device_count()}")
-    print(f"Rank {rank}: LOCAL_RANK: {local_rank}")
     print(f"Rank {rank}: Using CUDA device: {cuda_device}")
     
     # Set the device BEFORE initializing process group
-    if cuda_device is not None:
-        torch.cuda.set_device(cuda_device)
-        device = torch.device(f'cuda:{cuda_device}')
-        print(f"Rank {rank}: Set device to {device}")
+    torch.cuda.set_device(cuda_device)
+    device = torch.device(f'cuda:{cuda_device}')
+    print(f"Rank {rank}: Set device to {device}")
     
     # Initialize the process group with device_id
     try:
