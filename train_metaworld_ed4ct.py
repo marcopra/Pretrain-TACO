@@ -99,7 +99,6 @@ def clean_master_port(port_str):
     print(f"Warning: Invalid MASTER_PORT '{port_str}', using default 29500")
     return '29500'
 
-
 def setup_ddp(rank, world_size):
     """Initialize the process group for DDP"""
     # Check if already initialized
@@ -117,6 +116,10 @@ def setup_ddp(rank, world_size):
         'NCCL_IB_HCA': 'mlx5',  # Mellanox adapter
         'NCCL_IB_TIMEOUT': '22',  # Increase timeout for slow networks
         'NCCL_IB_RETRY_CNT': '7',  # Increase retry count
+        # Aggiungi queste configurazioni per risolvere il problema NET
+        'NCCL_NET': 'IB',  # Forza l'uso di InfiniBand
+        'NCCL_IB_CUDA_SUPPORT': '1',  # Abilita CUDA support per IB
+        'NCCL_IGNORE_DISABLED_P2P': '1',  # Ignora P2P disabilitato
     }
     
     # Only set environment variables if they're not already set
@@ -160,7 +163,7 @@ def setup_ddp(rank, world_size):
     # For SLURM: use SLURM_LOCALID directly as CUDA device
     if 'SLURM_PROCID' in os.environ:
         slurm_local_id = int(os.environ.get('SLURM_LOCALID', 0))
-        cuda_device = slurm_local_id  # Rimuovi il controllo device_count()
+        cuda_device = slurm_local_id
         print(f"Rank {rank}: SLURM detected, using SLURM_LOCALID={slurm_local_id} as CUDA device")
     else:
         cuda_device = local_rank
@@ -177,7 +180,7 @@ def setup_ddp(rank, world_size):
     # Initialize the process group with device_id
     try:
         backend = 'nccl'
-        timeout = torch.distributed.default_pg_timeout * 2
+        timeout = torch.distributed.default_pg_timeout * 3  # Aumenta timeout
         
         print(f"Rank {rank}: Attempting to initialize process group with backend={backend}, device_id={cuda_device}")
         
@@ -208,6 +211,14 @@ def setup_ddp(rank, world_size):
         
     except Exception as e:
         print(f"Rank {rank}: NCCL DDP initialization failed: {e}")
+        
+        # Pulisci eventuali stati parziali prima del fallback
+        if dist.is_initialized():
+            try:
+                dist.destroy_process_group()
+            except:
+                pass
+        
         print(f"Rank {rank}: Attempting fallback to Gloo backend...")
         
         try:
@@ -216,7 +227,7 @@ def setup_ddp(rank, world_size):
                 backend='gloo',
                 rank=rank,
                 world_size=world_size,
-                timeout=torch.distributed.default_pg_timeout
+                timeout=torch.distributed.default_pg_timeout * 2
             )
             print(f"Rank {rank}: DDP initialization successful with Gloo backend, CUDA device={cuda_device}")
             
@@ -233,8 +244,7 @@ def setup_ddp(rank, world_size):
             for key in ['MASTER_ADDR', 'MASTER_PORT', 'RANK', 'WORLD_SIZE', 'LOCAL_RANK']:
                 print(f"Rank {rank}: {key}={os.environ.get(key, 'NOT_SET')}")
             raise RuntimeError(f"Failed to initialize distributed training: NCCL={e}, Gloo={e2}")
-
-
+        
 def cleanup_ddp():
     """Clean up the process group"""
     if dist.is_initialized():
