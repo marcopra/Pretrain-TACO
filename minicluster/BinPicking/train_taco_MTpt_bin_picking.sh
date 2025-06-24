@@ -4,16 +4,16 @@
 # Check if cuda_device argument is provided
 if [ $# -lt 1 ] || [ $# -gt 3 ]; then
     echo "Error: Incorrect number of arguments provided"
-    echo "Usage: $0 <cuda_device> [no_taco] [exp]"
+    echo "Usage: $0 <cuda_device> [no_taco] [model_num]"
     echo "cuda_device: 0 to 7"
     echo "no_taco: true or false (default: false)"
-    echo "exp: 0, 33, 66, 99 (default: 0)"
+    echo "model_num: 1, 10, 30, 40, 45 (default: 10)"
     exit 1
 fi
 
 no_taco=${1:-false}
 cuda_device=$2
-exp=$3
+model_num=${3:-10}
 
 # Validate cuda_device value
 case $cuda_device in
@@ -37,13 +37,25 @@ case $no_taco in
         ;;
 esac
 
-# Validate exp value
-case $exp in
-    0|33|66|99)
-        # Valid value
+# Validate model_num value and set model path
+case $model_num in
+    1)
+        model_path="taco_MT_MT1_49OOD_ID_DrawerOpen_0.0_lr\=0.0005_ts\=25344000_curl_rew_best.pt"
+        ;;
+    10)
+        model_path="taco_MT_MT10_40OOD_ID_ButtonPressTopdownWallDisassembleDoorOpenDrawerOpenHandlePressLeverPullPlateSlideBackSidePlateSlideStickPullSweep_0.0_lr\=0.0005_ts\=69171200_curl_rew_best.pt"
+        ;;
+    30)
+        model_path="taco_MT_MT30_20OOD_AssemblyBasketballBinPickingButtonPressCoffeePullCoffeePushDialTurnFaucetCloseHammerHandlePressSidePickOutOfHolePickPlacePickPlaceWallPushPushWallReachReachWallShelfPlaceWindowCloseWindowOpen_0.0_lr\=0.0005_ts\=149043200_curl_rew_best.pt"
+        ;;
+    40)
+        model_path="taco_MT_MT40_10OOD_BasketballBinPickingButtonPressCoffeePushHammerPickPlacePushReachShelfPlaceWindowClose_0.0_lr\=0.0005_ts\=155699200_curl_rew_best.pt"
+        ;;
+    45)
+        model_path="taco_MT_MT45_5OOD_BasketballBinPickingButtonPressPushShelfPlace_0.0_lr\=0.0005_ts\=154931200_curl_rew_best.pt"
         ;;
     *)
-        echo "Error: Invalid exp value. Allowed values are 0, 33, 66, 99."
+        echo "Error: Invalid model_num value. Allowed values are 1, 10, 30, 40, 45."
         exit 1
         ;;
 esac
@@ -54,22 +66,6 @@ if [ "$no_taco" = "true" ]; then
 else
     wandb_suffix="_BINPICKING"
 fi
-
-# Set ts value based on exp
-case $exp in
-    0)
-        ts_value="177766400"
-        ;;
-    33)
-        ts_value="153600"
-        ;;
-    66)
-        ts_value="153139200"
-        ;;
-    99)
-        ts_value="43315200"
-        ;;
-esac
 
 # Number of runs
 num_runs=9

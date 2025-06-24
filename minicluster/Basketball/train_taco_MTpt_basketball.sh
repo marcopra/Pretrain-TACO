@@ -39,19 +39,19 @@ esac
 # Validate model_num value and set model path
 case $model_num in
     1)
-        model_path="taco_MT_MT1_49OOD_ID_DrawerOpen_0.0_lr=0.0005_ts=25344000_curl_rew_best.pt"
+        model_path="taco_MT_MT1_49OOD_ID_DrawerOpen_0.0_lr\=0.0005_ts\=25344000_curl_rew_best.pt"
         ;;
     10)
-        model_path="taco_MT_MT10_40OOD_ID_ButtonPressTopdownWallDisassembleDoorOpenDrawerOpenHandlePressLeverPullPlateSlideBackSidePlateSlideStickPullSweep_0.0_lr=0.0005_ts=69171200_curl_rew_best.pt"
+        model_path="taco_MT_MT10_40OOD_ID_ButtonPressTopdownWallDisassembleDoorOpenDrawerOpenHandlePressLeverPullPlateSlideBackSidePlateSlideStickPullSweep_0.0_lr\=0.0005_ts\=69171200_curl_rew_best.pt"
         ;;
     30)
-        model_path="taco_MT_MT30_20OOD_AssemblyBasketballBinPickingButtonPressCoffeePullCoffeePushDialTurnFaucetCloseHammerHandlePressSidePickOutOfHolePickPlacePickPlaceWallPushPushWallReachReachWallShelfPlaceWindowCloseWindowOpen_0.0_lr=0.0005_ts=149043200_curl_rew_best.pt"
+        model_path="taco_MT_MT30_20OOD_AssemblyBasketballBinPickingButtonPressCoffeePullCoffeePushDialTurnFaucetCloseHammerHandlePressSidePickOutOfHolePickPlacePickPlaceWallPushPushWallReachReachWallShelfPlaceWindowCloseWindowOpen_0.0_lr\=0.0005_ts\=149043200_curl_rew_best.pt"
         ;;
     40)
-        model_path="taco_MT_MT40_10OOD_BasketballBinPickingButtonPressCoffeePushHammerPickPlacePushReachShelfPlaceWindowClose_0.0_lr=0.0005_ts=155699200_curl_rew_best.pt"
+        model_path="taco_MT_MT40_10OOD_BasketballBinPickingButtonPressCoffeePushHammerPickPlacePushReachShelfPlaceWindowClose_0.0_lr\=0.0005_ts\=155699200_curl_rew_best.pt"
         ;;
     45)
-        model_path="taco_MT_MT45_5OOD_BasketballBinPickingButtonPressPushShelfPlace_0.0_lr=0.0005_ts=154931200_curl_rew_best.pt"
+        model_path="taco_MT_MT45_5OOD_BasketballBinPickingButtonPressPushShelfPlace_0.0_lr\=0.0005_ts\=154931200_curl_rew_best.pt"
         ;;
     *)
         echo "Error: Invalid model_num value. Allowed values are 1, 10, 30, 40, 45."
