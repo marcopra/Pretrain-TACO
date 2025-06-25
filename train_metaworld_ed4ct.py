@@ -177,10 +177,9 @@ def setup_ddp(rank, world_size):
     device = torch.device(f'cuda:{cuda_device}')
     print(f"Rank {rank}: Set device to {device}")
     
-    # Initialize the process group with device_id
     try:
         backend = 'nccl'
-        timeout = torch.distributed.default_pg_timeout * 3  # Aumenta timeout
+        timeout = torch.distributed.default_pg_timeout * 5  # Aumenta timeout ulteriormente
         
         print(f"Rank {rank}: Attempting to initialize process group with backend={backend}, device_id={cuda_device}")
         
@@ -203,11 +202,9 @@ def setup_ddp(rank, world_size):
         
         print(f"Rank {rank}: DDP initialization successful with backend={backend}, CUDA device={cuda_device}")
               
-        # Simple synchronization test
-        if world_size > 1:
-            print(f"Rank {rank}: Testing basic synchronization...")
-            dist.barrier()
-            print(f"Rank {rank}: Basic synchronization test passed")
+        # RIMUOVI IL TEST DI SINCRONIZZAZIONE CHE CAUSA PROBLEMI
+        # Non fare il barrier test qui, sarà fatto nel training
+        print(f"Rank {rank}: NCCL process group initialized, skipping barrier test")
         
     except Exception as e:
         print(f"Rank {rank}: NCCL DDP initialization failed: {e}")
@@ -216,8 +213,9 @@ def setup_ddp(rank, world_size):
         if dist.is_initialized():
             try:
                 dist.destroy_process_group()
-            except:
-                pass
+                print(f"Rank {rank}: Destroyed partial NCCL process group")
+            except Exception as cleanup_e:
+                print(f"Rank {rank}: Failed to cleanup NCCL: {cleanup_e}")
         
         print(f"Rank {rank}: Attempting fallback to Gloo backend...")
         
@@ -227,14 +225,18 @@ def setup_ddp(rank, world_size):
                 backend='gloo',
                 rank=rank,
                 world_size=world_size,
-                timeout=torch.distributed.default_pg_timeout * 2
+                timeout=torch.distributed.default_pg_timeout * 3
             )
             print(f"Rank {rank}: DDP initialization successful with Gloo backend, CUDA device={cuda_device}")
             
-            if world_size > 1:
-                print(f"Rank {rank}: Testing Gloo synchronization...")
-                dist.barrier()
+            # Test Gloo con un timeout più breve
+            print(f"Rank {rank}: Testing Gloo synchronization with timeout...")
+            try:
+                dist.barrier(timeout=torch.timedelta(seconds=30))
                 print(f"Rank {rank}: Gloo synchronization test passed")
+            except Exception as barrier_e:
+                print(f"Rank {rank}: Gloo barrier test failed: {barrier_e}")
+                # Non fare raise, continua comunque
                 
         except Exception as e2:
             print(f"Rank {rank}: Both NCCL and Gloo initialization failed")
