@@ -34,18 +34,15 @@ export NCCL_IB_HCA=mlx5
 export NCCL_IB_TIMEOUT=22
 export NCCL_IB_RETRY_CNT=7
 
-# Launch with torchrun directly (no srun)
-if [ "$SLURM_NODEID" -eq 0 ]; then
-    # Only launch from the first node
-    torchrun \
-      --nnodes=$SLURM_JOB_NUM_NODES \
-      --nproc_per_node=1 \
-      --node_rank=$SLURM_NODEID \
-      --master_addr=$MASTER_ADDR \
-      --master_port=$MASTER_PORT \
-      train_metaworld_ed4ct.py \
-        batch_size=128 env_name=push-v3 \
-        wandb_tag="SLURM" \
-        agent.pretrained_path=/leonardo/home/userexternal/mprattico/Pretrain-TACO/models/resnet50_l5.tar \
-        wandb_mode=offline
-fi
+# Launch torchrun on ALL nodes using srun
+srun torchrun \
+    --nnodes=$SLURM_JOB_NUM_NODES \
+    --nproc_per_node=4 \
+    --rdzv_id=$SLURM_JOB_ID \
+    --rdzv_backend=c10d \
+    --rdzv_endpoint=$MASTER_NODE:$MASTER_PORT \
+    train_metaworld_ed4ct.py \
+    batch_size=128 env_name=push-v3 \
+    wandb_tag="SLURM_TORCHRUN" \
+    agent.pretrained_path=/leonardo/home/userexternal/mprattico/Pretrain-TACO/models/resnet50_l5.tar \
+    wandb_mode=offline
