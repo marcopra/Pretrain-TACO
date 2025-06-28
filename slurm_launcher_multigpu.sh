@@ -3,7 +3,7 @@
 #SBATCH --nodes=2
 #SBATCH --ntasks-per-node=4
 #SBATCH --cpus-per-task=8
-#SBATCH --gres=gpu:4
+#SBATCH --gres=gpu:8
 #SBATCH --time=24:00:00
 #SBATCH --output=job_%j.out
 #SBATCH --error=job_%j.err
@@ -16,36 +16,20 @@ module load anaconda3/2023.09-0
 conda activate metataco
 module unload anaconda3/2023.09-0
 
-# NCCL configuration for InfiniBand - configurazione specifica per Leonardo
+# 2. Setup variabili NCCL
 export NCCL_IB_DISABLE=0
 export NCCL_NET_GDR_LEVEL=2
 export NCCL_IB_GID_INDEX=3
 export NCCL_DEBUG=INFO
-export NCCL_SOCKET_IFNAME=^lo,docker  # CORRETTO: usa questa sintassi
+export NCCL_SOCKET_IFNAME=^lo,docker
 export NCCL_IB_HCA=mlx5
 export NCCL_IB_TIMEOUT=22
 export NCCL_IB_RETRY_CNT=7
 
-# # CONFIGURAZIONI SPECIFICHE PER RISOLVERE "Could not find NET with id 0"
-# export NCCL_NET=IB
-# export NCCL_IB_CUDA_SUPPORT=1
-# export NCCL_IGNORE_DISABLED_P2P=1
+# 3. Setup master node
+export MASTER_ADDR=$(scontrol show hostnames $SLURM_JOB_NODELIST | head -n 1)
+export MASTER_PORT=$(shuf -i 30000-50000 -n 1)
 
-# # IMPORTANTE: Usa l'interfaccia InfiniBand specifica invece di escludere
-# export NCCL_SOCKET_IFNAME=ib0
-
-# # Disabilita alcune ottimizzazioni che possono causare problemi
-# export NCCL_TREE_THRESHOLD=0
-# export NCCL_IB_SPLIT_DATA_ON_QPS=0
-
-# Set master node
-# export MASTER_ADDR=$(scontrol show hostnames $SLURM_JOB_NODELIST | head -n 1)
-# export MASTER_PORT=$(shuf -i 30000-50000 -n 1)
-
-# # Set environment variables for distributed training
-# export RANK=$SLURM_PROCID
-# export WORLD_SIZE=$SLURM_NTASKS
-# export LOCAL_RANK=$SLURM_LOCALID
 
 echo "MASTER_ADDR: $MASTER_ADDR"
 echo "MASTER_PORT: $MASTER_PORT"
