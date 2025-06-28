@@ -14,6 +14,7 @@ import torch
 import torch.distributed as dist
 import torch.multiprocessing as mp
 from dm_env import specs
+import datetime
 
 import metaworld_env
 import wandb
@@ -180,6 +181,7 @@ def setup_ddp(rank, world_size):
     try:
         backend = 'nccl'
         #timeout = torch.distributed.default_pg_timeout * 5  # Aumenta timeout ulteriormente
+        raise NotImplementedError("Forcing NCCL initialization to test fallback")  # For testing fallback
         timeout_minutes = 10 if world_size > 4 else 5
         timeout = datetime.timedelta(minutes=timeout_minutes)
     
@@ -234,7 +236,7 @@ def setup_ddp(rank, world_size):
             # Test Gloo con un timeout più breve
             print(f"Rank {rank}: Testing Gloo synchronization with timeout...")
             try:
-                dist.barrier(timeout=torch.timedelta(seconds=30))
+                dist.barrier(timeout=datetime.timedelta(seconds=30))
                 print(f"Rank {rank}: Gloo synchronization test passed")
             except Exception as barrier_e:
                 print(f"Rank {rank}: Gloo barrier test failed: {barrier_e}")
