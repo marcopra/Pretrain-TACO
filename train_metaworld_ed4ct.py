@@ -179,8 +179,10 @@ def setup_ddp(rank, world_size):
     
     try:
         backend = 'nccl'
-        timeout = torch.distributed.default_pg_timeout * 5  # Aumenta timeout ulteriormente
-        
+        #timeout = torch.distributed.default_pg_timeout * 5  # Aumenta timeout ulteriormente
+        timeout_minutes = 10 if world_size > 4 else 5
+        timeout = datetime.timedelta(minutes=timeout_minutes)
+    
         print(f"Rank {rank}: Attempting to initialize process group with backend={backend}, device_id={cuda_device}")
         
         # Pass device_id to init_process_group to avoid the warning
