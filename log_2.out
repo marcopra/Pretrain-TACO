@@ -1,0 +1,372 @@
+srun --ntasks=8 --ntasks-per-node=4 --overlap python train_metaworld_ed4ct.py batch_size=32 env_name=push-v3 wandb_tag="SRIRECT" agent.pretrained_path=/leonardo/home/userexternal/mprattico/Pretrain-TACO/models/resnet50_l5.tar wandb_mode=offline exp_name=dbg_prova
+osmesa
+osmesa
+osmesa
+osmesa
+osmesa
+osmesa
+osmesa
+osmesa
+lrdn1321:2881847:2881847 [0] NCCL INFO NCCL_SOCKET_IFNAME set by environment to ^lo,docker
+lrdn1321:2881847:2881847 [0] NCCL INFO Bootstrap: Using enp1s0f0:10.4.0.241<0>
+lrdn1321:2881847:2881847 [0] NCCL INFO cudaDriverVersion 12010
+lrdn1321:2881847:2881847 [0] NCCL INFO NCCL version 2.26.2+cuda12.2
+lrdn1321:2881847:2881847 [0] NCCL INFO Comm config Blocking set to 1
+lrdn1321:2881847:2882166 [0] NCCL INFO NET/Plugin: Could not find: libnccl-net.so. Using internal net plugin.
+lrdn1321:2881847:2882166 [0] NCCL INFO NCCL_IB_DISABLE set by environment to 0.
+lrdn1321:2881847:2882166 [0] NCCL INFO NCCL_SOCKET_IFNAME set by environment to ^lo,docker
+lrdn1321:2881847:2882166 [0] NCCL INFO NCCL_IB_HCA set to mlx5
+lrdn1321:2881847:2882166 [0] NCCL INFO NET/IB : Using [0]mlx5_0:1/IB [1]mlx5_1:1/IB [2]mlx5_2:1/IB [3]mlx5_3:1/IB [RO]; OOB enp1s0f0:10.4.0.241<0>
+lrdn1321:2881847:2882166 [0] NCCL INFO PROFILER/Plugin: Could not find: libnccl-profiler.so. 
+lrdn1321:2881847:2882166 [0] NCCL INFO Using network IB
+lrdn1321:2881847:2882166 [0] NCCL INFO ncclCommInitRankConfig comm 0x562d309fdad0 rank 0 nranks 8 cudaDev 0 nvmlDev 0 busId 1d000 commId 0xef1dab06652124f0 - Init START
+lrdn1321:2881847:2882166 [0] NCCL INFO RAS client listening socket at ::1<28028>
+lrdn1321:2881847:2882166 [0] NCCL INFO Bootstrap timings total 0.031198 (create 0.000019, send 0.000075, recv 0.006600, ring 0.011975, delay 0.000000)
+lrdn1321:2881847:2882166 [0] NCCL INFO NCCL_IGNORE_DISABLED_P2P set by environment to 1.
+lrdn1321:2881847:2882166 [0] NCCL INFO NCCL_NET_GDR_LEVEL set by environment to PXB
+lrdn1321:2881847:2882166 [0] NCCL INFO Setting affinity for GPU 0 to ffff
+lrdn1321:2881847:2882166 [0] NCCL INFO NVLS multicast support is not available on dev 0
+
+[2025-06-28 13:30:49] lrdn1321:2881847:2882166 [0] graph/search.cc:1127 NCCL WARN Could not find a path for pattern 1, falling back to simple order
+lrdn1321:2881847:2882166 [0] NCCL INFO comm 0x562d309fdad0 rank 0 nRanks 8 nNodes 2 localRanks 4 localRank 0 MNNVL 0
+lrdn1321:2881847:2882166 [0] NCCL INFO Channel 00/02 : 0 1 2 3 4 5 6 7
+lrdn1321:2881847:2882166 [0] NCCL INFO Channel 01/02 : 0 1 2 3 4 5 6 7
+lrdn1321:2881847:2882166 [0] NCCL INFO Trees [0] 1/4/-1->0->-1 [1] 1/-1/-1->0->4
+lrdn1321:2881847:2882166 [0] NCCL INFO P2P Chunksize set to 131072
+lrdn1321:2881847:2882166 [0] NCCL INFO Check P2P Type intraNodeP2pSupport 1 directMode 0
+lrdn1321:2881847:2882191 [0] NCCL INFO [Proxy Service] Device 0 CPU core 2
+lrdn1321:2881847:2882194 [0] NCCL INFO [Proxy Service UDS] Device 0 CPU core 12
+lrdn1321:2881847:2882166 [0] NCCL INFO threadThresholds 8/8/64 | 64/8/64 | 512 | 512
+lrdn1321:2881847:2882166 [0] NCCL INFO 2 coll channels, 2 collnet channels, 0 nvls channels, 2 p2p channels, 1 p2p channels per peer
+lrdn1321:2881847:2882166 [0] NCCL INFO CC Off, workFifoBytes 1048576
+lrdn1321:2881847:2882166 [0] NCCL INFO TUNER/Plugin: Could not find: libnccl-tuner.so. Using internal tuner plugin.
+lrdn1321:2881847:2882166 [0] NCCL INFO ncclCommInitRankConfig comm 0x562d309fdad0 rank 0 nranks 8 cudaDev 0 nvmlDev 0 busId 1d000 commId 0xef1dab06652124f0 - Init COMPLETE
+lrdn1321:2881847:2882166 [0] NCCL INFO Init timings - ncclCommInitRankConfig: rank 0 nranks 8 total 0.28 (kernels 0.12, alloc 0.02, bootstrap 0.03, allgathers 0.00, topo 0.06, graphs 0.04, connections 0.00, rest 0.00)
+lrdn1321:2881847:2882823 [0] NCCL INFO [Proxy Progress] Device 0 CPU core 8
+lrdn1321:2881847:2882822 [0] NCCL INFO Channel 00/0 : 7[3] -> 0[0] [receive] via NET/IB/4/GDRDMA
+lrdn1321:2881847:2882822 [0] NCCL INFO Channel 01/0 : 7[3] -> 0[0] [receive] via NET/IB/4/GDRDMA
+lrdn1321:2881847:2882822 [0] NCCL INFO Channel 00/0 : 0[0] -> 1[1] via P2P/CUMEM/read
+lrdn1321:2881847:2882822 [0] NCCL INFO Channel 01/0 : 0[0] -> 1[1] via P2P/CUMEM/read
+lrdn1321:2881847:2882191 [0] NCCL INFO NCCL_IB_TIMEOUT set by environment to 22.
+lrdn1321:2881847:2882191 [0] NCCL INFO NCCL_IB_RETRY_CNT set by environment to 7.
+lrdn1321:2881847:2882822 [0] NCCL INFO Connected all rings, use ring PXN 1 GDR 1
+lrdn1321:2881848:2881848 [1] NCCL INFO cudaDriverVersion 12010
+lrdn1321:2881848:2881848 [1] NCCL INFO NCCL_SOCKET_IFNAME set by environment to ^lo,docker
+lrdn1321:2881848:2881848 [1] NCCL INFO Bootstrap: Using enp1s0f0:10.4.0.241<0>
+lrdn1321:2881848:2881848 [1] NCCL INFO NCCL version 2.26.2+cuda12.2
+lrdn1321:2881848:2881848 [1] NCCL INFO Comm config Blocking set to 1
+lrdn1321:2881848:2882163 [1] NCCL INFO NET/Plugin: Could not find: libnccl-net.so. Using internal net plugin.
+lrdn1321:2881848:2882163 [1] NCCL INFO NCCL_IB_DISABLE set by environment to 0.
+lrdn1321:2881848:2882163 [1] NCCL INFO NCCL_SOCKET_IFNAME set by environment to ^lo,docker
+lrdn1321:2881848:2882163 [1] NCCL INFO NCCL_IB_HCA set to mlx5
+lrdn1321:2881848:2882163 [1] NCCL INFO NET/IB : Using [0]mlx5_0:1/IB [1]mlx5_1:1/IB [2]mlx5_2:1/IB [3]mlx5_3:1/IB [RO]; OOB enp1s0f0:10.4.0.241<0>
+lrdn1321:2881848:2882163 [1] NCCL INFO PROFILER/Plugin: Could not find: libnccl-profiler.so. 
+lrdn1321:2881848:2882163 [1] NCCL INFO Using network IB
+lrdn1321:2881848:2882163 [1] NCCL INFO ncclCommInitRankConfig comm 0x55a0bf569910 rank 1 nranks 8 cudaDev 1 nvmlDev 1 busId 56000 commId 0xef1dab06652124f0 - Init START
+lrdn1321:2881848:2882163 [1] NCCL INFO RAS client listening socket at ::1<28028>
+lrdn1321:2881848:2882163 [1] NCCL INFO Bootstrap timings total 0.024645 (create 0.000018, send 0.000056, recv 0.000094, ring 0.024254, delay 0.000001)
+lrdn1321:2881848:2882163 [1] NCCL INFO NCCL_IGNORE_DISABLED_P2P set by environment to 1.
+lrdn1321:2881848:2882163 [1] NCCL INFO NCCL_NET_GDR_LEVEL set by environment to PXB
+lrdn1321:2881848:2882163 [1] NCCL INFO Setting affinity for GPU 1 to ffff
+lrdn1321:2881848:2882163 [1] NCCL INFO NVLS multicast support is not available on dev 1
+
+[2025-06-28 13:30:49] lrdn1321:2881848:2882163 [1] graph/search.cc:1127 NCCL WARN Could not find a path for pattern 1, falling back to simple order
+lrdn1321:2881848:2882163 [1] NCCL INFO comm 0x55a0bf569910 rank 1 nRanks 8 nNodes 2 localRanks 4 localRank 1 MNNVL 0
+lrdn1321:2881848:2882163 [1] NCCL INFO Trees [0] 2/-1/-1->1->0 [1] 2/-1/-1->1->0
+lrdn1321:2881848:2882163 [1] NCCL INFO P2P Chunksize set to 131072
+lrdn1321:2881848:2882193 [1] NCCL INFO [Proxy Service UDS] Device 1 CPU core 2
+lrdn1321:2881848:2882189 [1] NCCL INFO [Proxy Service] Device 1 CPU core 2
+lrdn1321:2881848:2882163 [1] NCCL INFO threadThresholds 8/8/64 | 64/8/64 | 512 | 512
+lrdn1321:2881848:2882163 [1] NCCL INFO 2 coll channels, 2 collnet channels, 0 nvls channels, 2 p2p channels, 1 p2p channels per peer
+lrdn1321:2881848:2882163 [1] NCCL INFO TUNER/Plugin: Could not find: libnccl-tuner.so. Using internal tuner plugin.
+lrdn1321:2881848:2882163 [1] NCCL INFO ncclCommInitRankConfig comm 0x55a0bf569910 rank 1 nranks 8 cudaDev 1 nvmlDev 1 busId 56000 commId 0xef1dab06652124f0 - Init COMPLETE
+lrdn1321:2881848:2882163 [1] NCCL INFO Init timings - ncclCommInitRankConfig: rank 1 nranks 8 total 0.33 (kernels 0.14, alloc 0.05, bootstrap 0.02, allgathers 0.00, topo 0.06, graphs 0.04, connections 0.00, rest 0.00)
+lrdn1321:2881848:2882824 [1] NCCL INFO Channel 00/0 : 1[1] -> 2[2] via P2P/CUMEM/read
+lrdn1321:2881848:2882824 [1] NCCL INFO Channel 01/0 : 1[1] -> 2[2] via P2P/CUMEM/read
+lrdn1321:2881848:2882824 [1] NCCL INFO Connected all rings, use ring PXN 1 GDR 1
+lrdn1321:2881850:2881850 [3] NCCL INFO cudaDriverVersion 12010
+lrdn1321:2881850:2881850 [3] NCCL INFO NCCL_SOCKET_IFNAME set by environment to ^lo,docker
+lrdn1321:2881850:2881850 [3] NCCL INFO Bootstrap: Using enp1s0f0:10.4.0.241<0>
+lrdn1321:2881850:2881850 [3] NCCL INFO NCCL version 2.26.2+cuda12.2
+lrdn1321:2881850:2881850 [3] NCCL INFO Comm config Blocking set to 1
+lrdn1321:2881850:2882165 [3] NCCL INFO NET/Plugin: Could not find: libnccl-net.so. Using internal net plugin.
+lrdn1321:2881850:2882165 [3] NCCL INFO NCCL_IB_DISABLE set by environment to 0.
+lrdn1321:2881850:2882165 [3] NCCL INFO NCCL_SOCKET_IFNAME set by environment to ^lo,docker
+lrdn1321:2881850:2882165 [3] NCCL INFO NCCL_IB_HCA set to mlx5
+lrdn1321:2881850:2882165 [3] NCCL INFO NET/IB : Using [0]mlx5_0:1/IB [1]mlx5_1:1/IB [2]mlx5_2:1/IB [3]mlx5_3:1/IB [RO]; OOB enp1s0f0:10.4.0.241<0>
+lrdn1321:2881850:2882165 [3] NCCL INFO PROFILER/Plugin: Could not find: libnccl-profiler.so. 
+lrdn1321:2881850:2882165 [3] NCCL INFO Using network IB
+lrdn1321:2881850:2882165 [3] NCCL INFO ncclCommInitRankConfig comm 0x563f99613700 rank 3 nranks 8 cudaDev 3 nvmlDev 3 busId c8000 commId 0xef1dab06652124f0 - Init START
+lrdn1321:2881850:2882165 [3] NCCL INFO RAS client listening socket at ::1<28028>
+lrdn1321:2881850:2882165 [3] NCCL INFO Bootstrap timings total 0.020801 (create 0.000019, send 0.000059, recv 0.020269, ring 0.000234, delay 0.000001)
+lrdn1321:2881850:2882165 [3] NCCL INFO NCCL_IGNORE_DISABLED_P2P set by environment to 1.
+lrdn1321:2881850:2882165 [3] NCCL INFO NCCL_NET_GDR_LEVEL set by environment to PXB
+lrdn1321:2881850:2882165 [3] NCCL INFO Setting affinity for GPU 3 to ffff
+lrdn1321:2881850:2882165 [3] NCCL INFO NVLS multicast support is not available on dev 3
+
+[2025-06-28 13:30:49] lrdn1321:2881850:2882165 [3] graph/search.cc:1127 NCCL WARN Could not find a path for pattern 1, falling back to simple order
+lrdn1321:2881850:2882165 [3] NCCL INFO comm 0x563f99613700 rank 3 nRanks 8 nNodes 2 localRanks 4 localRank 3 MNNVL 0
+lrdn1321:2881850:2882165 [3] NCCL INFO Trees [0] -1/-1/-1->3->2 [1] -1/-1/-1->3->2
+lrdn1321:2881850:2882165 [3] NCCL INFO P2P Chunksize set to 131072
+lrdn1321:2881850:2882187 [3] NCCL INFO [Proxy Service] Device 3 CPU core 1
+lrdn1321:2881850:2882188 [3] NCCL INFO [Proxy Service UDS] Device 3 CPU core 6
+lrdn1321:2881850:2882165 [3] NCCL INFO threadThresholds 8/8/64 | 64/8/64 | 512 | 512
+lrdn1321:2881850:2882165 [3] NCCL INFO 2 coll channels, 2 collnet channels, 0 nvls channels, 2 p2p channels, 1 p2p channels per peer
+lrdn1321:2881850:2882165 [3] NCCL INFO TUNER/Plugin: Could not find: libnccl-tuner.so. Using internal tuner plugin.
+lrdn1321:2881850:2882165 [3] NCCL INFO ncclCommInitRankConfig comm 0x563f99613700 rank 3 nranks 8 cudaDev 3 nvmlDev 3 busId c8000 commId 0xef1dab06652124f0 - Init COMPLETE
+lrdn1321:2881850:2882165 [3] NCCL INFO Init timings - ncclCommInitRankConfig: rank 3 nranks 8 total 0.33 (kernels 0.15, alloc 0.05, bootstrap 0.02, allgathers 0.00, topo 0.06, graphs 0.04, connections 0.00, rest 0.00)
+lrdn1321:2881850:2882825 [3] NCCL INFO Channel 00/0 : 3[3] -> 4[0] [send] via NET/IB/4(0)/GDRDMA
+lrdn1321:2881850:2882825 [3] NCCL INFO Channel 01/0 : 3[3] -> 4[0] [send] via NET/IB/4(0)/GDRDMA
+lrdn1321:2881850:2882825 [3] NCCL INFO Connected all rings, use ring PXN 1 GDR 1
+lrdn1321:2881849:2881849 [2] NCCL INFO cudaDriverVersion 12010
+lrdn1321:2881849:2881849 [2] NCCL INFO NCCL_SOCKET_IFNAME set by environment to ^lo,docker
+lrdn1321:2881849:2881849 [2] NCCL INFO Bootstrap: Using enp1s0f0:10.4.0.241<0>
+lrdn1321:2881849:2881849 [2] NCCL INFO NCCL version 2.26.2+cuda12.2
+lrdn1321:2881849:2881849 [2] NCCL INFO Comm config Blocking set to 1
+lrdn1321:2881849:2882164 [2] NCCL INFO NET/Plugin: Could not find: libnccl-net.so. Using internal net plugin.
+lrdn1321:2881849:2882164 [2] NCCL INFO NCCL_IB_DISABLE set by environment to 0.
+lrdn1321:2881849:2882164 [2] NCCL INFO NCCL_SOCKET_IFNAME set by environment to ^lo,docker
+lrdn1321:2881849:2882164 [2] NCCL INFO NCCL_IB_HCA set to mlx5
+lrdn1321:2881849:2882164 [2] NCCL INFO NET/IB : Using [0]mlx5_0:1/IB [1]mlx5_1:1/IB [2]mlx5_2:1/IB [3]mlx5_3:1/IB [RO]; OOB enp1s0f0:10.4.0.241<0>
+lrdn1321:2881849:2882164 [2] NCCL INFO PROFILER/Plugin: Could not find: libnccl-profiler.so. 
+lrdn1321:2881849:2882164 [2] NCCL INFO Using network IB
+lrdn1321:2881849:2882164 [2] NCCL INFO ncclCommInitRankConfig comm 0x5641e423f630 rank 2 nranks 8 cudaDev 2 nvmlDev 2 busId 8f000 commId 0xef1dab06652124f0 - Init START
+lrdn1321:2881849:2882164 [2] NCCL INFO RAS client listening socket at ::1<28028>
+lrdn1321:2881849:2882164 [2] NCCL INFO Bootstrap timings total 0.031189 (create 0.000018, send 0.000071, recv 0.010377, ring 0.020507, delay 0.000001)
+lrdn1321:2881849:2882164 [2] NCCL INFO NCCL_IGNORE_DISABLED_P2P set by environment to 1.
+lrdn1321:2881849:2882164 [2] NCCL INFO NCCL_NET_GDR_LEVEL set by environment to PXB
+lrdn1321:2881849:2882164 [2] NCCL INFO Setting affinity for GPU 2 to ffff
+lrdn1321:2881849:2882164 [2] NCCL INFO NVLS multicast support is not available on dev 2
+
+[2025-06-28 13:30:49] lrdn1321:2881849:2882164 [2] graph/search.cc:1127 NCCL WARN Could not find a path for pattern 1, falling back to simple order
+lrdn1321:2881849:2882164 [2] NCCL INFO comm 0x5641e423f630 rank 2 nRanks 8 nNodes 2 localRanks 4 localRank 2 MNNVL 0
+lrdn1321:2881849:2882164 [2] NCCL INFO Trees [0] 3/-1/-1->2->1 [1] 3/-1/-1->2->1
+lrdn1321:2881849:2882164 [2] NCCL INFO P2P Chunksize set to 131072
+lrdn1321:2881849:2882192 [2] NCCL INFO [Proxy Service UDS] Device 2 CPU core 2
+lrdn1321:2881849:2882190 [2] NCCL INFO [Proxy Service] Device 2 CPU core 11
+lrdn1321:2881849:2882164 [2] NCCL INFO threadThresholds 8/8/64 | 64/8/64 | 512 | 512
+lrdn1321:2881849:2882164 [2] NCCL INFO 2 coll channels, 2 collnet channels, 0 nvls channels, 2 p2p channels, 1 p2p channels per peer
+lrdn1321:2881849:2882164 [2] NCCL INFO TUNER/Plugin: Could not find: libnccl-tuner.so. Using internal tuner plugin.
+lrdn1321:2881849:2882164 [2] NCCL INFO ncclCommInitRankConfig comm 0x5641e423f630 rank 2 nranks 8 cudaDev 2 nvmlDev 2 busId 8f000 commId 0xef1dab06652124f0 - Init COMPLETE
+lrdn1321:2881849:2882164 [2] NCCL INFO Init timings - ncclCommInitRankConfig: rank 2 nranks 8 total 0.33 (kernels 0.15, alloc 0.04, bootstrap 0.03, allgathers 0.00, topo 0.06, graphs 0.04, connections 0.00, rest 0.00)
+lrdn1321:2881849:2882826 [2] NCCL INFO Channel 00/0 : 2[2] -> 3[3] via P2P/CUMEM/read
+lrdn1321:2881849:2882826 [2] NCCL INFO Channel 01/0 : 2[2] -> 3[3] via P2P/CUMEM/read
+lrdn1321:2881849:2882826 [2] NCCL INFO Connected all rings, use ring PXN 1 GDR 1
+lrdn1322:2130624:2130624 [0] NCCL INFO cudaDriverVersion 12010
+lrdn1322:2130624:2130624 [0] NCCL INFO NCCL_SOCKET_IFNAME set by environment to ^lo,docker
+lrdn1322:2130624:2130624 [0] NCCL INFO Bootstrap: Using enp1s0f0:10.4.0.242<0>
+lrdn1322:2130624:2130624 [0] NCCL INFO NCCL version 2.26.2+cuda12.2
+lrdn1322:2130624:2130624 [0] NCCL INFO Comm config Blocking set to 1
+lrdn1322:2130624:2130941 [0] NCCL INFO NET/Plugin: Could not find: libnccl-net.so. Using internal net plugin.
+lrdn1322:2130624:2130941 [0] NCCL INFO NCCL_IB_DISABLE set by environment to 0.
+lrdn1322:2130624:2130941 [0] NCCL INFO NCCL_SOCKET_IFNAME set by environment to ^lo,docker
+lrdn1322:2130624:2130941 [0] NCCL INFO NCCL_IB_HCA set to mlx5
+lrdn1322:2130624:2130941 [0] NCCL INFO NET/IB : Using [0]mlx5_0:1/IB [1]mlx5_1:1/IB [2]mlx5_2:1/IB [3]mlx5_3:1/IB [RO]; OOB enp1s0f0:10.4.0.242<0>
+lrdn1322:2130624:2130941 [0] NCCL INFO PROFILER/Plugin: Could not find: libnccl-profiler.so. 
+lrdn1322:2130624:2130941 [0] NCCL INFO Using network IB
+lrdn1322:2130624:2130941 [0] NCCL INFO ncclCommInitRankConfig comm 0x55854d3ad0f0 rank 4 nranks 8 cudaDev 0 nvmlDev 0 busId 1d000 commId 0xef1dab06652124f0 - Init START
+lrdn1322:2130624:2130941 [0] NCCL INFO RAS client listening socket at ::1<28028>
+lrdn1322:2130624:2130941 [0] NCCL INFO Bootstrap timings total 0.000673 (create 0.000016, send 0.000109, recv 0.000156, ring 0.000202, delay 0.000000)
+lrdn1322:2130624:2130941 [0] NCCL INFO NCCL_IGNORE_DISABLED_P2P set by environment to 1.
+lrdn1322:2130624:2130941 [0] NCCL INFO NCCL_NET_GDR_LEVEL set by environment to PXB
+lrdn1322:2130624:2130941 [0] NCCL INFO Setting affinity for GPU 0 to ffff
+lrdn1322:2130624:2130941 [0] NCCL INFO NVLS multicast support is not available on dev 0
+
+[2025-06-28 13:30:49] lrdn1322:2130624:2130941 [0] graph/search.cc:1127 NCCL WARN Could not find a path for pattern 1, falling back to simple order
+lrdn1322:2130624:2130941 [0] NCCL INFO comm 0x55854d3ad0f0 rank 4 nRanks 8 nNodes 2 localRanks 4 localRank 0 MNNVL 0
+lrdn1322:2130624:2130941 [0] NCCL INFO Trees [0] 5/-1/-1->4->0 [1] 5/0/-1->4->-1
+lrdn1322:2130624:2130941 [0] NCCL INFO P2P Chunksize set to 131072
+lrdn1322:2130624:2130967 [0] NCCL INFO [Proxy Service UDS] Device 0 CPU core 3
+lrdn1322:2130624:2130963 [0] NCCL INFO [Proxy Service] Device 0 CPU core 0
+lrdn1322:2130624:2130941 [0] NCCL INFO threadThresholds 8/8/64 | 64/8/64 | 512 | 512
+lrdn1322:2130624:2130941 [0] NCCL INFO 2 coll channels, 2 collnet channels, 0 nvls channels, 2 p2p channels, 1 p2p channels per peer
+lrdn1322:2130624:2130941 [0] NCCL INFO TUNER/Plugin: Could not find: libnccl-tuner.so. Using internal tuner plugin.
+lrdn1322:2130624:2130941 [0] NCCL INFO ncclCommInitRankConfig comm 0x55854d3ad0f0 rank 4 nranks 8 cudaDev 0 nvmlDev 0 busId 1d000 commId 0xef1dab06652124f0 - Init COMPLETE
+lrdn1322:2130624:2130941 [0] NCCL INFO Init timings - ncclCommInitRankConfig: rank 4 nranks 8 total 0.27 (kernels 0.12, alloc 0.04, bootstrap 0.00, allgathers 0.00, topo 0.06, graphs 0.04, connections 0.00, rest 0.00)
+lrdn1322:2130624:2131597 [0] NCCL INFO [Proxy Progress] Device 0 CPU core 5
+lrdn1322:2130624:2131595 [0] NCCL INFO Channel 00/0 : 3[3] -> 4[0] [receive] via NET/IB/4/GDRDMA
+lrdn1322:2130624:2131595 [0] NCCL INFO Channel 01/0 : 3[3] -> 4[0] [receive] via NET/IB/4/GDRDMA
+lrdn1322:2130624:2131595 [0] NCCL INFO Channel 00/0 : 4[0] -> 5[1] via P2P/CUMEM/read
+lrdn1322:2130624:2131595 [0] NCCL INFO Channel 01/0 : 4[0] -> 5[1] via P2P/CUMEM/read
+lrdn1322:2130624:2130963 [0] NCCL INFO NCCL_IB_TIMEOUT set by environment to 22.
+lrdn1322:2130624:2130963 [0] NCCL INFO NCCL_IB_RETRY_CNT set by environment to 7.
+lrdn1322:2130624:2131595 [0] NCCL INFO Connected all rings, use ring PXN 1 GDR 1
+lrdn1322:2130625:2130625 [1] NCCL INFO cudaDriverVersion 12010
+lrdn1322:2130625:2130625 [1] NCCL INFO NCCL_SOCKET_IFNAME set by environment to ^lo,docker
+lrdn1322:2130625:2130625 [1] NCCL INFO Bootstrap: Using enp1s0f0:10.4.0.242<0>
+lrdn1322:2130625:2130625 [1] NCCL INFO NCCL version 2.26.2+cuda12.2
+lrdn1322:2130625:2130625 [1] NCCL INFO Comm config Blocking set to 1
+lrdn1322:2130625:2130939 [1] NCCL INFO NET/Plugin: Could not find: libnccl-net.so. Using internal net plugin.
+lrdn1322:2130625:2130939 [1] NCCL INFO NCCL_IB_DISABLE set by environment to 0.
+lrdn1322:2130625:2130939 [1] NCCL INFO NCCL_SOCKET_IFNAME set by environment to ^lo,docker
+lrdn1322:2130625:2130939 [1] NCCL INFO NCCL_IB_HCA set to mlx5
+lrdn1322:2130625:2130939 [1] NCCL INFO NET/IB : Using [0]mlx5_0:1/IB [1]mlx5_1:1/IB [2]mlx5_2:1/IB [3]mlx5_3:1/IB [RO]; OOB enp1s0f0:10.4.0.242<0>
+lrdn1322:2130625:2130939 [1] NCCL INFO PROFILER/Plugin: Could not find: libnccl-profiler.so. 
+lrdn1322:2130625:2130939 [1] NCCL INFO Using network IB
+lrdn1322:2130625:2130939 [1] NCCL INFO ncclCommInitRankConfig comm 0x5585ceaafc20 rank 5 nranks 8 cudaDev 1 nvmlDev 1 busId 56000 commId 0xef1dab06652124f0 - Init START
+lrdn1322:2130625:2130939 [1] NCCL INFO RAS client listening socket at ::1<28028>
+lrdn1322:2130625:2130939 [1] NCCL INFO Bootstrap timings total 0.014717 (create 0.000016, send 0.000109, recv 0.000199, ring 0.000184, delay 0.000001)
+lrdn1322:2130625:2130939 [1] NCCL INFO NCCL_IGNORE_DISABLED_P2P set by environment to 1.
+lrdn1322:2130625:2130939 [1] NCCL INFO NCCL_NET_GDR_LEVEL set by environment to PXB
+lrdn1322:2130625:2130939 [1] NCCL INFO Setting affinity for GPU 1 to ffff
+lrdn1322:2130625:2130939 [1] NCCL INFO NVLS multicast support is not available on dev 1
+
+[2025-06-28 13:30:49] lrdn1322:2130625:2130939 [1] graph/search.cc:1127 NCCL WARN Could not find a path for pattern 1, falling back to simple order
+lrdn1322:2130625:2130939 [1] NCCL INFO comm 0x5585ceaafc20 rank 5 nRanks 8 nNodes 2 localRanks 4 localRank 1 MNNVL 0
+lrdn1322:2130625:2130939 [1] NCCL INFO Trees [0] 6/-1/-1->5->4 [1] 6/-1/-1->5->4
+lrdn1322:2130625:2130939 [1] NCCL INFO P2P Chunksize set to 131072
+lrdn1322:2130625:2130962 [1] NCCL INFO [Proxy Service] Device 1 CPU core 4
+lrdn1322:2130625:2130965 [1] NCCL INFO [Proxy Service UDS] Device 1 CPU core 6
+lrdn1322:2130625:2130939 [1] NCCL INFO threadThresholds 8/8/64 | 64/8/64 | 512 | 512
+lrdn1322:2130625:2130939 [1] NCCL INFO 2 coll channels, 2 collnet channels, 0 nvls channels, 2 p2p channels, 1 p2p channels per peer
+lrdn1322:2130625:2130939 [1] NCCL INFO TUNER/Plugin: Could not find: libnccl-tuner.so. Using internal tuner plugin.
+lrdn1322:2130625:2130939 [1] NCCL INFO ncclCommInitRankConfig comm 0x5585ceaafc20 rank 5 nranks 8 cudaDev 1 nvmlDev 1 busId 56000 commId 0xef1dab06652124f0 - Init COMPLETE
+lrdn1322:2130625:2130939 [1] NCCL INFO Init timings - ncclCommInitRankConfig: rank 5 nranks 8 total 0.34 (kernels 0.16, alloc 0.06, bootstrap 0.01, allgathers 0.00, topo 0.06, graphs 0.04, connections 0.00, rest 0.00)
+lrdn1322:2130625:2131596 [1] NCCL INFO Channel 00/0 : 5[1] -> 6[2] via P2P/CUMEM/read
+lrdn1322:2130625:2131596 [1] NCCL INFO Channel 01/0 : 5[1] -> 6[2] via P2P/CUMEM/read
+lrdn1322:2130625:2131596 [1] NCCL INFO Connected all rings, use ring PXN 1 GDR 1
+lrdn1322:2130626:2130626 [2] NCCL INFO cudaDriverVersion 12010
+lrdn1322:2130626:2130626 [2] NCCL INFO NCCL_SOCKET_IFNAME set by environment to ^lo,docker
+lrdn1322:2130626:2130626 [2] NCCL INFO Bootstrap: Using enp1s0f0:10.4.0.242<0>
+lrdn1322:2130626:2130626 [2] NCCL INFO NCCL version 2.26.2+cuda12.2
+lrdn1322:2130626:2130626 [2] NCCL INFO Comm config Blocking set to 1
+lrdn1322:2130626:2130938 [2] NCCL INFO NET/Plugin: Could not find: libnccl-net.so. Using internal net plugin.
+lrdn1322:2130626:2130938 [2] NCCL INFO NCCL_IB_DISABLE set by environment to 0.
+lrdn1322:2130626:2130938 [2] NCCL INFO NCCL_SOCKET_IFNAME set by environment to ^lo,docker
+lrdn1322:2130626:2130938 [2] NCCL INFO NCCL_IB_HCA set to mlx5
+lrdn1322:2130626:2130938 [2] NCCL INFO NET/IB : Using [0]mlx5_0:1/IB [1]mlx5_1:1/IB [2]mlx5_2:1/IB [3]mlx5_3:1/IB [RO]; OOB enp1s0f0:10.4.0.242<0>
+lrdn1322:2130626:2130938 [2] NCCL INFO PROFILER/Plugin: Could not find: libnccl-profiler.so. 
+lrdn1322:2130626:2130938 [2] NCCL INFO Using network IB
+lrdn1322:2130626:2130938 [2] NCCL INFO ncclCommInitRankConfig comm 0x559aee17baa0 rank 6 nranks 8 cudaDev 2 nvmlDev 2 busId 8f000 commId 0xef1dab06652124f0 - Init START
+lrdn1322:2130626:2130938 [2] NCCL INFO RAS client listening socket at ::1<28028>
+lrdn1322:2130626:2130938 [2] NCCL INFO Bootstrap timings total 0.027406 (create 0.000021, send 0.000142, recv 0.014955, ring 0.012020, delay 0.000000)
+lrdn1322:2130626:2130938 [2] NCCL INFO NCCL_IGNORE_DISABLED_P2P set by environment to 1.
+lrdn1322:2130626:2130938 [2] NCCL INFO NCCL_NET_GDR_LEVEL set by environment to PXB
+lrdn1322:2130626:2130938 [2] NCCL INFO Setting affinity for GPU 2 to ffff
+lrdn1322:2130626:2130938 [2] NCCL INFO NVLS multicast support is not available on dev 2
+
+[2025-06-28 13:30:49] lrdn1322:2130626:2130938 [2] graph/search.cc:1127 NCCL WARN Could not find a path for pattern 1, falling back to simple order
+lrdn1322:2130626:2130938 [2] NCCL INFO comm 0x559aee17baa0 rank 6 nRanks 8 nNodes 2 localRanks 4 localRank 2 MNNVL 0
+lrdn1322:2130626:2130938 [2] NCCL INFO Trees [0] 7/-1/-1->6->5 [1] 7/-1/-1->6->5
+lrdn1322:2130626:2130938 [2] NCCL INFO P2P Chunksize set to 131072
+lrdn1322:2130626:2130964 [2] NCCL INFO [Proxy Service] Device 2 CPU core 8
+lrdn1322:2130626:2130968 [2] NCCL INFO [Proxy Service UDS] Device 2 CPU core 5
+lrdn1322:2130626:2130938 [2] NCCL INFO threadThresholds 8/8/64 | 64/8/64 | 512 | 512
+lrdn1322:2130626:2130938 [2] NCCL INFO 2 coll channels, 2 collnet channels, 0 nvls channels, 2 p2p channels, 1 p2p channels per peer
+lrdn1322:2130626:2130938 [2] NCCL INFO TUNER/Plugin: Could not find: libnccl-tuner.so. Using internal tuner plugin.
+lrdn1322:2130626:2130938 [2] NCCL INFO ncclCommInitRankConfig comm 0x559aee17baa0 rank 6 nranks 8 cudaDev 2 nvmlDev 2 busId 8f000 commId 0xef1dab06652124f0 - Init COMPLETE
+lrdn1322:2130626:2130938 [2] NCCL INFO Init timings - ncclCommInitRankConfig: rank 6 nranks 8 total 0.34 (kernels 0.16, alloc 0.04, bootstrap 0.03, allgathers 0.00, topo 0.06, graphs 0.04, connections 0.00, rest 0.00)
+lrdn1322:2130626:2131598 [2] NCCL INFO Channel 00/0 : 6[2] -> 7[3] via P2P/CUMEM/read
+lrdn1322:2130626:2131598 [2] NCCL INFO Channel 01/0 : 6[2] -> 7[3] via P2P/CUMEM/read
+lrdn1322:2130626:2131598 [2] NCCL INFO Connected all rings, use ring PXN 1 GDR 1
+lrdn1322:2130627:2130627 [3] NCCL INFO cudaDriverVersion 12010
+lrdn1322:2130627:2130627 [3] NCCL INFO NCCL_SOCKET_IFNAME set by environment to ^lo,docker
+lrdn1322:2130627:2130627 [3] NCCL INFO Bootstrap: Using enp1s0f0:10.4.0.242<0>
+lrdn1322:2130627:2130627 [3] NCCL INFO NCCL version 2.26.2+cuda12.2
+lrdn1322:2130627:2130627 [3] NCCL INFO Comm config Blocking set to 1
+lrdn1322:2130627:2130940 [3] NCCL INFO NET/Plugin: Could not find: libnccl-net.so. Using internal net plugin.
+lrdn1322:2130627:2130940 [3] NCCL INFO NCCL_IB_DISABLE set by environment to 0.
+lrdn1322:2130627:2130940 [3] NCCL INFO NCCL_SOCKET_IFNAME set by environment to ^lo,docker
+lrdn1322:2130627:2130940 [3] NCCL INFO NCCL_IB_HCA set to mlx5
+lrdn1322:2130627:2130940 [3] NCCL INFO NET/IB : Using [0]mlx5_0:1/IB [1]mlx5_1:1/IB [2]mlx5_2:1/IB [3]mlx5_3:1/IB [RO]; OOB enp1s0f0:10.4.0.242<0>
+lrdn1322:2130627:2130940 [3] NCCL INFO PROFILER/Plugin: Could not find: libnccl-profiler.so. 
+lrdn1322:2130627:2130940 [3] NCCL INFO Using network IB
+lrdn1322:2130627:2130940 [3] NCCL INFO ncclCommInitRankConfig comm 0x56016cd63200 rank 7 nranks 8 cudaDev 3 nvmlDev 3 busId c8000 commId 0xef1dab06652124f0 - Init START
+lrdn1322:2130627:2130940 [3] NCCL INFO RAS client listening socket at ::1<28028>
+lrdn1322:2130627:2130940 [3] NCCL INFO Bootstrap timings total 0.012608 (create 0.000017, send 0.000118, recv 0.000242, ring 0.012014, delay 0.000000)
+lrdn1322:2130627:2130940 [3] NCCL INFO NCCL_IGNORE_DISABLED_P2P set by environment to 1.
+lrdn1322:2130627:2130940 [3] NCCL INFO NCCL_NET_GDR_LEVEL set by environment to PXB
+lrdn1322:2130627:2130940 [3] NCCL INFO Setting affinity for GPU 3 to ffff
+lrdn1322:2130627:2130940 [3] NCCL INFO NVLS multicast support is not available on dev 3
+
+[2025-06-28 13:30:49] lrdn1322:2130627:2130940 [3] graph/search.cc:1127 NCCL WARN Could not find a path for pattern 1, falling back to simple order
+lrdn1322:2130627:2130940 [3] NCCL INFO comm 0x56016cd63200 rank 7 nRanks 8 nNodes 2 localRanks 4 localRank 3 MNNVL 0
+lrdn1322:2130627:2130940 [3] NCCL INFO Trees [0] -1/-1/-1->7->6 [1] -1/-1/-1->7->6
+lrdn1322:2130627:2130940 [3] NCCL INFO P2P Chunksize set to 131072
+lrdn1322:2130627:2130966 [3] NCCL INFO [Proxy Service] Device 3 CPU core 9
+lrdn1322:2130627:2130969 [3] NCCL INFO [Proxy Service UDS] Device 3 CPU core 7
+lrdn1322:2130627:2130940 [3] NCCL INFO threadThresholds 8/8/64 | 64/8/64 | 512 | 512
+lrdn1322:2130627:2130940 [3] NCCL INFO 2 coll channels, 2 collnet channels, 0 nvls channels, 2 p2p channels, 1 p2p channels per peer
+lrdn1322:2130627:2130940 [3] NCCL INFO TUNER/Plugin: Could not find: libnccl-tuner.so. Using internal tuner plugin.
+lrdn1322:2130627:2130940 [3] NCCL INFO ncclCommInitRankConfig comm 0x56016cd63200 rank 7 nranks 8 cudaDev 3 nvmlDev 3 busId c8000 commId 0xef1dab06652124f0 - Init COMPLETE
+lrdn1322:2130627:2130940 [3] NCCL INFO Init timings - ncclCommInitRankConfig: rank 7 nranks 8 total 0.34 (kernels 0.16, alloc 0.06, bootstrap 0.01, allgathers 0.00, topo 0.06, graphs 0.04, connections 0.00, rest 0.00)
+lrdn1322:2130627:2131594 [3] NCCL INFO Channel 00/0 : 7[3] -> 0[0] [send] via NET/IB/4(4)/GDRDMA
+lrdn1322:2130627:2131594 [3] NCCL INFO Channel 01/0 : 7[3] -> 0[0] [send] via NET/IB/4(4)/GDRDMA
+lrdn1322:2130627:2131594 [3] NCCL INFO Connected all rings, use ring PXN 1 GDR 1
+lrdn1322:2130627:2131602 [3] NCCL INFO Channel 00/0 : 7[3] -> 6[2] via P2P/CUMEM/read
+lrdn1322:2130627:2131602 [3] NCCL INFO Channel 01/0 : 7[3] -> 6[2] via P2P/CUMEM/read
+lrdn1322:2130627:2131602 [3] NCCL INFO Connected all trees
+lrdn1321:2881850:2882830 [3] NCCL INFO Channel 00/0 : 3[3] -> 2[2] via P2P/CUMEM/read
+lrdn1321:2881850:2882830 [3] NCCL INFO Channel 01/0 : 3[3] -> 2[2] via P2P/CUMEM/read
+lrdn1321:2881850:2882830 [3] NCCL INFO Connected all trees
+
+[2025-06-28 13:32:29] lrdn1322:2130624:2131601 [0] graph/topo.h:234 NCCL WARN Could not find NET with id 0
+lrdn1322:2130624:2131601 [0] NCCL INFO graph/search.cc:1222 -> 3
+lrdn1322:2130624:2131601 [0] NCCL INFO transport/net.cc:247 -> 3
+lrdn1322:2130624:2131601 [0] NCCL INFO transport.cc:35 -> 3
+lrdn1322:2130624:2131601 [0] NCCL INFO transport.cc:147 -> 3
+lrdn1322:2130624:2131601 [0] NCCL INFO transport/generic.cc:49 -> 3
+lrdn1322:2130624:2131601 [0] NCCL INFO group.cc:152 -> 3
+lrdn1322:2130624:2131601 [0] NCCL INFO group.cc:75 -> 3 [Async thread]
+lrdn1322:2130624:2130624 [0] NCCL INFO group.cc:460 -> 3
+lrdn1322:2130624:2130624 [0] NCCL INFO group.cc:581 -> 3
+lrdn1322:2130624:2130624 [0] NCCL INFO enqueue.cc:2299 -> 3
+Traceback (most recent call last):
+  File "/leonardo/home/userexternal/mprattic/Pretrain-TACO/train_metaworld_ed4ct.py", line 708, in run_training
+    dist.barrier()
+  File "/leonardo/home/userexternal/mprattic/.conda/envs/metataco/lib/python3.10/site-packages/torch/distributed/c10d_logger.py", line 81, in wrapper
+    return func(*args, **kwargs)
+  File "/leonardo/home/userexternal/mprattic/.conda/envs/metataco/lib/python3.10/site-packages/torch/distributed/distributed_c10d.py", line 4635, in barrier
+    work = group.barrier(opts=opts)
+torch.distributed.DistBackendError: NCCL error in: /pytorch/torch/csrc/distributed/c10d/ProcessGroupNCCL.cpp:3356, internal error - please report this issue to the NCCL developers, NCCL version 2.26.2
+ncclInternalError: Internal check failed.
+Last error:
+Could not find NET with id 0
+lrdn1321:2881849:2882829 [2] NCCL INFO Channel 00/0 : 2[2] -> 1[1] via P2P/CUMEM/read
+lrdn1321:2881849:2882829 [2] NCCL INFO Channel 01/0 : 2[2] -> 1[1] via P2P/CUMEM/read
+lrdn1321:2881848:2882828 [1] NCCL INFO Channel 00/0 : 1[1] -> 0[0] via P2P/CUMEM/read
+lrdn1321:2881848:2882828 [1] NCCL INFO Channel 01/0 : 1[1] -> 0[0] via P2P/CUMEM/read
+lrdn1322:2130625:2131599 [1] NCCL INFO Channel 00/0 : 5[1] -> 4[0] via P2P/CUMEM/read
+lrdn1322:2130625:2131599 [1] NCCL INFO Channel 01/0 : 5[1] -> 4[0] via P2P/CUMEM/read
+lrdn1322:2130626:2131600 [2] NCCL INFO Channel 00/0 : 6[2] -> 5[1] via P2P/CUMEM/read
+lrdn1322:2130626:2131600 [2] NCCL INFO Channel 01/0 : 6[2] -> 5[1] via P2P/CUMEM/read
+lrdn1322:2130624:2131603 [0] NCCL INFO misc/socket.cc:64 -> 3
+lrdn1322:2130624:2131603 [0] NCCL INFO misc/socket.cc:80 -> 3
+lrdn1322:2130624:2131603 [0] NCCL INFO misc/socket.cc:829 -> 3
+lrdn1322:2130624:2130963 [0] NCCL INFO misc/socket.cc:881 -> 3
+lrdn1322:2130624:2131603 [0] NCCL INFO misc/socket.cc:64 -> 3
+lrdn1322:2130624:2131603 [0] NCCL INFO misc/socket.cc:80 -> 3
+lrdn1322:2130624:2131603 [0] NCCL INFO misc/socket.cc:829 -> 3
+wandb: Tracking run with wandb version 0.20.1
+wandb: W&B syncing is set to `offline` in this directory. Run `wandb online` or set WANDB_MODE=online to enable cloud syncing.
+wandb: WARNING Saving files without folders. If you want to preserve subdirectories pass base_path to wandb.save, i.e. wandb.save("/mnt/folder/file.h5", base_path="/mnt")
+Traceback (most recent call last):
+  File "/leonardo/home/userexternal/mprattic/Pretrain-TACO/train_metaworld_ed4ct.py", line 708, in run_training
+    dist.barrier()
+  File "/leonardo/home/userexternal/mprattic/.conda/envs/metataco/lib/python3.10/site-packages/torch/distributed/c10d_logger.py", line 81, in wrapper
+    return func(*args, **kwargs)
+  File "/leonardo/home/userexternal/mprattic/.conda/envs/metataco/lib/python3.10/site-packages/torch/distributed/distributed_c10d.py", line 4635, in barrier
+    work = group.barrier(opts=opts)
+torch.distributed.DistBackendError: NCCL error in: /pytorch/torch/csrc/distributed/c10d/ProcessGroupNCCL.cpp:3356, internal error - please report this issue to the NCCL developers, NCCL version 2.26.2
+ncclInternalError: Internal check failed.
+Last error:
+Could not find NET with id 0
+
+[2025-06-28 13:32:30] lrdn1321:2881847:2882903 [0] graph/topo.h:234 NCCL WARN Could not find NET with id 0
+lrdn1321:2881847:2882903 [0] NCCL INFO graph/search.cc:1222 -> 3
+lrdn1321:2881847:2882903 [0] NCCL INFO transport/net.cc:247 -> 3
+lrdn1321:2881847:2882903 [0] NCCL INFO transport.cc:35 -> 3
+lrdn1321:2881847:2882903 [0] NCCL INFO transport.cc:147 -> 3
+lrdn1321:2881847:2882903 [0] NCCL INFO transport/generic.cc:49 -> 3
+lrdn1321:2881847:2882903 [0] NCCL INFO group.cc:152 -> 3
+lrdn1321:2881847:2882903 [0] NCCL INFO group.cc:75 -> 3 [Async thread]
+lrdn1321:2881847:2881847 [0] NCCL INFO group.cc:460 -> 3
+lrdn1321:2881847:2881847 [0] NCCL INFO group.cc:581 -> 3
+lrdn1321:2881847:2881847 [0] NCCL INFO enqueue.cc:2299 -> 3
+lrdn1321:2881847:2882904 [0] NCCL INFO misc/socket.cc:64 -> 3
+lrdn1321:2881847:2882904 [0] NCCL INFO misc/socket.cc:80 -> 3
+lrdn1321:2881847:2882904 [0] NCCL INFO misc/socket.cc:829 -> 3
+lrdn1321:2881847:2882191 [0] NCCL INFO misc/socket.cc:881 -> 3
+lrdn1321:2881847:2882904 [0] NCCL INFO misc/socket.cc:64 -> 3
+lrdn1321:2881847:2882904 [0] NCCL INFO misc/socket.cc:80 -> 3
+lrdn1321:2881847:2882904 [0] NCCL INFO misc/socket.cc:829 -> 3

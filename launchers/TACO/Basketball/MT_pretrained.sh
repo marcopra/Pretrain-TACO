@@ -2,7 +2,7 @@
 #PBS -l select=1:ncpus=4:ngpus=1
 #PBS -l walltime=24:00:00
 #PBS -j oe
-#PBS -q a100f
+
 cd $PBS_O_WORKDIR
 
 # Use an optional experiment argument passed via qsub -v EXPERIMENT=...
