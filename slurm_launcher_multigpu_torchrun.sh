@@ -34,6 +34,7 @@ export NCCL_IB_HCA=mlx5
 export NCCL_IB_TIMEOUT=22
 export NCCL_IB_RETRY_CNT=7
 
+SEED=$(($RANDOM % 10000)) 
 # Launch torchrun on ALL nodes using srun
 srun torchrun \
     --nnodes=$SLURM_JOB_NUM_NODES \
@@ -45,4 +46,7 @@ srun torchrun \
     batch_size=128 env_name=push-v3 \
     wandb_tag="SLURM_TORCHRUN" \
     agent.pretrained_path=/leonardo/home/userexternal/mprattico/Pretrain-TACO/models/resnet50_l5.tar \
-    wandb_mode=offline
+    wandb_mode=offline \
+    save_snapshot=true \
+    seed=$SEED \
+    exp_name="SLURM_TORCHRUN_${SEED}" \

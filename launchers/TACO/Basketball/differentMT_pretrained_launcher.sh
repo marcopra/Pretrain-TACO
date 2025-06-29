@@ -3,12 +3,13 @@
 seeds="1"
 env_names=("Basketball-v2")
 model_paths=(
+    "/home/mprattico/Pretrain-TACO/models/taco_MT_MT50_OOD_Basketball_0.0_lr=0.0005_ts=115865600_curl_rew_best.pt"
     "/home/mprattico/Pretrain-TACO/models/taco_MT_MT1_49OOD_ID_DrawerOpen_0.0_lr=0.0005_ts=25344000_curl_rew_best.pt"
     "/home/mprattico/Pretrain-TACO/models/taco_MT_MT10_40OOD_ID_ButtonPressTopdownWallDisassembleDoorOpenDrawerOpenHandlePressLeverPullPlateSlideBackSidePlateSlideStickPullSweep_0.0_lr=0.0005_ts=69171200_curl_rew_best.pt"
+    "/home/mprattico/Pretrain-TACO/models/taco_MT_MT20_30OOD_ID_ButtonPressTopdownBPTWallCoffeeButtonDisassembleDoorLockDOpenDrawerCloseDOpenHandInsertHPressHPullLeverPPegUnplugSidePlateSSidePlateSSoccerStickPullSweepIntoS_0.0_lr=0.0005_ts=77977600_curl_rew_best.pt" 
     "/home/mprattico/Pretrain-TACO/models/taco_MT_MT30_20OOD_AssemblyBasketballBinPickingButtonPressCoffeePullCPushDialTurnFaucetCloseHammerHandlePressSidePickOutHolePPlacePPWallPushPWallReachRWallShelfPlaceWindowCloseWOpen_0.0_lr=0.0005_ts=149043200_curl_rew_best.pt"
     "/home/mprattico/Pretrain-TACO/models/taco_MT_MT40_10OOD_BasketballBinPickingButtonPressCoffeePushHammerPickPlacePushReachShelfPlaceWindowClose_0.0_lr=0.0005_ts=155699200_curl_rew_best.pt" 
     "/home/mprattico/Pretrain-TACO/models/taco_MT_MT45_5OOD_BasketballBinPickingButtonPressPushShelfPlace_0.0_lr=0.0005_ts=154931200_curl_rew_best.pt" 
-    "/home/mprattico/Pretrain-TACO/models/taco_MT_MT20_30OOD_ID_ButtonPressTopdownBPTWallCoffeeButtonDisassembleDoorLockDOpenDrawerCloseDOpenHandInsertHPressHPullLeverPPegUnplugSidePlateSSidePlateSSoccerStickPullSweepIntoS_0.0_lr=0.0005_ts=77977600_curl_rew_best.pt" 
 )
    
 random_hand_inital="true"

@@ -3,10 +3,7 @@
 seeds="1 1 1 1 1 1 1 1"
 env_names=("button-press-v2")
 model_paths=(
-    "/home/mprattico/Pretrain-TACO/models/taco_MT_MT50_OOD_ButtonPress_0.0_lr=0.0005_ts=200000512_curl_rew.pt"
-   # "/home/mprattico/Pretrain-TACO/models/taco_MT_MT50_OOD_Basketball_0.33_lr=0.0005_ts=200000512_curl_rew.pt"
-    # "/home/mprattico/Pretrain-TACO/models/taco_MT_MT50_OOD_Basketball_0.66_lr=0.0005_ts=200000512_curl_rew.pt"
-    # "/home/mprattico/Pretrain-TACO/models/taco_MT_MT50_OOD_Basketball_0.99_lr=0.0005_ts=50000896_curl_rew.pt" 
+    "/home/mprattico/Pretrain-TACO/models/taco_MT_MT50_OOD_ButtonPress_0.0_lr=0.0005_ts=192512000_curl_rew_best.pt"
 )
    
 random_hand_inital="true"
