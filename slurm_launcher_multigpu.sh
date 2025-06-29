@@ -47,9 +47,14 @@ echo "=== InfiniBand Status ==="
 ibstat 2>/dev/null | head -15 || echo "ibstat not available"
 echo "==============================="
 
+SEED=$(($RANDOM % 10000)) 
+
 # Run with srun
 srun --ntasks=8 --ntasks-per-node=4 python train_metaworld_ed4ct.py \
     batch_size=128 env_name=push-v3 \
     wandb_tag="SLURM" \
     agent.pretrained_path=/leonardo/home/userexternal/mprattico/Pretrain-TACO/models/resnet50_l5.tar \
-    wandb_mode=offline
+    wandb_mode=offline \
+    save_snapshot=true \
+    seed=$SEED \
+    exp_name="SLURM_TORCHRUN_${SEED}" 
