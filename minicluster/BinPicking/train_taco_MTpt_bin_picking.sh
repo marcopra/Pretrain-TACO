@@ -11,8 +11,8 @@ if [ $# -lt 1 ] || [ $# -gt 3 ]; then
     exit 1
 fi
 
-cuda_device=$1
-no_taco=${2:-false}
+no_taco=${1:-false}
+cuda_device=$2
 model_num=${3:-10}
 
 # Validate cuda_device value
