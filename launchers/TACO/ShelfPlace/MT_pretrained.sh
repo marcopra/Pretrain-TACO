@@ -13,6 +13,7 @@ RANDOM_GOAL=${RANDOM_GOAL:-0}
 MODEL_PATH=${MODEL_PATH:-"none"}
 WANDB_TAG=${WANDB_TAG:-"none"}
 FREEZE=${FREEZE:-"false"}
+NO_TACO=${NO_TACO:-"false"}
 
 # Set seed argument based on SEED value
 if [ "$SEED" -eq 1 ]; then
@@ -23,8 +24,19 @@ fi
 
 export HYDRA_FULL_ERROR=1
 
+# Validate NO_TACO value
+case $NO_TACO in
+    true|false)
+        # Valid value
+        ;;
+    *)
+        echo "Error: Invalid NO_TACO value. Allowed values are true or false."
+        exit 1
+        ;;
+esac
+
 # Create the experiment name once to ensure consistency
-EXP_NAME="${MODEL_PATH}_${SEED_ARG}_random_init_${RANDOM_HAND}_random_goal_${RANDOM_GOAL}_freeze_${FREEZE}"
+EXP_NAME="${MODEL_PATH}_${SEED_ARG}_random_init_${RANDOM_HAND}_random_goal_${RANDOM_GOAL}_freeze_${FREEZE}_no_taco_${NO_TACO}"
 
 # Define cleanup function
 cleanup() {
@@ -41,11 +53,11 @@ trap cleanup EXIT HUP INT TERM
 source ~/.bashrc
 conda activate metataco
 
-echo python3 train_metaworld.py agent.pretrained_path=\"${MODEL_PATH}\" exp_name=\"${EXP_NAME}\" seed=$SEED_ARG env_name=$ENV_NAME random_init=$RANDOM_HAND random_goal=$RANDOM_GOAL wandb_tag=$WANDB_TAG num_train_frames=300000 agent.freeze_encoder=$FREEZE
+echo python3 train_metaworld.py agent.pretrained_path=\"${MODEL_PATH}\" exp_name=\"${EXP_NAME}\" seed=$SEED_ARG env_name=$ENV_NAME random_init=$RANDOM_HAND random_goal=$RANDOM_GOAL wandb_tag=$WANDB_TAG num_train_frames=300000 agent.freeze_encoder=$FREEZE agent.no_taco=$NO_TACO
 
 
 # Use quotes and escape model path appropriately
-python3 train_metaworld.py agent.pretrained_path=\"${MODEL_PATH}\" exp_name=\"${EXP_NAME}\" seed=$SEED_ARG env_name=$ENV_NAME random_init=$RANDOM_HAND random_goal=$RANDOM_GOAL wandb_tag=$WANDB_TAG num_train_frames=300000 agent.freeze_encoder=$FREEZE
+python3 train_metaworld.py agent.pretrained_path=\"${MODEL_PATH}\" exp_name=\"${EXP_NAME}\" seed=$SEED_ARG env_name=$ENV_NAME random_init=$RANDOM_HAND random_goal=$RANDOM_GOAL wandb_tag=$WANDB_TAG num_train_frames=300000 agent.freeze_encoder=$FREEZE agent.no_taco=$NO_TACO
 
 # Cleanup will be triggered automatically by the trap
  rm -rf exp_local/metaworld/$EXP_NAME*

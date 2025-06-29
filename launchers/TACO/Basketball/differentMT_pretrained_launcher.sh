@@ -1,0 +1,30 @@
+#!/bin/bash
+
+seeds="1"
+env_names=("Basketball-v2")
+model_paths=(
+    "/home/mprattico/Pretrain-TACO/models/taco_MT_MT1_49OOD_ID_DrawerOpen_0.0_lr=0.0005_ts=25344000_curl_rew_best.pt"
+    "/home/mprattico/Pretrain-TACO/models/taco_MT_MT10_40OOD_ID_ButtonPressTopdownWallDisassembleDoorOpenDrawerOpenHandlePressLeverPullPlateSlideBackSidePlateSlideStickPullSweep_0.0_lr=0.0005_ts=69171200_curl_rew_best.pt"
+    "/home/mprattico/Pretrain-TACO/models/taco_MT_MT30_20OOD_AssemblyBasketballBinPickingButtonPressCoffeePullCPushDialTurnFaucetCloseHammerHandlePressSidePickOutHolePPlacePPWallPushPWallReachRWallShelfPlaceWindowCloseWOpen_0.0_lr=0.0005_ts=149043200_curl_rew_best.pt"
+    "/home/mprattico/Pretrain-TACO/models/taco_MT_MT40_10OOD_BasketballBinPickingButtonPressCoffeePushHammerPickPlacePushReachShelfPlaceWindowClose_0.0_lr=0.0005_ts=155699200_curl_rew_best.pt" 
+    "/home/mprattico/Pretrain-TACO/models/taco_MT_MT45_5OOD_BasketballBinPickingButtonPressPushShelfPlace_0.0_lr=0.0005_ts=154931200_curl_rew_best.pt" 
+    "/home/mprattico/Pretrain-TACO/models/taco_MT_MT20_30OOD_ID_ButtonPressTopdownBPTWallCoffeeButtonDisassembleDoorLockDOpenDrawerCloseDOpenHandInsertHPressHPullLeverPPegUnplugSidePlateSSidePlateSSoccerStickPullSweepIntoS_0.0_lr=0.0005_ts=77977600_curl_rew_best.pt" 
+)
+   
+random_hand_inital="true"
+random_goal_inital="false"
+wandb_tag="MT50"
+no_taco="true"
+
+for random_hand in $random_hand_inital; do
+    for random_goal in $random_goal_inital; do
+        for seed in $seeds; do
+            for env_name in "${env_names[@]}"; do
+                for model_path in "${model_paths[@]}"; do
+                echo "Submitting job: ENV_NAME=${env_name}, RANDOM_HAND=${random_hand}, RANDOM_GOAL=${random_goal}, SEED=${seed}"
+                qsub -v SEED="${seed}",ENV_NAME="${env_name}",RANDOM_HAND="${random_hand}",RANDOM_GOAL="${random_goal}",MODEL_PATH="${model_path}",WANDB_TAG="${wandb_tag}",NO_TACO="${no_taco}" launchers/TACO/Basketball/MT_pretrained.sh
+                done
+            done
+        done
+    done
+done

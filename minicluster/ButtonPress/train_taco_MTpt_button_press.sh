@@ -7,7 +7,7 @@ if [ $# -lt 1 ] || [ $# -gt 3 ]; then
     echo "Usage: $0 <cuda_device> [no_taco] [model_num]"
     echo "cuda_device: 0 to 7"
     echo "no_taco: true or false (default: false)"
-    echo "model_num: 1, 10, 30, 40, 45 (default: 10)"
+    echo "model_num: 1, 10, 20, 30, 40, 45 (default: 10)"
     exit 1
 fi
 
@@ -45,6 +45,9 @@ case $model_num in
     10)
         model_path="taco_MT_MT10_40OOD_ID_ButtonPressTopdownWallDisassembleDoorOpenDrawerOpenHandlePressLeverPullPlateSlideBackSidePlateSlideStickPullSweep_0.0_lr\=0.0005_ts\=69171200_curl_rew_best.pt"
         ;;
+    20)
+        model_path="taco_MT_MT20_30OOD_ID_ButtonPressTopdownBPTWallCoffeeButtonDisassembleDoorLockDOpenDrawerCloseDOpenHandInsertHPressHPullLeverPPegUnplugSidePlateSSidePlateSSoccerStickPullSweepIntoS_0.0_lr\=0.0005_ts\=77977600_curl_rew_best.pt"
+        ;;
     30)
         model_path="taco_MT_MT30_20OOD_AssemblyBasketballBinPickingButtonPressCoffeePullCPushDialTurnFaucetCloseHammerHandlePressSidePickOutHolePPlacePPWallPushPWallReachRWallShelfPlaceWindowCloseWOpen_0.0_lr\=0.0005_ts\=149043200_curl_rew_best.pt"
         ;;
@@ -55,7 +58,7 @@ case $model_num in
         model_path="taco_MT_MT45_5OOD_BasketballBinPickingButtonPressPushShelfPlace_0.0_lr\=0.0005_ts\=154931200_curl_rew_best.pt"
         ;;
     *)
-        echo "Error: Invalid model_num value. Allowed values are 1, 10, 30, 40, 45."
+        echo "Error: Invalid model_num value. Allowed values are 1, 10, 20, 30, 40, 45."
         exit 1
         ;;
 esac
