@@ -36,7 +36,7 @@ case $NO_TACO in
 esac
 
 # Create the experiment name once to ensure consistency
-EXP_NAME="${MODEL_PATH}_${SEED_ARG}_random_init_${RANDOM_HAND}_random_goal_${RANDOM_GOAL}_freeze_${FREEZE}_no_taco_${NO_TACO}"
+EXP_NAME="${MODEL_PATH}_${SEED_ARG}"
 
 # Define cleanup function
 cleanup() {
