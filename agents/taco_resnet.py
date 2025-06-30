@@ -74,24 +74,24 @@ class Encoder(nn.Module):
         """Create ResNet model based on pretrained_path configuration"""
         normalize = None
         resize = None
-        print(f"Creating ResNet with pretrained_path: {pretrained_path}")
-        print(f"Exist path: {os.path.exists(pretrained_path)}")
-        print("moco in path: ", 'moco' in pretrained_path if pretrained_path else False)
         
         if pretrained_path is None or pretrained_path.lower() == 'none':
             # Default: ResNet18 without pretrained weights
             resnet = models.resnet18(weights=None)
             resnet = self._modify_resnet_for_input_size(resnet)
             resnet = nn.Sequential(*list(resnet.children())[:-1])  # Remove fc layer
+            
         elif os.path.exists(pretrained_path) and 'moco' in pretrained_path:
+            print(f"Loading MoCo model from {pretrained_path}")
             if 'l3' in pretrained_path:
                 resnet = moco_conv3_compressed(pretrained_path)
             elif 'l4' in pretrained_path:
                 resnet = moco_conv4_compressed(pretrained_path)
             else:
                 resnet = moco_conv5(pretrained_path)
-
+            print(f"MoCo model loaded: {resnet}")    
         elif os.path.exists(pretrained_path) or  'resnet50_l5' in pretrained_path:
+            print(f"Loading ResNet model from {pretrained_path}")
             # Load from checkpoint file - these are pretrained models that need standard transforms
             if 'resnet50_l3' in pretrained_path:
                 resnet = resnet_conv3_compressed(pretrained_path)
@@ -101,7 +101,7 @@ class Encoder(nn.Module):
                 resnet = resnet_conv5(pretrained_path)
             else:
                 raise ValueError(f"Unknown checkpoint format: {pretrained_path}")
-            
+            print(f"ResNet model loaded: {resnet}")
             # Apply standard ResNet transforms for pretrained checkpoints
             normalize = transforms.Normalize(
                 mean=[0.485, 0.456, 0.406],
@@ -113,6 +113,7 @@ class Encoder(nn.Module):
             ])
                 
         else:
+            print(f"Instantiating ResNet based on pretrained_path: {pretrained_path}")
             # Parse format: resnet<k>_l<n>_<initialization>
             match = re.match(r'resnet(\d+)_l(\d+)_(\w+)', pretrained_path)
             if not match:
@@ -157,6 +158,7 @@ class Encoder(nn.Module):
             
             # Apply layer cutting based on n
             resnet = self._cut_resnet_at_layer(resnet, n)
+            print(f"ResNet model created: {resnet} with layer cut at l{n} and initialization {initialization}")
         
         self.normalize = normalize
         self.resize = resize
