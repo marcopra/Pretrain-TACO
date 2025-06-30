@@ -92,7 +92,7 @@ class Encoder(nn.Module):
                 resnet = moco_conv4_compressed(pretrained_path)
             else:
                 resnet = moco_conv5(pretrained_path)
-            print(f"MoCo model loaded: {resnet}")    
+            print(f"MoCo model loaded")    
         elif os.path.exists(pretrained_path) or  'resnet50_l5' in pretrained_path:
             print(f"Loading ResNet model from {pretrained_path}")
             # Load from checkpoint file - these are pretrained models that need standard transforms
@@ -104,7 +104,7 @@ class Encoder(nn.Module):
                 resnet = resnet_conv5(pretrained_path)
             else:
                 raise ValueError(f"Unknown checkpoint format: {pretrained_path}")
-            print(f"ResNet model loaded: {resnet}")
+            print(f"ResNet model loaded")
             # Apply standard ResNet transforms for pretrained checkpoints
             normalize = transforms.Normalize(
                 mean=[0.485, 0.456, 0.406],
@@ -161,7 +161,7 @@ class Encoder(nn.Module):
             
             # Apply layer cutting based on n
             resnet = self._cut_resnet_at_layer(resnet, n)
-            print(f"ResNet model created: {resnet} with layer cut at l{n} and initialization {initialization}")
+            print(f"ResNet model created with layer cut at l{n} and initialization {initialization}")
         
         self.normalize = normalize
         self.resize = resize
