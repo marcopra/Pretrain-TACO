@@ -57,4 +57,4 @@ srun --ntasks=8 --ntasks-per-node=4 python train_metaworld_ed4ct.py \
     wandb_mode=offline \
     save_snapshot=false \
     seed=$SEED \
-    exp_name="SLURM_TORCHRUN_${SEED}" 
+    exp_name="SLURM_TORCHRUN_MOCO${SEED}" 
