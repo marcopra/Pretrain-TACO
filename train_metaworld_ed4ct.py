@@ -603,8 +603,11 @@ class Workspace:
                 self.replay_storage.add(time_step)
                 self.train_video_recorder.init(time_step.observation)
                 # try to save snapshot
-                if self.cfg.save_snapshot:
-                    self.save_snapshot()
+                try:
+                    if self.cfg.save_snapshot and self.rank == 0:
+                        self.save_snapshot()
+                except Exception as e:
+                    print(f"Rank {self.rank}: Failed to save snapshot: {e}")
                 episode_step = 0
                 episode_reward = 0
 

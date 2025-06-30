@@ -9,6 +9,7 @@ import torchvision.models as models
 from torchvision.models import ResNet18_Weights, ResNet50_Weights
 import torchvision.transforms as transforms
 from agents.resnet_models import resnet_conv3_compressed, resnet_conv4_compressed, resnet_conv5
+from agents.moco_models import moco_conv5, moco_conv3_compressed, moco_conv4_compressed
 import re
 import os
 import torch.distributed as dist
@@ -82,7 +83,14 @@ class Encoder(nn.Module):
             resnet = models.resnet18(weights=None)
             resnet = self._modify_resnet_for_input_size(resnet)
             resnet = nn.Sequential(*list(resnet.children())[:-1])  # Remove fc layer
-            
+        elif os.path.exists(pretrained_path) and 'moco' in pretrained_path:
+            if 'l3' in pretrained_path:
+                resnet = moco_conv3_compressed(pretrained_path)
+            elif 'l4' in pretrained_path:
+                resnet = moco_conv4_compressed(pretrained_path)
+            else:
+                resnet = moco_conv5(pretrained_path)
+                
         elif os.path.exists(pretrained_path) or  'resnet50_l5' in pretrained_path:
             # Load from checkpoint file - these are pretrained models that need standard transforms
             if 'resnet50_l3' in pretrained_path:

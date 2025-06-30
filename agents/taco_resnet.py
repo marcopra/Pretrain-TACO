@@ -9,6 +9,7 @@ import torchvision.models as models
 from torchvision.models import ResNet18_Weights, ResNet50_Weights
 import torchvision.transforms as transforms
 from agents.resnet_models import resnet_conv3_compressed, resnet_conv4_compressed, resnet_conv5
+from agents.moco_models import moco_conv5, moco_conv3_compressed, moco_conv4_compressed
 import re
 import os
 
@@ -73,13 +74,23 @@ class Encoder(nn.Module):
         """Create ResNet model based on pretrained_path configuration"""
         normalize = None
         resize = None
+        print(f"Creating ResNet with pretrained_path: {pretrained_path}")
+        print(f"Exist path: {os.path.exists(pretrained_path)}")
+        print("moco in path: ", 'moco' in pretrained_path if pretrained_path else False)
         
         if pretrained_path is None or pretrained_path.lower() == 'none':
             # Default: ResNet18 without pretrained weights
             resnet = models.resnet18(weights=None)
             resnet = self._modify_resnet_for_input_size(resnet)
             resnet = nn.Sequential(*list(resnet.children())[:-1])  # Remove fc layer
-            
+        elif os.path.exists(pretrained_path) and 'moco' in pretrained_path:
+            if 'l3' in pretrained_path:
+                resnet = moco_conv3_compressed(pretrained_path)
+            elif 'l4' in pretrained_path:
+                resnet = moco_conv4_compressed(pretrained_path)
+            else:
+                resnet = moco_conv5(pretrained_path)
+
         elif os.path.exists(pretrained_path) or  'resnet50_l5' in pretrained_path:
             # Load from checkpoint file - these are pretrained models that need standard transforms
             if 'resnet50_l3' in pretrained_path:
