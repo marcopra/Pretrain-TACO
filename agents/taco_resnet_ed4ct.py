@@ -83,6 +83,7 @@ class Encoder(nn.Module):
             resnet = models.resnet18(weights=None)
             resnet = self._modify_resnet_for_input_size(resnet)
             resnet = nn.Sequential(*list(resnet.children())[:-1])  # Remove fc layer
+            
         elif os.path.exists(pretrained_path) and 'moco' in pretrained_path:
             if 'l3' in pretrained_path:
                 resnet = moco_conv3_compressed(pretrained_path)

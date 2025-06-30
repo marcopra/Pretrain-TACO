@@ -179,6 +179,7 @@ def main():
             flattened_config = flatten_dict(run.config)
             if args.group_by_config in flattened_config:
                 param_value = str(flattened_config[args.group_by_config]).split("/")[-1]
+                print(f"param_value: {param_value}")
             else:
                 # Fallback if the parameter doesn't exist
                 param_value = "unknown"

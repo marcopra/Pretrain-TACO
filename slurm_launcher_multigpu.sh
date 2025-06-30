@@ -53,7 +53,7 @@ SEED=$(($RANDOM % 10000))
 srun --ntasks=8 --ntasks-per-node=4 python train_metaworld_ed4ct.py \
     batch_size=128 env_name=push-v3 \
     wandb_tag="SLURM" \
-    agent.pretrained_path=/leonardo/home/userexternal/mprattico/Pretrain-TACO/models/resnet50_l5.tar \
+    agent.pretrained_path=/leonardo/home/userexternal/mprattic/Pretrain-TACO/models/resnet50_l5.tar \
     wandb_mode=offline \
     save_snapshot=false \
     seed=$SEED \
