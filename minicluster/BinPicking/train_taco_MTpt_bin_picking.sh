@@ -37,8 +37,7 @@ case $no_taco in
         ;;
 esac
 
-SEED=$(($(date +%s) % 10000))
-echo "Using SEED: $SEED"
+
 
 # Validate model_num value and set model path
 case $model_num in
@@ -78,6 +77,8 @@ num_runs=9
 
 # Run experiments in a loop
 for i in $(seq 1 $num_runs); do
+    SEED=$((($(date +%s%N | cut -b1-13) + $i) % 10000))
+    echo "Using SEED: $SEED"
     echo "Running experiment $i of $num_runs"
     
     # Run the Python command with the appropriate arguments
