@@ -61,7 +61,7 @@ encoder_lr: 1e-4
 feature_dim: 50
 exp_name: metaworld_default
 
-num_train_frames: 500000
+num_train_frames: 300000
 
 hydra:
   run:
