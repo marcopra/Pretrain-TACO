@@ -1,3 +1,18 @@
+"""
+python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/shelf-place/exp --filter_by_config agent/no_taco!=true,env_name=shelf-place-v2 --filter_by_tags MT50 --group_by_config agent/pretrained_path
+# NO MT20 because not finished yet
+python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/mt/basketball --filter_by_config agent/no_taco!=true,env_name=basketball-v2 --filter_by_tags MT1,MT10,MT30,MT40,MT45 --group_by_config agent/pretrained_path
+python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/mt/bin-picking --filter_by_config agent/no_taco!=true,env_name=bin-picking-v2 --filter_by_tags MT1,MT10,MT30,MT40,MT45 --group_by_config agent/pretrained_path
+python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/mt/button-press --filter_by_config agent/no_taco!=true,env_name=button-press-v2 --filter_by_tags MT1,MT10,MT30,MT40,MT45 --group_by_config agent/pretrained_path
+python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/mt/push --filter_by_config agent/no_taco!=true,env_name=push-v2 --filter_by_tags MT1,MT10,MT30,MT40,MT45 --group_by_config agent/pretrained_path
+python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/mt/shelf-place --filter_by_config agent/no_taco!=true,env_name=shelf-place-v2 --filter_by_tags MT1,MT10,MT30,MT40,MT45 --group_by_config agent/pretrained_path
+
+python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/mt/basketball --filter_by_config agent/no_taco!=true,env_name=basketball-v2 --filter_by_tags     MT20 --group_by_config agent/pretrained_path
+python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/mt/bin-picking --filter_by_config agent/no_taco!=true,env_name=bin-picking-v2 --filter_by_tags   MT20 --group_by_config agent/pretrained_path
+python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/mt/button-press --filter_by_config agent/no_taco!=true,env_name=button-press-v2 --filter_by_tags MT20 --group_by_config agent/pretrained_path
+python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/mt/push --filter_by_config agent/no_taco!=true,env_name=push-v2 --filter_by_tags                 MT20 --group_by_config agent/pretrained_path
+python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/mt/shelf-place --filter_by_config agent/no_taco!=true,env_name=shelf-place-v2 --filter_by_tags   MT20 --group_by_config agent/pretrained_path
+"""
 import argparse
 import pandas as pd
 import wandb
@@ -12,12 +27,15 @@ from scipy.interpolate import interp1d
 
 def read_csvs_from_directory(directory):
     dataframes = []
+    csv_filenames = []
 
     for filename in os.listdir(directory):
         if filename.endswith(".csv"):
             df = pd.read_csv(os.path.join(directory, filename))
             dataframes.append(df)
-    return dataframes
+            csv_filenames.append(filename)
+    
+    return dataframes, csv_filenames
 
 def flatten_dict(d):
     """Flatten a nested dictionary."""
@@ -133,13 +151,15 @@ def main():
     parser.add_argument('--filter_by_tags', type=str, default="benchmark", 
                       help='Filter by tags (comma-separated list). Use tag!= to exclude a tag')
     parser.add_argument('--filter_by_config', type=str, default="", help='Filter by config parameters (format: key1=value1,key2=value2)')
-    parser.add_argument('--download', action='store_true', default=True)
+    parser.add_argument('--download', action='store_true', default=True, help='Download data from wandb')
     parser.add_argument('--processing', action='store_true', default=True)
     parser.add_argument('--project', type=str, default='taco_metaworld', help='csv folder') 
     parser.add_argument('--n_points', type=int, default=1000, help='Number of points to plot')
     parser.add_argument('--max_x', type=int, default=100_000, help='maximum x axis value of points to plot')
     parser.add_argument('--min_x', type=int, default=0, help='minimum x axis value of points to plot')
     parser.add_argument('--group_by_config', type=str, default="pretrained_path", help='Config parameter to use for grouping and naming saved files')
+    parser.add_argument('--max_runs_per_group', type=int, default=7, 
+                        help='Maximum number of runs to download per group (based on group_by_config). If None, download all runs')
 
     args = parser.parse_args()
     keys = args.keys.split(",")
@@ -169,6 +189,34 @@ def main():
                 filtered_runs.append(run)
         
         runs = filtered_runs
+        
+        # Group runs by the specified config parameter if max_runs_per_group is set
+        if args.max_runs_per_group is not None:
+            print(f"Limiting to {args.max_runs_per_group} runs per group (grouped by {args.group_by_config})")
+            
+            # Group runs by the config parameter
+            grouped_runs = {}
+            for run in runs:
+                flattened_config = flatten_dict(run.config)
+                if args.group_by_config in flattened_config:
+                    param_value = str(flattened_config[args.group_by_config]).split("/")[-1]
+                else:
+                    param_value = "unknown"
+                
+                if param_value not in grouped_runs:
+                    grouped_runs[param_value] = []
+                grouped_runs[param_value].append(run)
+            
+            # Limit the number of runs per group
+            limited_runs = []
+            for group_name, group_runs in grouped_runs.items():
+                selected_runs = group_runs[:args.max_runs_per_group]
+                limited_runs.extend(selected_runs)
+                print(f"Group '{group_name}': selected {len(selected_runs)} out of {len(group_runs)} runs")
+            
+            runs = limited_runs
+            print(f"Total runs after limiting: {len(runs)}")
+        
         all_keys = keys.copy()
         all_keys.append(args.x_key)
         for run in runs:
@@ -195,8 +243,7 @@ def main():
         
         directory = args.csv_path
         print("reading...")
-        runs = read_csvs_from_directory(directory)
-        filenames = os.listdir(directory)
+        runs, filenames = read_csvs_from_directory(directory)
         print("reading DONE")
         for run, filename in zip(runs, filenames):
             

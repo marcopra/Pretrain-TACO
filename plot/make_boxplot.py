@@ -696,15 +696,16 @@ def create_boxplot(data, x_column='algorithm', y_column='value',
                   y_min=None, y_max=None, y_scale_factor=None,
                   y_label=None, plot_title=None, color_mapping=None, 
                   central_line='median', box_type='std_err', whiskers_percentile=95,
-                  show_baseline_whiskers=False, **kwargs):
+                  show_baseline_whiskers=False, show_tendency_line=False, **kwargs):
     """
     Crea un boxplot con opzioni personalizzate.
     
     Parameters:
     - central_line: Tipo di linea centrale ('mean', 'median', 'min', 'max')
     - box_type: Tipo di box ('std_err', 'std', 'min_max')
-    - whiskers_percentile: Percentile per i whiskers (es. 95 per 95% confidence)
+    - whiskers_percentile: Percentile per i whiskers (es. 95 per 95% confidence). Se 0, non mostra i whiskers
     - show_baseline_whiskers: Se True, mostra whiskers verticali per le baseline
+    - show_tendency_line: Se True, mostra una linea che connette le linee centrali dei box
     """
     sns.set_style("darkgrid")
     plt.figure(figsize=(12, 8))
@@ -780,11 +781,15 @@ def create_boxplot(data, x_column='algorithm', y_column='value',
                 box_lower.append(q25)
                 box_upper.append(q75)
             
-            # Calcola whiskers (confidence intervals)
-            lower_percentile = (100 - whiskers_percentile) / 2
-            upper_percentile = 100 - lower_percentile
-            whisker_lower.append(np.percentile(alg_data, lower_percentile))
-            whisker_upper.append(np.percentile(alg_data, upper_percentile))
+            # Calcola whiskers (confidence intervals) solo se whiskers_percentile > 0
+            if whiskers_percentile > 0:
+                lower_percentile = (100 - whiskers_percentile) / 2
+                upper_percentile = 100 - lower_percentile
+                whisker_lower.append(np.percentile(alg_data, lower_percentile))
+                whisker_upper.append(np.percentile(alg_data, upper_percentile))
+            else:
+                whisker_lower.append(None)
+                whisker_upper.append(None)
             
             # Determina il colore
             if color_mapping and algorithm in color_mapping:
@@ -806,13 +811,20 @@ def create_boxplot(data, x_column='algorithm', y_column='value',
         for x, central, color in zip(x_positions, central_values, colors):
             plt.plot([x - 0.3, x + 0.3], [central, central], color=color, linewidth=3)
         
-        # Disegna i whiskers
-        for x, w_lower, w_upper, central, color in zip(x_positions, whisker_lower, whisker_upper, central_values, colors):
-            # Linee verticali dei whiskers
-            plt.plot([x, x], [w_lower, w_upper], color=color, linewidth=1, alpha=0.7)
-            # Cappucci dei whiskers
-            plt.plot([x - 0.1, x + 0.1], [w_lower, w_lower], color=color, linewidth=1, alpha=0.7)
-            plt.plot([x - 0.1, x + 0.1], [w_upper, w_upper], color=color, linewidth=1, alpha=0.7)
+        # Disegna i whiskers solo se whiskers_percentile > 0
+        if whiskers_percentile > 0:
+            for x, w_lower, w_upper, central, color in zip(x_positions, whisker_lower, whisker_upper, central_values, colors):
+                if w_lower is not None and w_upper is not None:
+                    # Linee verticali dei whiskers
+                    plt.plot([x, x], [w_lower, w_upper], color=color, linewidth=1, alpha=0.7)
+                    # Cappucci dei whiskers
+                    plt.plot([x - 0.1, x + 0.1], [w_lower, w_lower], color=color, linewidth=1, alpha=0.7)
+                    plt.plot([x - 0.1, x + 0.1], [w_upper, w_upper], color=color, linewidth=1, alpha=0.7)
+        
+        # Disegna la linea di tendenza se richiesta
+        if show_tendency_line and len(x_positions) > 1:
+            plt.plot(x_positions, central_values, color='gray', linewidth=1, alpha=0.6, 
+                    linestyle='-')
         
         # Imposta le etichette dell'asse x
         plt.xticks(x_positions, labels, rotation=45, ha='right')
@@ -941,11 +953,15 @@ def main():
     parser.add_argument('--box_type', default='std_err', choices=['std_err', 'std', 'min_max', 'quartile'],
                         help='Type of box (shaded area) in boxplot')
     parser.add_argument('--whiskers_percentile', type=float, default=95.0,
-                        help='Percentile for whiskers (e.g., 95 for 95% confidence interval)')
+                        help='Percentile for whiskers (e.g., 95 for 95% confidence interval). Set to 0 to hide whiskers')
     
     # Baseline whiskers option
     parser.add_argument('--baseline_whiskers', action='store_true', default=False,
                         help='Show vertical whiskers for baseline confidence intervals at center of plot')
+    
+    # Tendency line option
+    parser.add_argument('--tendency_line', action='store_true', default=False,
+                        help='Show a black line connecting the central lines of the boxplots')
     
     # Axis scaling options
     parser.add_argument('--log_y', action='store_true', default=False, help='Use log scale for y-axis')
@@ -1059,7 +1075,8 @@ def main():
         central_line=args.central_line,
         box_type=args.box_type,
         whiskers_percentile=args.whiskers_percentile,
-        show_baseline_whiskers=args.baseline_whiskers
+        show_baseline_whiskers=args.baseline_whiskers,
+        show_tendency_line=args.tendency_line
     )
     
     # Create output path in the same folder as csv_path
