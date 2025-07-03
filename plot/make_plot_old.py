@@ -14,6 +14,166 @@ from scipy.interpolate import interp1d
 
 DIV_LINE_WIDTH = 50
 
+# Global vars for tracking and labeling data at load time.
+exp_idx = 0
+units = dict()
+
+# def get_datasets(logdir, condition=None):
+#     """
+#     Recursively look through logdir for output files produced by
+#     spinup.logx.Logger. 
+
+#     Assumes that any file "progress.txt" is a valid hit. 
+#     """
+#     global exp_idx
+#     global units
+#     datasets = []
+#     for root, _, files in os.walk(logdir):
+#         if 'progress.txt' in files:
+#             exp_name = None
+#             try:
+#                 config_path = open(os.path.join(root,'config.json'))
+#                 config = json.load(config_path)
+#                 if 'exp_name' in config:
+#                     exp_name = config['exp_name']
+#             except:
+#                 print('No file named config.json')
+#             condition1 = condition or exp_name or 'exp'
+#             condition2 = condition1 + '-' + str(exp_idx)
+#             exp_idx += 1
+#             if condition1 not in units:
+#                 units[condition1] = 0
+#             unit = units[condition1]
+#             units[condition1] += 1
+
+#             try:
+#                 exp_data = pd.read_table(os.path.join(root,'progress.txt'))
+#             except:
+#                 print('Could not read from %s'%os.path.join(root,'progress.txt'))
+#                 continue
+#             performance = 'AverageTestEpRet' if 'AverageTestEpRet' in exp_data else 'AverageEpRet'
+#             exp_data.insert(len(exp_data.columns),'Unit',unit)
+#             exp_data.insert(len(exp_data.columns),'Condition1',condition1)
+#             exp_data.insert(len(exp_data.columns),'Condition2',condition2)
+#             exp_data.insert(len(exp_data.columns),'Performance',exp_data[performance])
+#             datasets.append(exp_data)
+#     return datasets
+
+
+# def get_all_datasets(all_logdirs, legend=None, select=None, exclude=None):
+#     """
+#     For every entry in all_logdirs,
+#         1) check if the entry is a real directory and if it is, 
+#            pull data from it; 
+
+#         2) if not, check to see if the entry is a prefix for a 
+#            real directory, and pull data from that.
+#     """
+#     logdirs = []
+#     for logdir in all_logdirs:
+#         if osp.isdir(logdir) and logdir[-1]==os.sep:
+#             logdirs += [logdir]
+#         else:
+#             basedir = osp.dirname(logdir)
+#             fulldir = lambda x : osp.join(basedir, x)
+#             prefix = logdir.split(os.sep)[-1]
+#             listdir= os.listdir(basedir)
+#             logdirs += sorted([fulldir(x) for x in listdir if prefix in x])
+
+#     """
+#     Enforce selection rules, which check logdirs for certain substrings.
+#     Makes it easier to look at graphs from particular ablations, if you
+#     launch many jobs at once with similar names.
+#     """
+#     if select is not None:
+#         logdirs = [log for log in logdirs if all(x in log for x in select)]
+#     if exclude is not None:
+#         logdirs = [log for log in logdirs if all(not(x in log) for x in exclude)]
+
+#     # Verify logdirs
+#     print('Plotting from...\n' + '='*DIV_LINE_WIDTH + '\n')
+#     for logdir in logdirs:
+#         print(logdir)
+#     print('\n' + '='*DIV_LINE_WIDTH)
+
+#     # Make sure the legend is compatible with the logdirs
+#     assert not(legend) or (len(legend) == len(logdirs)), \
+#         "Must give a legend title for each set of experiments."
+
+#     # Load data from logdirs
+#     data = []
+#     if legend:
+#         for log, leg in zip(logdirs, legend):
+#             data += get_datasets(log, leg)
+#     else:
+#         for log in logdirs:
+#             data += get_datasets(log)
+#     return data
+
+
+# import matplotlib.ticker as ticker
+
+# def make_plots(data, legend=None, xaxis=None, values=None, count=False,  
+#                font_scale=1.5, smooth=1, select=None, exclude=None, estimator='mean', log_scale=False, env = None):
+#     values = values if isinstance(values, list) else [values]
+
+#     estimator = getattr(np, estimator)      # choose what to show on main curve: mean? max? min?
+#     for value in values:
+#         plt.figure()
+#         plot_data(data, xaxis=xaxis, value=value, condition="", smooth=smooth, estimator=estimator, log_scale=log_scale, env = env)
+#         # neurips2024( usetex=True, rel_width=1.0, nrows=1, ncols=1, family='serif')
+#         # Increase the linewidth for 'POWR (Ours)'
+#         # Get all lines in the plot
+#         ax = plt.gca()
+#         lines = ax.get_lines()
+
+#         # List of labels in hue_order (replace with your specific order)
+#         hue_order = []
+
+
+
+#     plt.savefig("prova.png", format='png')
+
+
+# def plot_data(data, xaxis='Timesteps', value="Reward", condition="", smooth=1, log_scale=False, env = None,  **kwargs):
+#     if smooth > 1:
+#         y = np.ones(smooth)
+#         for datum in data:
+#             x = np.asarray(datum[value])
+#             z = np.ones(len(x))
+#             smoothed_x = np.convolve(x,y,'same') / np.convolve(z,y,'same')
+#             datum[value] = smoothed_x
+
+#     if isinstance(data, list):
+#         data = pd.concat(data, ignore_index=True)
+#     sns.set_style("darkgrid")
+#     sns.lineplot(data=data, x=xaxis, y=value, hue=condition, hue_order=['A2C', 'DQN', 'TRPO', 'PPO', 'POWR (Ours)'], **kwargs)# TODO attenzione ai nomi di algoritmi
+    
+#     plt.ylabel('Reward')
+
+#     ax = plt.gca()
+#     plt.title(f"{env}")
+
+
+#     if log_scale:
+        
+#         ax.set_xscale('log')
+    
+#         plt.xlabel('Timestep (logscale)')
+#     else:
+#         def format_func(value, ticker):
+#             if np.isnan(value) or value <= 0:
+#                 return value
+#             else:
+#                 return "{:.1f}".format(value / 10**5)
+
+
+#         ax.xaxis.set_major_formatter(ticker.FuncFormatter(format_func))
+           
+#         plt.xlabel('Timestep (1e5)')
+
+#     plt.tight_layout(pad=0.5)
+
 def preprocess_data(data_list, k):
     for data in data_list:
         if data.iloc[0]['Condition1'] == 'POWR (Ours)':
@@ -47,42 +207,6 @@ def read_csvs_from_directory(directory):
     
     return grouped_dataframes
 
-def calculate_interquartile_mean(values):
-    """
-    Calculate the interquartile mean (IQM) - 25% trimmed mean.
-    Discards the bottom and top 25% of values and calculates the mean of the remaining 50%.
-    
-    Parameters:
-    - values: Array-like of numerical values
-    
-    Returns:
-    - Interquartile mean value
-    """
-    if len(values) == 0:
-        return np.nan
-    
-    values = np.array(values)
-    values = values[~np.isnan(values)]  # Remove NaN values
-    
-    if len(values) == 0:
-        return np.nan
-    
-    if len(values) < 4:
-        # For very small samples, fall back to regular mean
-        return np.mean(values)
-    
-    # Calculate Q1 and Q3
-    q1 = np.percentile(values, 25)
-    q3 = np.percentile(values, 75)
-    
-    # Filter values within interquartile range
-    iqr_values = values[(values >= q1) & (values <= q3)]
-    
-    if len(iqr_values) == 0:
-        return np.mean(values)  # Fallback to regular mean
-    
-    return np.mean(iqr_values)
-
 def aggregate_runs(dataframes, x_column, y_column, aggregator='mean'):
     """
     Aggregate multiple runs into a single dataframe.
@@ -94,7 +218,7 @@ def aggregate_runs(dataframes, x_column, y_column, aggregator='mean'):
     - aggregator: Function or string specifying how to aggregate
     
     Returns:
-    - Aggregated dataframe with columns: x_column, y_mean, y_min, y_max, y_std, y_stderr, y_iqm
+    - Aggregated dataframe with columns: x_column, y_mean, y_min, y_max, y_std, y_stderr
     """
     # Convert string aggregator to numpy function
     if isinstance(aggregator, str):
@@ -106,8 +230,6 @@ def aggregate_runs(dataframes, x_column, y_column, aggregator='mean'):
             agg_func = np.min
         elif aggregator == 'max':
             agg_func = np.max
-        elif aggregator == 'iqm' or aggregator == 'interquartile_mean':
-            agg_func = calculate_interquartile_mean
         else:
             raise ValueError(f"Unknown aggregator: {aggregator}")
     else:
@@ -146,532 +268,11 @@ def aggregate_runs(dataframes, x_column, y_column, aggregator='mean'):
         'y_max': [np.max(y) if len(y) > 0 and not all(np.isnan(y)) else np.nan for y in y_values],
         'y_std': [np.std(y) if len(y) > 1 and not all(np.isnan(y)) else np.nan for y in y_values],
         'y_stderr': [np.std(y) / np.sqrt(len(y)) if len(y) > 1 and not all(np.isnan(y)) else np.nan for y in y_values],
-        'y_iqm': [calculate_interquartile_mean(y) if len(y) > 0 and not all(np.isnan(y)) else np.nan for y in y_values],
         'y_count': [len(y) for y in y_values],
         'y_aggregated': [agg_func(y) if len(y) > 0 and not all(np.isnan(y)) else np.nan for y in y_values]
     })
     
     return result
-
-def stratified_bootstrap_aggregate(dataframes, x_column, y_column, aggregator='mean', n_bootstrap=1000):
-    """
-    Aggregate multiple runs using stratified bootstrap confidence intervals.
-    Re-samples runs with replacement independently for each x value to construct
-    bootstrap samples and calculate statistics.
-    
-    Parameters:
-    - dataframes: List of dataframes to aggregate (each represents one run/task)
-    - x_column: Column name for x-axis
-    - y_column: Column name for y-axis values to aggregate
-    - aggregator: Function or string specifying how to aggregate
-    - n_bootstrap: Number of bootstrap samples to generate
-    
-    Returns:
-    - Aggregated dataframe with bootstrap-based statistics
-    """
-    if isinstance(aggregator, str):
-        if aggregator == 'mean':
-            agg_func = np.mean
-        elif aggregator == 'median':
-            agg_func = np.median
-        elif aggregator == 'min':
-            agg_func = np.min
-        elif aggregator == 'max':
-            agg_func = np.max
-        elif aggregator == 'iqm' or aggregator == 'interquartile_mean':
-            agg_func = calculate_interquartile_mean
-        else:
-            raise ValueError(f"Unknown aggregator: {aggregator}")
-    else:
-        agg_func = aggregator
-    
-    # Collect all x values across dataframes
-    all_x_values = set()
-    for df in dataframes:
-        all_x_values.update(df[x_column].values)
-    
-    all_x_values = sorted(list(all_x_values))
-    
-    # For each x value, perform stratified bootstrap
-    bootstrap_results = {}
-    
-    print(f"Performing stratified bootstrap with {n_bootstrap} samples...")
-    
-    for x_val in all_x_values:
-        # Collect y values from each run/task for this x value
-        task_values = []
-        for df in dataframes:
-            rows = df[df[x_column] == x_val]
-            if not rows.empty:
-                # Take all y values for this task at this x
-                y_vals = rows[y_column].dropna().values
-                if len(y_vals) > 0:
-                    task_values.append(y_vals)
-        
-        if not task_values:
-            continue
-        
-        # Perform bootstrap resampling
-        bootstrap_stats = []
-        
-        for _ in range(n_bootstrap):
-            # Resample each task independently with replacement
-            bootstrap_sample = []
-            for task_vals in task_values:
-                if len(task_vals) > 0:
-                    # Sample with replacement from this task
-                    resampled = np.random.choice(task_vals, size=len(task_vals), replace=True)
-                    bootstrap_sample.extend(resampled)
-            
-            if bootstrap_sample:
-                # Calculate statistic for this bootstrap sample
-                bootstrap_stats.append(agg_func(bootstrap_sample))
-        
-        bootstrap_results[x_val] = np.array(bootstrap_stats)
-    
-    # Calculate final statistics from bootstrap distribution
-    result_data = {
-        x_column: [],
-        'y_mean': [],
-        'y_median': [],
-        'y_min': [],
-        'y_max': [],
-        'y_std': [],
-        'y_stderr': [],
-        'y_iqm': [],
-        'y_aggregated': [],
-        'y_bootstrap_mean': [],
-        'y_bootstrap_std': [],
-        'y_bootstrap_ci_2_5': [],
-        'y_bootstrap_ci_97_5': [],
-        'y_bootstrap_ci_5': [],
-        'y_bootstrap_ci_95': [],
-        'y_count': []
-    }
-    
-    for x_val in all_x_values:
-        if x_val not in bootstrap_results:
-            continue
-            
-        bootstrap_stats = bootstrap_results[x_val]
-        
-        # Original statistics (non-bootstrap)
-        original_values = []
-        for df in dataframes:
-            rows = df[df[x_column] == x_val]
-            if not rows.empty:
-                original_values.extend(rows[y_column].dropna().values)
-        
-        result_data[x_column].append(x_val)
-        result_data['y_mean'].append(np.mean(original_values) if original_values else np.nan)
-        result_data['y_median'].append(np.median(original_values) if original_values else np.nan)
-        result_data['y_min'].append(np.min(original_values) if original_values else np.nan)
-        result_data['y_max'].append(np.max(original_values) if original_values else np.nan)
-        result_data['y_std'].append(np.std(original_values) if len(original_values) > 1 else np.nan)
-        result_data['y_stderr'].append(np.std(original_values) / np.sqrt(len(original_values)) if len(original_values) > 1 else np.nan)
-        result_data['y_iqm'].append(calculate_interquartile_mean(original_values) if original_values else np.nan)
-        result_data['y_aggregated'].append(agg_func(original_values) if original_values else np.nan)
-        
-        # Bootstrap statistics
-        result_data['y_bootstrap_mean'].append(np.mean(bootstrap_stats))
-        result_data['y_bootstrap_std'].append(np.std(bootstrap_stats))
-        result_data['y_bootstrap_ci_2_5'].append(np.percentile(bootstrap_stats, 2.5))
-        result_data['y_bootstrap_ci_97_5'].append(np.percentile(bootstrap_stats, 97.5))
-        result_data['y_bootstrap_ci_5'].append(np.percentile(bootstrap_stats, 5))
-        result_data['y_bootstrap_ci_95'].append(np.percentile(bootstrap_stats, 95))
-        result_data['y_count'].append(len(original_values))
-    
-    return pd.DataFrame(result_data)
-
-def stratified_bootstrap_aggregate_with_tasks(grouped_dataframes_with_tasks, x_column, y_column, aggregator='mean', n_bootstrap=1000):
-    """
-    Aggregate multiple runs using stratified bootstrap with proper task stratification.
-    
-    Parameters:
-    - grouped_dataframes_with_tasks: dict with algorithm -> list of (dataframe, task_name)
-    - x_column: Column name for x-axis
-    - y_column: Column name for y-axis values to aggregate
-    - aggregator: Function or string specifying how to aggregate
-    - n_bootstrap: Number of bootstrap samples to generate
-    
-    Returns:
-    - Aggregated dataframe with bootstrap-based statistics
-    """
-    if isinstance(aggregator, str):
-        if aggregator == 'mean':
-            agg_func = np.mean
-        elif aggregator == 'median':
-            agg_func = np.median
-        elif aggregator == 'min':
-            agg_func = np.min
-        elif aggregator == 'max':
-            agg_func = np.max
-        elif aggregator == 'iqm' or aggregator == 'interquartile_mean':
-            agg_func = calculate_interquartile_mean
-        else:
-            raise ValueError(f"Unknown aggregator: {aggregator}")
-    else:
-        agg_func = aggregator
-    
-    # Collect all x values across all dataframes
-    all_x_values = set()
-    for algorithm, df_task_pairs in grouped_dataframes_with_tasks.items():
-        for df, task_name in df_task_pairs:
-            all_x_values.update(df[x_column].values)
-    
-    all_x_values = sorted(list(all_x_values))
-    
-    # For each x value, perform stratified bootstrap
-    bootstrap_results = {}
-    
-    print(f"Performing stratified bootstrap with {n_bootstrap} samples...")
-    
-    for x_val in all_x_values:
-        # Organize data by task for this x value
-        task_algorithm_values = {}  # task_name -> {algorithm -> [values]}
-        
-        for algorithm, df_task_pairs in grouped_dataframes_with_tasks.items():
-            for df, task_name in df_task_pairs:
-                if task_name not in task_algorithm_values:
-                    task_algorithm_values[task_name] = {}
-                if algorithm not in task_algorithm_values[task_name]:
-                    task_algorithm_values[task_name][algorithm] = []
-                
-                # Get values for this x_val
-                rows = df[df[x_column] == x_val]
-                if not rows.empty:
-                    y_vals = rows[y_column].dropna().values
-                    if len(y_vals) > 0:
-                        task_algorithm_values[task_name][algorithm].extend(y_vals)
-        
-        if not task_algorithm_values:
-            continue
-        
-        # Perform bootstrap resampling
-        bootstrap_stats = []
-        
-        for _ in range(n_bootstrap):
-            bootstrap_sample = []
-            
-            # For each task, resample runs independently
-            for task_name, algorithm_values in task_algorithm_values.items():
-                for algorithm, values in algorithm_values.items():
-                    if len(values) > 0:
-                        # Sample with replacement from this algorithm's runs in this task
-                        resampled = np.random.choice(values, size=len(values), replace=True)
-                        bootstrap_sample.extend(resampled)
-            
-            if bootstrap_sample:
-                # Calculate statistic for this bootstrap sample
-                bootstrap_stats.append(agg_func(bootstrap_sample))
-        
-        bootstrap_results[x_val] = np.array(bootstrap_stats)
-        
-        # Debug info
-        total_runs = sum(len(alg_vals) for task_vals in task_algorithm_values.values() 
-                        for alg_vals in task_vals.values())
-        print(f"  x={x_val}: {len(task_algorithm_values)} tasks, {total_runs} total runs")
-    
-    # Calculate final statistics from bootstrap distribution
-    result_data = {
-        x_column: [],
-        'y_mean': [],
-        'y_median': [],
-        'y_min': [],
-        'y_max': [],
-        'y_std': [],
-        'y_stderr': [],
-        'y_iqm': [],
-        'y_aggregated': [],
-        'y_bootstrap_mean': [],
-        'y_bootstrap_std': [],
-        'y_bootstrap_ci_2_5': [],
-        'y_bootstrap_ci_97_5': [],
-        'y_bootstrap_ci_5': [],
-        'y_bootstrap_ci_95': [],
-        'y_count': []
-    }
-    
-    for x_val in all_x_values:
-        if x_val not in bootstrap_results:
-            continue
-            
-        bootstrap_stats = bootstrap_results[x_val]
-        
-        # Original statistics (non-bootstrap)
-        original_values = []
-        for algorithm, df_task_pairs in grouped_dataframes_with_tasks.items():
-            for df, task_name in df_task_pairs:
-                rows = df[df[x_column] == x_val]
-                if not rows.empty:
-                    original_values.extend(rows[y_column].dropna().values)
-        
-        result_data[x_column].append(x_val)
-        result_data['y_mean'].append(np.mean(original_values) if original_values else np.nan)
-        result_data['y_median'].append(np.median(original_values) if original_values else np.nan)
-        result_data['y_min'].append(np.min(original_values) if original_values else np.nan)
-        result_data['y_max'].append(np.max(original_values) if original_values else np.nan)
-        result_data['y_std'].append(np.std(original_values) if len(original_values) > 1 else np.nan)
-        result_data['y_stderr'].append(np.std(original_values) / np.sqrt(len(original_values)) if len(original_values) > 1 else np.nan)
-        result_data['y_iqm'].append(calculate_interquartile_mean(original_values) if original_values else np.nan)
-        result_data['y_aggregated'].append(agg_func(original_values) if original_values else np.nan)
-        
-        # Bootstrap statistics
-        result_data['y_bootstrap_mean'].append(np.mean(bootstrap_stats))
-        result_data['y_bootstrap_std'].append(np.std(bootstrap_stats))
-        result_data['y_bootstrap_ci_2_5'].append(np.percentile(bootstrap_stats, 2.5))
-        result_data['y_bootstrap_ci_97_5'].append(np.percentile(bootstrap_stats, 97.5))
-        result_data['y_bootstrap_ci_5'].append(np.percentile(bootstrap_stats, 5))
-        result_data['y_bootstrap_ci_95'].append(np.percentile(bootstrap_stats, 95))
-        result_data['y_count'].append(len(original_values))
-    
-    return pd.DataFrame(result_data)
-
-def detect_task_structure(csv_path):
-    """
-    Detect if the path contains single task or multiple tasks.
-    
-    Parameters:
-    - csv_path: Path to analyze
-    
-    Returns:
-    - tuple: (is_single_task, task_data)
-      - is_single_task: True if single task, False if multi-task
-      - task_data: dict with task organization
-    """
-    if not os.path.exists(csv_path):
-        raise ValueError(f"Path {csv_path} does not exist")
-    
-    # Check if there are CSV files directly in this directory
-    csv_files = [f for f in os.listdir(csv_path) if f.endswith('.csv')]
-    
-    # Check if there are subdirectories
-    subdirs = [d for d in os.listdir(csv_path) 
-               if os.path.isdir(os.path.join(csv_path, d))]
-    
-    if csv_files and not subdirs:
-        # Single task: CSV files directly in the directory
-        return True, {'single_task': csv_path}
-    elif subdirs and not csv_files:
-        # Multi-task: subdirectories containing CSV files
-        task_data = {}
-        for subdir in subdirs:
-            subdir_path = os.path.join(csv_path, subdir)
-            subdir_csvs = [f for f in os.listdir(subdir_path) if f.endswith('.csv')]
-            if subdir_csvs:
-                task_data[subdir] = subdir_path
-        return False, task_data
-    else:
-        raise ValueError(f"Ambiguous directory structure in {csv_path}. "
-                        "Directory should contain either CSV files directly (single task) "
-                        "or subdirectories with CSV files (multi-task), but not both.")
-
-def read_csvs_with_task_awareness(csv_path):
-    """
-    Read CSV files with task awareness for stratified bootstrap.
-    
-    Returns:
-    - tuple: (grouped_dataframes, task_structure)
-      - grouped_dataframes: dict with algorithm -> list of (dataframe, task_name)
-      - task_structure: dict with task organization info
-    """
-    is_single_task, task_data = detect_task_structure(csv_path)
-    
-    grouped_dataframes = {}
-    
-    if is_single_task:
-        # Single task: read all CSVs from the directory
-        print(f"Detected single task in: {csv_path}")
-        task_name = os.path.basename(csv_path)
-        
-        for filename in os.listdir(csv_path):
-            if filename.endswith(".csv"):
-                algorithm_name = filename.split("___")[0]
-                df = pd.read_csv(os.path.join(csv_path, filename))
-                
-                if algorithm_name not in grouped_dataframes:
-                    grouped_dataframes[algorithm_name] = []
-                
-                # Store dataframe with task information
-                grouped_dataframes[algorithm_name].append((df, task_name))
-    
-    else:
-        # Multi-task: read CSVs from each subdirectory
-        print(f"Detected multi-task structure with tasks: {list(task_data.keys())}")
-        
-        for task_name, task_path in task_data.items():
-            print(f"  Reading task: {task_name}")
-            
-            for filename in os.listdir(task_path):
-                if filename.endswith(".csv"):
-                    algorithm_name = filename.split("___")[0]
-                    df = pd.read_csv(os.path.join(task_path, filename))
-                    
-                    if algorithm_name not in grouped_dataframes:
-                        grouped_dataframes[algorithm_name] = []
-                    
-                    # Store dataframe with task information
-                    grouped_dataframes[algorithm_name].append((df, task_name))
-    
-    task_structure = {
-        'is_single_task': is_single_task,
-        'task_data': task_data
-    }
-    
-    return grouped_dataframes, task_structure
-
-def stratified_bootstrap_aggregate_with_tasks(grouped_dataframes_with_tasks, x_column, y_column, aggregator='mean', n_bootstrap=1000):
-    """
-    Aggregate multiple runs using stratified bootstrap with proper task stratification.
-    
-    Parameters:
-    - grouped_dataframes_with_tasks: dict with algorithm -> list of (dataframe, task_name)
-    - x_column: Column name for x-axis
-    - y_column: Column name for y-axis values to aggregate
-    - aggregator: Function or string specifying how to aggregate
-    - n_bootstrap: Number of bootstrap samples to generate
-    
-    Returns:
-    - Aggregated dataframe with bootstrap-based statistics
-    """
-    if isinstance(aggregator, str):
-        if aggregator == 'mean':
-            agg_func = np.mean
-        elif aggregator == 'median':
-            agg_func = np.median
-        elif aggregator == 'min':
-            agg_func = np.min
-        elif aggregator == 'max':
-            agg_func = np.max
-        elif aggregator == 'iqm' or aggregator == 'interquartile_mean':
-            agg_func = calculate_interquartile_mean
-        else:
-            raise ValueError(f"Unknown aggregator: {aggregator}")
-    else:
-        agg_func = aggregator
-    
-    # Collect all x values across all dataframes
-    all_x_values = set()
-    for algorithm, df_task_pairs in grouped_dataframes_with_tasks.items():
-        for df, task_name in df_task_pairs:
-            all_x_values.update(df[x_column].values)
-    
-    all_x_values = sorted(list(all_x_values))
-    
-    # For each x value, perform stratified bootstrap
-    bootstrap_results = {}
-    
-    print(f"Performing stratified bootstrap with {n_bootstrap} samples...")
-    
-    for x_val in all_x_values:
-        # Organize data by task for this x value
-        task_algorithm_values = {}  # task_name -> {algorithm -> [values]}
-        
-        for algorithm, df_task_pairs in grouped_dataframes_with_tasks.items():
-            for df, task_name in df_task_pairs:
-                if task_name not in task_algorithm_values:
-                    task_algorithm_values[task_name] = {}
-                if algorithm not in task_algorithm_values[task_name]:
-                    task_algorithm_values[task_name][algorithm] = []
-                
-                # Get values for this x_val
-                rows = df[df[x_column] == x_val]
-                if not rows.empty:
-                    y_vals = rows[y_column].dropna().values
-                    if len(y_vals) > 0:
-                        task_algorithm_values[task_name][algorithm].extend(y_vals)
-        
-        if not task_algorithm_values:
-            continue
-        
-        # Perform bootstrap resampling
-        bootstrap_stats = []
-        
-        for _ in range(n_bootstrap):
-            bootstrap_sample = []
-            
-            # For each task, resample runs independently
-            for task_name, algorithm_values in task_algorithm_values.items():
-                for algorithm, values in algorithm_values.items():
-                    if len(values) > 0:
-                        # Sample with replacement from this algorithm's runs in this task
-                        resampled = np.random.choice(values, size=len(values), replace=True)
-                        bootstrap_sample.extend(resampled)
-            
-            if bootstrap_sample:
-                # Calculate statistic for this bootstrap sample
-                bootstrap_stats.append(agg_func(bootstrap_sample))
-        
-        bootstrap_results[x_val] = np.array(bootstrap_stats)
-        
-        # Debug info
-        total_runs = sum(len(alg_vals) for task_vals in task_algorithm_values.values() 
-                        for alg_vals in task_vals.values())
-        print(f"  x={x_val}: {len(task_algorithm_values)} tasks, {total_runs} total runs")
-    
-    # Calculate final statistics from bootstrap distribution
-    result_data = {
-        x_column: [],
-        'y_mean': [],
-        'y_median': [],
-        'y_min': [],
-        'y_max': [],
-        'y_std': [],
-        'y_stderr': [],
-        'y_iqm': [],
-        'y_aggregated': [],
-        'y_bootstrap_mean': [],
-        'y_bootstrap_std': [],
-        'y_bootstrap_ci_2_5': [],
-        'y_bootstrap_ci_97_5': [],
-        'y_bootstrap_ci_5': [],
-        'y_bootstrap_ci_95': [],
-        'y_count': []
-    }
-    
-    for x_val in all_x_values:
-        if x_val not in bootstrap_results:
-            continue
-            
-        bootstrap_stats = bootstrap_results[x_val]
-        
-        # Original statistics (non-bootstrap)
-        original_values = []
-        for algorithm, df_task_pairs in grouped_dataframes_with_tasks.items():
-            for df, task_name in df_task_pairs:
-                rows = df[df[x_column] == x_val]
-                if not rows.empty:
-                    original_values.extend(rows[y_column].dropna().values)
-        
-        result_data[x_column].append(x_val)
-        result_data['y_mean'].append(np.mean(original_values) if original_values else np.nan)
-        result_data['y_median'].append(np.median(original_values) if original_values else np.nan)
-        result_data['y_min'].append(np.min(original_values) if original_values else np.nan)
-        result_data['y_max'].append(np.max(original_values) if original_values else np.nan)
-        result_data['y_std'].append(np.std(original_values) if len(original_values) > 1 else np.nan)
-        result_data['y_stderr'].append(np.std(original_values) / np.sqrt(len(original_values)) if len(original_values) > 1 else np.nan)
-        result_data['y_iqm'].append(calculate_interquartile_mean(original_values) if original_values else np.nan)
-        result_data['y_aggregated'].append(agg_func(original_values) if original_values else np.nan)
-        
-        # Bootstrap statistics
-        result_data['y_bootstrap_mean'].append(np.mean(bootstrap_stats))
-        result_data['y_bootstrap_std'].append(np.std(bootstrap_stats))
-        result_data['y_bootstrap_ci_2_5'].append(np.percentile(bootstrap_stats, 2.5))
-        result_data['y_bootstrap_ci_97_5'].append(np.percentile(bootstrap_stats, 97.5))
-        result_data['y_bootstrap_ci_5'].append(np.percentile(bootstrap_stats, 5))
-        result_data['y_bootstrap_ci_95'].append(np.percentile(bootstrap_stats, 95))
-        result_data['y_count'].append(len(original_values))
-    
-    return pd.DataFrame(result_data)
-
-def extract_dataframes_only(grouped_dataframes_with_tasks):
-    """
-    Extract only dataframes from the task-aware structure for compatibility.
-    """
-    grouped_dataframes = {}
-    for algorithm, df_task_pairs in grouped_dataframes_with_tasks.items():
-        grouped_dataframes[algorithm] = [df for df, task_name in df_task_pairs]
-    return grouped_dataframes
 
 def create_value_formatter(scale_factor=None):
     """
@@ -885,8 +486,21 @@ def plot_data_with_ci(aggregated_data, xaxis='buffer_size', yaxis='y_aggregated'
     Plot aggregated data with confidence intervals.
     
     Parameters:
-    - ci_type: Type of confidence interval to show ('min_max', 'std', 'std_err', 'samples', 
-              'bootstrap_95', 'bootstrap_90', or None)
+    - aggregated_data: Dictionary where keys are algorithm names and values are 
+                      aggregated dataframes with statistics
+    - xaxis: Column name for x-axis
+    - yaxis: Column to use for the main plot line (typically 'y_aggregated')
+    - ci_type: Type of confidence interval to show ('min_max', 'std', 'std_err', 'samples', or None)
+    - log_x: Whether to use logarithmic scale for x-axis
+    - log_y: Whether to use logarithmic scale for y-axis
+    - x_min, x_max: Limits for x-axis
+    - y_min, y_max: Limits for y-axis
+    - x_scale_factor: Value to divide x-axis ticks by (e.g., 1e5)
+    - y_scale_factor: Value to divide y-axis ticks by (e.g., 1e3)
+    - x_label: Custom x-axis label
+    - y_label: Custom y-axis label
+    - plot_title: Custom plot title
+    - color_mapping: Dictionary mapping algorithm names to colors
     """
     sns.set_style("darkgrid")
     plt.figure(figsize=(10, 6))
@@ -914,12 +528,6 @@ def plot_data_with_ci(aggregated_data, xaxis='buffer_size', yaxis='y_aggregated'
         elif ci_type == 'std_err':
             plt.fill_between(data[xaxis], data[yaxis] - data['y_stderr'], 
                              data[yaxis] + data['y_stderr'], color=color, alpha=0.2)
-        elif ci_type == 'bootstrap_95' and 'y_bootstrap_ci_2_5' in data.columns:
-            plt.fill_between(data[xaxis], data['y_bootstrap_ci_2_5'], 
-                             data['y_bootstrap_ci_97_5'], color=color, alpha=0.2)
-        elif ci_type == 'bootstrap_90' and 'y_bootstrap_ci_5' in data.columns:
-            plt.fill_between(data[xaxis], data['y_bootstrap_ci_5'], 
-                             data['y_bootstrap_ci_95'], color=color, alpha=0.2)
         elif ci_type == 'samples' and 'y_count' in data.columns:
             # Adjust alpha based on sample count
             plt.fill_between(data[xaxis], data['y_min'], data['y_max'], 
@@ -1155,22 +763,45 @@ def save_name_mapping(mapping_file, mapping, overwrite=False):
     else:
         print("Mapping non salvato.")
 
+def apply_name_mapping(grouped_dataframes, name_mapping):
+    """
+    Applica il mapping dei nomi ai dataframe raggruppati.
+    Aggrega i dataframe per i nomi rinominati se ci sono duplicati.
+    """
+    renamed_dataframes = {}
+    
+    for original_name, dataframes in grouped_dataframes.items():
+        new_name = name_mapping.get(original_name, original_name)
+        
+        # Se il nome rinominato esiste già, aggiungi i dataframe a quelli esistenti
+        if new_name in renamed_dataframes:
+            renamed_dataframes[new_name].extend(dataframes)
+        else:
+            renamed_dataframes[new_name] = dataframes.copy()
+    
+    # Stampa informazioni sull'aggregazione
+    print("\n=== AGGREGAZIONE ALGORITMI ===")
+    for renamed, dataframes in renamed_dataframes.items():
+        original_names = [orig for orig, new in name_mapping.items() if new == renamed]
+        if not original_names:  # Se non c'è mapping, usa il nome stesso
+            original_names = [renamed]
+        print(f"'{renamed}': {len(dataframes)} run da {len(original_names)} algoritmi originali")
+        if len(original_names) > 1:
+            print(f"  Algoritmi originali: {original_names}")
+    print("===============================\n")
+    
+    return renamed_dataframes
+
 def main():
     import argparse
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--xaxis', '-x', default='buffer_size', help='Column name for x-axis data')
     parser.add_argument('--value', '-y', default='eval/episode_reward', help='Column name for y-axis data')
-    parser.add_argument('--est', default='median', choices=['mean', 'median', 'min', 'max', 'iqm', 'interquartile_mean'], 
+    parser.add_argument('--est', default='median', choices=['mean', 'median', 'min', 'max'], 
                         help='Aggregation function')
-    parser.add_argument('--ci', default='std_err', choices=['min_max', 'std', 'std_err', 'samples', 'bootstrap_95', 'bootstrap_90', 'none'],
+    parser.add_argument('--ci', default='std_err', choices=['min_max', 'std', 'std_err', 'samples', 'none'],
                         help='Confidence interval type')
-    
-    # Bootstrap options
-    parser.add_argument('--bootstrap', action='store_true', default=False,
-                        help='Use stratified bootstrap for confidence intervals')
-    parser.add_argument('--n_bootstrap', type=int, default=1000,
-                        help='Number of bootstrap samples (default: 1000)')
     
     # Axis scaling options
     parser.add_argument('--log_x', action='store_true', default=False, help='Use log scale for x-axis')
@@ -1208,12 +839,8 @@ def main():
     
     args = parser.parse_args()
 
-    # Always use task-aware reading to handle both single and multi-task structures
-    grouped_dataframes_with_tasks, task_structure = read_csvs_with_task_awareness(args.csv_path)
-    print(f"Task structure: {task_structure}")
-    
-    # Extract dataframes for compatibility with existing functions
-    grouped_dataframes = extract_dataframes_only(grouped_dataframes_with_tasks)
+    # Read and group CSV files by algorithm
+    grouped_dataframes = read_csvs_from_directory(args.csv_path)
     
     # Apply renaming if requested
     if args.rename:
@@ -1223,18 +850,6 @@ def main():
             algorithm_names, 
             force_rename=getattr(args, 'force_rename', False)
         )
-        
-        if args.bootstrap:
-            # Apply renaming to task-aware structure
-            renamed_dataframes_with_tasks = {}
-            for original_name, df_task_pairs in grouped_dataframes_with_tasks.items():
-                new_name = name_mapping.get(original_name, original_name)
-                if new_name in renamed_dataframes_with_tasks:
-                    renamed_dataframes_with_tasks[new_name].extend(df_task_pairs)
-                else:
-                    renamed_dataframes_with_tasks[new_name] = df_task_pairs.copy()
-            grouped_dataframes_with_tasks = renamed_dataframes_with_tasks
-        
         grouped_dataframes = apply_name_mapping(grouped_dataframes, name_mapping)
     
     # Apply color mapping if requested
@@ -1249,26 +864,13 @@ def main():
     
     # Aggregate runs for each algorithm
     aggregated_data = {}
-    for algorithm in grouped_dataframes.keys():
-        if args.bootstrap:
-            # Use the task-aware bootstrap function
-            algorithm_df_task_pairs = grouped_dataframes_with_tasks[algorithm]
-            single_algorithm_dict = {algorithm: algorithm_df_task_pairs}
-            
-            aggregated_data[algorithm] = stratified_bootstrap_aggregate_with_tasks(
-                single_algorithm_dict,
-                x_column=args.xaxis, 
-                y_column=args.value, 
-                aggregator=args.est,
-                n_bootstrap=args.n_bootstrap
-            )
-        else:
-            aggregated_data[algorithm] = aggregate_runs(
-                grouped_dataframes[algorithm], 
-                x_column=args.xaxis, 
-                y_column=args.value, 
-                aggregator=args.est
-            )
+    for algorithm, dataframes in grouped_dataframes.items():
+        aggregated_data[algorithm] = aggregate_runs(
+            dataframes, 
+            x_column=args.xaxis, 
+            y_column=args.value, 
+            aggregator=args.est
+        )
     
     # Plot the aggregated data with confidence intervals
     print("Creating plot...")

@@ -11,9 +11,10 @@ import torch
 import utils
 import wandb
 import argparse
+import json
 from pathlib import Path
 from agents.taco import TACOAgent
-from pretraining_utils_old import load_unified_dataset
+from pretraining_utils import load_unified_dataset
 
 # Main function
 if __name__ == "__main__":
@@ -39,7 +40,6 @@ if __name__ == "__main__":
     parser.add_argument('--eval_frequency', type=int, default=50, help='Frequency of evaluation steps')
     parser.add_argument('--train_ratio', type=float, default=0.8, help='Ratio of data to use for training')
     parser.add_argument('--eval_batches', type=int, default=10, help='Number of batches to use for evaluation')
-    parser.add_argument('--fastwork', action='store_true', help='Prepend /home/mprattico/fastwork/ to dataset paths')
     parser.add_argument('--no_curl', action='store_true', help='Disable CURL loss (enabled by default)')
     parser.add_argument('--no_reward', action='store_true', help='Disable reward loss (enabled by default)')
     parser.add_argument('--optimizer', type=str, default='adam', choices=['adam', 'sgd'], help='Optimizer to use for training (default: adam)')
@@ -47,6 +47,10 @@ if __name__ == "__main__":
     parser.add_argument('--resume_checkpoint', type=str, default=None, help='Path to the checkpoint to resume training from')
     parser.add_argument('--resume_wandb_run', type=str, default=None, help='ID of wandb run to resume')
     parser.add_argument('--continue_steps', action='store_true', default=True, help='Continue step counter from checkpoint (instead of starting from 0)')
+    parser.add_argument('--max_episodes_per_dataset', type=int, default=8, help='Maximum episodes to load per dataset')
+    parser.add_argument('--max_size', type=int, default=None, help='Maximum size of replay buffer for training')
+    parser.add_argument('--homogeneous', action='store_true', help='Load transitions evenly across datasets')
+    parser.add_argument('--log_frequency', type=int, default=100, help='Log metrics every n batches')
     args = parser.parse_args()
 
     assert args.multistep == args.nstep, f"Don't know the difference between nstep and multistep, set them to the same value"
@@ -55,36 +59,63 @@ if __name__ == "__main__":
     checkpoint_steps = [int(step) for step in args.checkpoint.split(',') if step.strip()]
     print(f"Will save checkpoints at steps: {checkpoint_steps}")
 
-    pretraining_dataset_path = args.dataset_config + "/pretraining_datasets"
-    valid_datset_path = args.dataset_config + "/test_dataset"
-
-    if args.fastwork:
-        pretraining_dataset_path = "/fastwork/mprattico/" + pretraining_dataset_path
-        valid_datset_path = "/fastwork/mprattico/" + valid_datset_path
+    # Handle dataset config paths based on type (JSON vs folder)
+    config_path = Path(args.dataset_config)
     
-    # Check for overlapping subdirectories between training and validation datasets
-    if os.path.exists(pretraining_dataset_path) and os.path.exists(valid_datset_path):
-        train_dirs = {d.name for d in Path(pretraining_dataset_path).iterdir() if d.is_dir()}
-        valid_dirs = {d.name for d in Path(valid_datset_path).iterdir() if d.is_dir()}
-        common_dirs = train_dirs.intersection(valid_dirs)
-        assert len(common_dirs) == 0, f"Found overlapping directories in training and validation sets: {common_dirs}"
+    if config_path.suffix == '.json':
+        # For JSON config, we don't need the old path logic
+        pretraining_config = args.dataset_config
+        test_config = args.dataset_config
+        
+        # For JSON, we'll get dataset info from the config itself
+        with open(config_path, 'r') as f:
+            config_data = json.load(f)
+        dataset_dirs = config_data.get('pretraining_datasets', [])
+        dataset_names = [Path(d).name for d in dataset_dirs]
+        print(f"Found {len(dataset_dirs)} pretraining datasets in config: {dataset_names}")
+    else:
+        # Original folder-based logic
+        pretraining_dataset_path = args.dataset_config + "/pretraining_datasets"
+        valid_dataset_path = args.dataset_config + "/test_dataset"
+        
+        pretraining_config = args.dataset_config
+        test_config = args.dataset_config
+        
+        # Check for overlapping subdirectories between training and validation datasets
+        if os.path.exists(pretraining_dataset_path) and os.path.exists(valid_dataset_path):
+            train_dirs = {d.name for d in Path(pretraining_dataset_path).iterdir() if d.is_dir()}
+            valid_dirs = {d.name for d in Path(valid_dataset_path).iterdir() if d.is_dir()}
+            common_dirs = train_dirs.intersection(valid_dirs)
+            assert len(common_dirs) == 0, f"Found overlapping directories in training and validation sets: {common_dirs}"
+        
+        # Get dataset directories for folder-based config
+        if os.path.exists(pretraining_dataset_path):
+            dataset_dirs = [d for d in Path(pretraining_dataset_path).iterdir() if d.is_dir()]
+            print(f"Found {len(dataset_dirs)} dataset subdirectories in {pretraining_dataset_path}")
+        else:
+            dataset_dirs = []
+            print(f"Pretraining dataset path not found: {pretraining_dataset_path}")
     
-    # load
+    # Load datasets
     train_dataloader = load_unified_dataset(
-        root_dir=pretraining_dataset_path,
+        config_or_path=pretraining_config,
         batch_size=args.batch_size,
-        num_workers=args.num_workers
+        num_workers=args.num_workers,
+        max_episodes_per_dataset=args.max_episodes_per_dataset,
+        max_size=args.max_size,
+        homogeneous=args.homogeneous,
+        is_test=False
     )
 
     valid_dataloader = load_unified_dataset(
-        root_dir=valid_datset_path,
+        config_or_path=test_config,
         batch_size=args.batch_size,
-        num_workers=args.num_workers
+        num_workers=args.num_workers,
+        max_episodes_per_dataset=args.max_episodes_per_dataset,
+        max_size=None,  # Always use all test data
+        homogeneous=args.homogeneous,
+        is_test=True
     )
-
-    # check the subdirectories
-    dataset_dirs = [d for d in Path(pretraining_dataset_path).iterdir() if d.is_dir()]
-    print(f"Found {len(dataset_dirs)} dataset subdirectories in {pretraining_dataset_path}")
 
     # Initialize steps and epoch
     steps = 0
@@ -141,15 +172,17 @@ if __name__ == "__main__":
             "total_steps": args.total_steps,
             "nstep": args.nstep,
             "discount": args.discount,
-            "datasets": dataset_dirs,
+            "datasets": dataset_names if config_path.suffix == '.json' else [d.name for d in dataset_dirs],
             "num_datasets": len(dataset_dirs),
             "dataset_config": args.dataset_config,
-            "fastwork": args.fastwork,
             "use_curl": not args.no_curl,
             "use_reward": not args.no_reward,
-            "resumed_from_checkpoint": args.resume_checkpoint
+            "resumed_from_checkpoint": args.resume_checkpoint,
+            "max_episodes_per_dataset": args.max_episodes_per_dataset,
+            "max_size": args.max_size,
+            "homogeneous": args.homogeneous
         }
-        
+
         # Resume wandb run if ID is provided
         if args.resume_wandb_run:
             print(f"Resuming wandb run: {args.resume_wandb_run}")
@@ -199,11 +232,13 @@ if __name__ == "__main__":
     # Now that the agent is initialized with the loaded checkpoint, we're ready to continue training
     valid_iterator = iter(valid_dataloader)
     
+    batch_count = 0
     while steps < args.total_steps:
         epoch += 1
         print(f"Epoch: {epoch}, Steps: {steps}/{args.total_steps}")
         
         for batch in train_dataloader:
+            batch_count += 1
             
             # *** Evaluation step ***
             if (steps//args.batch_size) % args.eval_frequency == 0:
@@ -304,8 +339,10 @@ if __name__ == "__main__":
                 metrics['steps'] = steps
                 metrics['epoch'] = epoch
                 wandb.log(metrics)
-                
-            print(f"Steps: {steps}/{args.total_steps}, Metrics: {metrics}")
+            
+            # Print metrics every n batches
+            if batch_count % args.log_frequency == 0:
+                print(f"Steps: {steps}/{args.total_steps}, Batch: {batch_count}, Metrics: {metrics}")
 
             # *** Save model checkpoint ***
             # Check if we need to save a checkpoint at this step

@@ -691,263 +691,21 @@ def save_color_mapping(mapping_file, mapping, overwrite=False):
     else:
         print("Mapping colori non salvato.")
 
-def calculate_interquartile_mean(values):
-    """
-    Calculate the interquartile mean (IQM) - 25% trimmed mean.
-    Discards the bottom and top 25% of values and calculates the mean of the remaining 50%.
-    
-    Parameters:
-    - values: Array-like of numerical values
-    
-    Returns:
-    - Interquartile mean value
-    """
-    if len(values) == 0:
-        return np.nan
-    
-    values = np.array(values)
-    values = values[~np.isnan(values)]  # Remove NaN values
-    
-    if len(values) == 0:
-        return np.nan
-    
-    if len(values) < 4:
-        # For very small samples, fall back to regular mean
-        return np.mean(values)
-    
-    # Calculate Q1 and Q3
-    q1 = np.percentile(values, 25)
-    q3 = np.percentile(values, 75)
-    
-    # Filter values within interquartile range
-    iqr_values = values[(values >= q1) & (values <= q3)]
-    
-    if len(iqr_values) == 0:
-        return np.mean(values)  # Fallback to regular mean
-    
-    return np.mean(iqr_values)
-
-def detect_task_structure(csv_path):
-    """
-    Detect if the path contains single task or multiple tasks.
-    
-    Parameters:
-    - csv_path: Path to analyze
-    
-    Returns:
-    - tuple: (is_single_task, task_data)
-      - is_single_task: True if single task, False if multi-task
-      - task_data: dict with task organization
-    """
-    if not os.path.exists(csv_path):
-        raise ValueError(f"Path {csv_path} does not exist")
-    
-    # Check if there are CSV files directly in this directory
-    csv_files = [f for f in os.listdir(csv_path) if f.endswith('.csv')]
-    
-    # Check if there are subdirectories
-    subdirs = [d for d in os.listdir(csv_path) 
-               if os.path.isdir(os.path.join(csv_path, d))]
-    
-    if csv_files and not subdirs:
-        # Single task: CSV files directly in the directory
-        return True, {'single_task': csv_path}
-    elif subdirs and not csv_files:
-        # Multi-task: subdirectories containing CSV files
-        task_data = {}
-        for subdir in subdirs:
-            subdir_path = os.path.join(csv_path, subdir)
-            subdir_csvs = [f for f in os.listdir(subdir_path) if f.endswith('.csv')]
-            if subdir_csvs:
-                task_data[subdir] = subdir_path
-        return False, task_data
-    else:
-        raise ValueError(f"Ambiguous directory structure in {csv_path}. "
-                        "Directory should contain either CSV files directly (single task) "
-                        "or subdirectories with CSV files (multi-task), but not both.")
-
-def read_csvs_with_task_awareness(csv_path):
-    """
-    Read CSV files with task awareness for stratified bootstrap.
-    
-    Returns:
-    - tuple: (grouped_dataframes, task_structure)
-      - grouped_dataframes: dict with algorithm -> list of (dataframe, task_name)
-      - task_structure: dict with task organization info
-    """
-    is_single_task, task_data = detect_task_structure(csv_path)
-    
-    grouped_dataframes = {}
-    
-    if is_single_task:
-        # Single task: read all CSVs from the directory
-        print(f"Detected single task in: {csv_path}")
-        task_name = os.path.basename(csv_path)
-        
-        for filename in os.listdir(csv_path):
-            if filename.endswith(".csv"):
-                algorithm_name = filename.split("___")[0]
-                df = pd.read_csv(os.path.join(csv_path, filename))
-                
-                if algorithm_name not in grouped_dataframes:
-                    grouped_dataframes[algorithm_name] = []
-                
-                # Store dataframe with task information
-                grouped_dataframes[algorithm_name].append((df, task_name))
-    
-    else:
-        # Multi-task: read CSVs from each subdirectory
-        print(f"Detected multi-task structure with tasks: {list(task_data.keys())}")
-        
-        for task_name, task_path in task_data.items():
-            print(f"  Reading task: {task_name}")
-            
-            for filename in os.listdir(task_path):
-                if filename.endswith(".csv"):
-                    algorithm_name = filename.split("___")[0]
-                    df = pd.read_csv(os.path.join(task_path, filename))
-                    
-                    if algorithm_name not in grouped_dataframes:
-                        grouped_dataframes[algorithm_name] = []
-                    
-                    # Store dataframe with task information
-                    grouped_dataframes[algorithm_name].append((df, task_name))
-    
-    task_structure = {
-        'is_single_task': is_single_task,
-        'task_data': task_data
-    }
-    
-    return grouped_dataframes, task_structure
-
-def extract_dataframes_only(grouped_dataframes_with_tasks):
-    """
-    Extract only dataframes from the task-aware structure for compatibility.
-    """
-    grouped_dataframes = {}
-    for algorithm, df_task_pairs in grouped_dataframes_with_tasks.items():
-        grouped_dataframes[algorithm] = [df for df, task_name in df_task_pairs]
-    return grouped_dataframes
-
-def prepare_boxplot_data_at_x_with_bootstrap(grouped_dataframes_with_tasks, x_column, y_column, fixed_x, central_line='median', n_bootstrap=1000):
-    """
-    Prepare data for boxplot using stratified bootstrap at a specific x value.
-    
-    Parameters:
-    - grouped_dataframes_with_tasks: Dictionary with algorithm names as keys and list of (dataframe, task_name) as values
-    - x_column: Column name for x-axis data
-    - y_column: Column name to extract values from
-    - fixed_x: Specific x value to extract data for
-    - central_line: Type of central statistic ('mean', 'median', 'iqm')
-    - n_bootstrap: Number of bootstrap samples
-    
-    Returns:
-    - DataFrame with 'algorithm', 'value', and bootstrap statistics
-    """
-    # Convert string to function
-    if central_line == 'mean':
-        agg_func = np.mean
-    elif central_line == 'median':
-        agg_func = np.median
-    elif central_line == 'min':
-        agg_func = np.min
-    elif central_line == 'max':
-        agg_func = np.max
-    elif central_line == 'iqm':
-        agg_func = calculate_interquartile_mean
-    else:
-        agg_func = np.median  # default
-    
-    boxplot_data = []
-    
-    print(f"Performing stratified bootstrap for boxplot at x = {fixed_x} with {n_bootstrap} samples...")
-    
-    for algorithm, df_task_pairs in grouped_dataframes_with_tasks.items():
-        # Organize data by task for this algorithm at fixed_x
-        task_values = {}  # task_name -> [values]
-        
-        for df, task_name in df_task_pairs:
-            if x_column in df.columns and y_column in df.columns:
-                # Find closest x value
-                closest_x = find_closest_x_value(df, x_column, fixed_x)
-                
-                if closest_x is not None:
-                    matching_rows = df[df[x_column] == closest_x]
-                    if not matching_rows.empty:
-                        y_values = matching_rows[y_column].dropna().values
-                        if len(y_values) > 0:
-                            if task_name not in task_values:
-                                task_values[task_name] = []
-                            task_values[task_name].extend(y_values)
-        
-        if not task_values:
-            print(f"  {algorithm}: no data found at x = {fixed_x}")
-            continue
-        
-        # Perform bootstrap resampling
-        bootstrap_stats = []
-        original_values = []
-        
-        # Collect all original values
-        for task_vals in task_values.values():
-            original_values.extend(task_vals)
-        
-        for _ in range(n_bootstrap):
-            bootstrap_sample = []
-            
-            # For each task, resample runs independently
-            for task_name, values in task_values.items():
-                if len(values) > 0:
-                    # Sample with replacement from this task
-                    resampled = np.random.choice(values, size=len(values), replace=True)
-                    bootstrap_sample.extend(resampled)
-            
-            if bootstrap_sample:
-                bootstrap_stats.append(agg_func(bootstrap_sample))
-        
-        if bootstrap_stats:
-            # Calculate statistics from bootstrap distribution
-            bootstrap_mean = np.mean(bootstrap_stats)
-            bootstrap_ci_2_5 = np.percentile(bootstrap_stats, 2.5)
-            bootstrap_ci_97_5 = np.percentile(bootstrap_stats, 97.5)
-            bootstrap_ci_5 = np.percentile(bootstrap_stats, 5)
-            bootstrap_ci_95 = np.percentile(bootstrap_stats, 95)
-            
-            # Store original statistic and bootstrap statistics
-            boxplot_data.append({
-                'algorithm': algorithm,
-                'value': agg_func(original_values),
-                'bootstrap_mean': bootstrap_mean,
-                'bootstrap_ci_2_5': bootstrap_ci_2_5,
-                'bootstrap_ci_97_5': bootstrap_ci_97_5,
-                'bootstrap_ci_5': bootstrap_ci_5,
-                'bootstrap_ci_95': bootstrap_ci_95,
-                'n_tasks': len(task_values),
-                'n_runs': len(original_values)
-            })
-            
-            print(f"  {algorithm}: {len(task_values)} tasks, {len(original_values)} runs, "
-                  f"bootstrap CI 95%: [{bootstrap_ci_2_5:.2f}, {bootstrap_ci_97_5:.2f}]")
-    
-    return pd.DataFrame(boxplot_data)
-
 def create_boxplot(data, x_column='algorithm', y_column='value', 
                   custom_order=None, baselines=None, log_y=False,
                   y_min=None, y_max=None, y_scale_factor=None,
                   y_label=None, plot_title=None, color_mapping=None, 
                   central_line='median', box_type='std_err', whiskers_percentile=95,
-                  show_baseline_whiskers=False, show_tendency_line=False, 
-                  use_bootstrap=False, **kwargs):
+                  show_baseline_whiskers=False, show_tendency_line=False, **kwargs):
     """
     Crea un boxplot con opzioni personalizzate.
     
     Parameters:
-    - central_line: Tipo di linea centrale ('mean', 'median', 'min', 'max', 'iqm')
+    - central_line: Tipo di linea centrale ('mean', 'median', 'min', 'max')
     - box_type: Tipo di box ('std_err', 'std', 'min_max')
     - whiskers_percentile: Percentile per i whiskers (es. 95 per 95% confidence). Se 0, non mostra i whiskers
     - show_baseline_whiskers: Se True, mostra whiskers verticali per le baseline
     - show_tendency_line: Se True, mostra una linea che connette le linee centrali dei box
-    - use_bootstrap: Se True, usa statistiche bootstrap per whiskers
     """
     sns.set_style("darkgrid")
     plt.figure(figsize=(12, 8))
@@ -982,96 +740,56 @@ def create_boxplot(data, x_column='algorithm', y_column='value',
         labels = []
         
         for i, algorithm in enumerate(algorithms):
-            alg_data_rows = plot_data[plot_data[x_column] == algorithm]
+            alg_data = plot_data[plot_data[x_column] == algorithm][y_column].dropna()
             
-            if len(alg_data_rows) == 0:
+            if len(alg_data) == 0:
                 continue
             
             labels.append(algorithm)
             x_positions.append(i)
             
-            # Get the central value and other statistics
-            if use_bootstrap and 'bootstrap_mean' in alg_data_rows.columns:
-                # Use bootstrap statistics
-                central = alg_data_rows['bootstrap_mean'].iloc[0]
-                
-                # Use bootstrap confidence intervals for whiskers
-                if whiskers_percentile > 0:
-                    if whiskers_percentile == 95:
-                        whisker_lower.append(alg_data_rows['bootstrap_ci_2_5'].iloc[0])
-                        whisker_upper.append(alg_data_rows['bootstrap_ci_97_5'].iloc[0])
-                    elif whiskers_percentile == 90:
-                        whisker_lower.append(alg_data_rows['bootstrap_ci_5'].iloc[0])
-                        whisker_upper.append(alg_data_rows['bootstrap_ci_95'].iloc[0])
-                    else:
-                        # Fallback to regular percentiles if specific bootstrap CI not available
-                        alg_values = alg_data_rows[y_column].values
-                        lower_percentile = (100 - whiskers_percentile) / 2
-                        upper_percentile = 100 - lower_percentile
-                        whisker_lower.append(np.percentile(alg_values, lower_percentile))
-                        whisker_upper.append(np.percentile(alg_values, upper_percentile))
-                else:
-                    whisker_lower.append(None)
-                    whisker_upper.append(None)
-                
-                # For box, use a smaller confidence interval or standard error
-                if box_type == 'std_err':
-                    # Use a narrower CI for the box
-                    box_lower.append(alg_data_rows['bootstrap_ci_5'].iloc[0])
-                    box_upper.append(alg_data_rows['bootstrap_ci_95'].iloc[0])
-                else:
-                    # Fallback to original value for box bounds
-                    original_val = alg_data_rows[y_column].iloc[0]
-                    box_lower.append(original_val * 0.95)
-                    box_upper.append(original_val * 1.05)
+            # Calcola linea centrale
+            if central_line == 'mean':
+                central = np.mean(alg_data)
+            elif central_line == 'median':
+                central = np.median(alg_data)
+            elif central_line == 'min':
+                central = np.min(alg_data)
+            elif central_line == 'max':
+                central = np.max(alg_data)
             else:
-                # Use original non-bootstrap logic
-                alg_data = alg_data_rows[y_column].dropna()
-                
-                # Calcola linea centrale
-                if central_line == 'mean':
-                    central = np.mean(alg_data)
-                elif central_line == 'median':
-                    central = np.median(alg_data)
-                elif central_line == 'min':
-                    central = np.min(alg_data)
-                elif central_line == 'max':
-                    central = np.max(alg_data)
-                elif central_line == 'iqm':
-                    central = calculate_interquartile_mean(alg_data)
-                else:
-                    central = np.median(alg_data)  # default
-                
-                # Calcola box (area ombreggiata)
-                if box_type == 'std_err':
-                    std_err = np.std(alg_data) / np.sqrt(len(alg_data))
-                    box_lower.append(central - std_err)
-                    box_upper.append(central + std_err)
-                elif box_type == 'std':
-                    std_val = np.std(alg_data)
-                    box_lower.append(central - std_val)
-                    box_upper.append(central + std_val)
-                elif box_type == 'min_max':
-                    box_lower.append(np.min(alg_data))
-                    box_upper.append(np.max(alg_data))
-                else:
-                    # Default: quartili
-                    q25 = np.percentile(alg_data, 25)
-                    q75 = np.percentile(alg_data, 75)
-                    box_lower.append(q25)
-                    box_upper.append(q75)
-                
-                # Calcola whiskers (confidence intervals) solo se whiskers_percentile > 0
-                if whiskers_percentile > 0:
-                    lower_percentile = (100 - whiskers_percentile) / 2
-                    upper_percentile = 100 - lower_percentile
-                    whisker_lower.append(np.percentile(alg_data, lower_percentile))
-                    whisker_upper.append(np.percentile(alg_data, upper_percentile))
-                else:
-                    whisker_lower.append(None)
-                    whisker_upper.append(None)
+                central = np.median(alg_data)  # default
             
             central_values.append(central)
+            
+            # Calcola box (area ombreggiata)
+            if box_type == 'std_err':
+                std_err = np.std(alg_data) / np.sqrt(len(alg_data))
+                box_lower.append(central - std_err)
+                box_upper.append(central + std_err)
+            elif box_type == 'std':
+                std_val = np.std(alg_data)
+                box_lower.append(central - std_val)
+                box_upper.append(central + std_val)
+            elif box_type == 'min_max':
+                box_lower.append(np.min(alg_data))
+                box_upper.append(np.max(alg_data))
+            else:
+                # Default: quartili
+                q25 = np.percentile(alg_data, 25)
+                q75 = np.percentile(alg_data, 75)
+                box_lower.append(q25)
+                box_upper.append(q75)
+            
+            # Calcola whiskers (confidence intervals) solo se whiskers_percentile > 0
+            if whiskers_percentile > 0:
+                lower_percentile = (100 - whiskers_percentile) / 2
+                upper_percentile = 100 - lower_percentile
+                whisker_lower.append(np.percentile(alg_data, lower_percentile))
+                whisker_upper.append(np.percentile(alg_data, upper_percentile))
+            else:
+                whisker_lower.append(None)
+                whisker_upper.append(None)
             
             # Determina il colore
             if color_mapping and algorithm in color_mapping:
@@ -1230,18 +948,12 @@ def main():
                         help='Fixed x value for boxplot comparison (e.g., 100000)')
     
     # Boxplot configuration
-    parser.add_argument('--central_line', default='median', choices=['mean', 'median', 'min', 'max', 'iqm'],
+    parser.add_argument('--central_line', default='median', choices=['mean', 'median', 'min', 'max'],
                         help='Type of central line in boxplot')
     parser.add_argument('--box_type', default='std_err', choices=['std_err', 'std', 'min_max', 'quartile'],
                         help='Type of box (shaded area) in boxplot')
     parser.add_argument('--whiskers_percentile', type=float, default=95.0,
                         help='Percentile for whiskers (e.g., 95 for 95% confidence interval). Set to 0 to hide whiskers')
-    
-    # Bootstrap options
-    parser.add_argument('--bootstrap', action='store_true', default=False,
-                        help='Use stratified bootstrap for confidence intervals')
-    parser.add_argument('--n_bootstrap', type=int, default=1000,
-                        help='Number of bootstrap samples (default: 1000)')
     
     # Baseline whiskers option
     parser.add_argument('--baseline_whiskers', action='store_true', default=False,
@@ -1294,12 +1006,8 @@ def main():
     
     args = parser.parse_args()
 
-    # Always use task-aware reading to handle both single and multi-task structures
-    grouped_dataframes_with_tasks, task_structure = read_csvs_with_task_awareness(args.csv_path)
-    print(f"Task structure: {task_structure}")
-    
-    # Extract dataframes for compatibility with existing functions
-    grouped_dataframes = extract_dataframes_only(grouped_dataframes_with_tasks)
+    # Read and group CSV files by algorithm
+    grouped_dataframes = read_csvs_from_directory(args.csv_path)
     
     # Apply renaming if requested
     if args.rename:
@@ -1309,47 +1017,10 @@ def main():
             algorithm_names, 
             force_rename=getattr(args, 'force_rename', False)
         )
-        
-        if args.bootstrap:
-            # Apply renaming to task-aware structure
-            renamed_dataframes_with_tasks = {}
-            for original_name, df_task_pairs in grouped_dataframes_with_tasks.items():
-                new_name = name_mapping.get(original_name, original_name)
-                if new_name in renamed_dataframes_with_tasks:
-                    renamed_dataframes_with_tasks[new_name].extend(df_task_pairs)
-                else:
-                    renamed_dataframes_with_tasks[new_name] = df_task_pairs.copy()
-            grouped_dataframes_with_tasks = renamed_dataframes_with_tasks
-        
         grouped_dataframes = apply_name_mapping(grouped_dataframes, name_mapping)
     
-    # Prepare data for boxplot
-    if args.bootstrap:
-        # Use stratified bootstrap method
-        boxplot_data = prepare_boxplot_data_at_x_with_bootstrap(
-            grouped_dataframes_with_tasks, 
-            args.xaxis, 
-            args.value, 
-            args.fixed_x,
-            central_line=args.central_line,
-            n_bootstrap=args.n_bootstrap
-        )
-        use_bootstrap_in_plot = True
-    else:
-        # Use traditional method but with task-aware data
-        boxplot_data = prepare_boxplot_data_at_x(grouped_dataframes, args.xaxis, args.value, args.fixed_x)
-        use_bootstrap_in_plot = False
-    
-    if boxplot_data.empty:
-        print(f"ERRORE: Nessun dato trovato per x = {args.fixed_x}")
-        print("Verifica che il valore di --fixed_x sia presente nei tuoi dati.")
-        print(f"Struttura task rilevata: {task_structure}")
-        print(f"Algoritmi trovati: {list(grouped_dataframes.keys())}")
-        return
-    
     # Get final algorithm names (after renaming)
-    final_algorithm_names = list(set(boxplot_data['algorithm'].values))
-    print(f"Algoritmi nel dataset finale: {final_algorithm_names}")
+    final_algorithm_names = list(grouped_dataframes.keys())
     
     # Apply color mapping if requested (usa lo stesso file di make_plot.py)
     color_mapping = None
@@ -1378,6 +1049,14 @@ def main():
             force_order=getattr(args, 'force_order', False)
         )
     
+    # Prepare data for boxplot at fixed x value
+    boxplot_data = prepare_boxplot_data_at_x(grouped_dataframes, args.xaxis, args.value, args.fixed_x)
+    
+    if boxplot_data.empty:
+        print(f"ERRORE: Nessun dato trovato per x = {args.fixed_x}")
+        print("Verifica che il valore di --fixed_x sia presente nei tuoi dati.")
+        return
+    
     # Create the boxplot
     print(f"Creating boxplot for x = {args.fixed_x}...")
     create_boxplot(
@@ -1397,8 +1076,7 @@ def main():
         box_type=args.box_type,
         whiskers_percentile=args.whiskers_percentile,
         show_baseline_whiskers=args.baseline_whiskers,
-        show_tendency_line=args.tendency_line,
-        use_bootstrap=use_bootstrap_in_plot
+        show_tendency_line=args.tendency_line
     )
     
     # Create output path in the same folder as csv_path
@@ -1407,7 +1085,6 @@ def main():
     # Save the plot
     plt.savefig(output_path, format='png', dpi=300)
     print(f"Boxplot saved as {output_path}")
-
 
 if __name__ == "__main__":
     main()

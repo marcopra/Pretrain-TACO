@@ -12,6 +12,13 @@ python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path
 python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/mt/button-press --filter_by_config agent/no_taco!=true,env_name=button-press-v2 --filter_by_tags MT20 --group_by_config agent/pretrained_path
 python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/mt/push --filter_by_config agent/no_taco!=true,env_name=push-v2 --filter_by_tags                 MT20 --group_by_config agent/pretrained_path
 python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/mt/shelf-place --filter_by_config agent/no_taco!=true,env_name=shelf-place-v2 --filter_by_tags   MT20 --group_by_config agent/pretrained_path
+
+python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/mt/all --filter_by_config agent/no_taco!=true,env_name=basketball-v2 --filter_by_tags     MT20 --group_by_config agent/pretrained_path
+python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/mt/all --filter_by_config agent/no_taco!=true,env_name=bin-picking-v2 --filter_by_tags   MT20 --group_by_config agent/pretrained_path
+python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/mt/all --filter_by_config agent/no_taco!=true,env_name=button-press-v2 --filter_by_tags MT20 --group_by_config agent/pretrained_path
+python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/mt/all --filter_by_config agent/no_taco!=true,env_name=shelf-place-v2 --filter_by_tags   MT20 --group_by_config agent/pretrained_path
+python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/mt/all --filter_by_config agent/no_taco!=true,env_name=push-v2 --filter_by_tags                 MT20 --group_by_config agent/pretrained_path
+
 """
 import argparse
 import pandas as pd

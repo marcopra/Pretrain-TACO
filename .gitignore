@@ -165,6 +165,6 @@ wandb/
 dataset/
 data*
 exp_local*
-models
+models*
 *.png
 test_model/
