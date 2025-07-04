@@ -40,19 +40,19 @@ env_name_full="${env_name}-v2"
 # Set pretrained model path based on environment
 case $env_name in
     basketball)
-        model_path="/home/mprattico/Pretrain-TACO/models/exp/99/taco_MT_MT50_OOD_Basketball_0.99_lr=0.0005_ts=3430400_curl_rew_best.pt"
+        model_path="/home/mprattico/Pretrain-TACO/models/exp/99/taco_MT_MT50_OOD_Basketball_0.99_lr\=0.0005_ts\=3430400_curl_rew_best.pt"
         ;;
     bin-picking)
-        model_path="/home/mprattico/Pretrain-TACO/models/exp/99/taco_MT_MT50_OOD_BinPicking_0.99_lr=0.0005_ts=153600_curl_rew_best.pt"
+        model_path="/home/mprattico/Pretrain-TACO/models/exp/99/taco_MT_MT50_OOD_BinPicking_0.99_lr\=0.0005_ts\=153600_curl_rew_best.pt"
         ;;
     button-press)
-        model_path="/home/mprattico/Pretrain-TACO/models/exp/99/taco_MT_MT50_OOD_ButtonPress_0.99_lr=0.0005_ts=30515200_curl_rew_best.pt"
+        model_path="/home/mprattico/Pretrain-TACO/models/exp/99/taco_MT_MT50_OOD_ButtonPress_0.99_lr\=0.0005_ts\=30515200_curl_rew_best.pt"
         ;;
     push)
-        model_path="/home/mprattico/Pretrain-TACO/models/exp/99/taco_MT_MT50_OOD_Push_0.99_lr=0.0005_ts=11980800_curl_rew_best.pt"
+        model_path="/home/mprattico/Pretrain-TACO/models/exp/99/taco_MT_MT50_OOD_Push_0.99_lr\=0.0005_ts\=11980800_curl_rew_best.pt"
         ;;
     shelf-place)
-        model_path="/home/mprattico/Pretrain-TACO/models/exp/99/taco_MT_MT50_OOD_ShelfPlace_0.99_lr=0.0005_ts=24166400_curl_rew_best.pt"
+        model_path="/home/mprattico/Pretrain-TACO/models/exp/99/taco_MT_MT50_OOD_ShelfPlace_0.99_lr\=0.0005_ts\=24166400_curl_rew_best.pt"
         ;;
 esac
 
