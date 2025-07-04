@@ -19,6 +19,9 @@ python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path
 python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/mt/all --filter_by_config agent/no_taco!=true,env_name=shelf-place-v2 --filter_by_tags   MT20 --group_by_config agent/pretrained_path
 python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/mt/all --filter_by_config agent/no_taco!=true,env_name=push-v2 --filter_by_tags                 MT20 --group_by_config agent/pretrained_path
 
+python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/push --project taco_metaworld_resnet_ed4ct --group_by_config agent/pretrained_path
+python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/push --project taco_metaworld_resnet_ed4ct --filter_by_config env_name=push-v3,batch_size=1024 --group_by_config agent/pretrained_path
+
 """
 import argparse
 import pandas as pd
@@ -155,12 +158,13 @@ def main():
     parser.add_argument('--csv_path', type=str, default="data_plot/", help='csv folder') 
     parser.add_argument('--keys', type=str, default="eval/episode_reward,eval/success_rate", help='Data to be saved')
     parser.add_argument('--x-key', type=str, default="buffer_size", help='X axis key')
-    parser.add_argument('--filter_by_tags', type=str, default="benchmark", 
+    parser.add_argument('--filter_by_tags', type=str, default="", 
                       help='Filter by tags (comma-separated list). Use tag!= to exclude a tag')
     parser.add_argument('--filter_by_config', type=str, default="", help='Filter by config parameters (format: key1=value1,key2=value2)')
     parser.add_argument('--download', action='store_true', default=True, help='Download data from wandb')
     parser.add_argument('--processing', action='store_true', default=True)
-    parser.add_argument('--project', type=str, default='taco_metaworld', help='csv folder') 
+    parser.add_argument('--project', type=str, default='taco_metaworld', help='Project name') 
+    parser.add_argument('--entity', type=str, default=None, help='WandB entity/team name (optional)')
     parser.add_argument('--n_points', type=int, default=1000, help='Number of points to plot')
     parser.add_argument('--max_x', type=int, default=100_000, help='maximum x axis value of points to plot')
     parser.add_argument('--min_x', type=int, default=0, help='minimum x axis value of points to plot')
@@ -177,8 +181,70 @@ def main():
     if args.download:
         
         os.makedirs(args.csv_path, exist_ok=True)
-        api = wandb.Api()
-        runs = api.runs(args.project) 
+        
+        # Initialize WandB API with debugging
+        try:
+            api = wandb.Api()
+            print(f"WandB API inizializzata correttamente")
+            print(f"Current user: {api.viewer}")
+        except Exception as e:
+            print(f"Errore nell'inizializzazione dell'API WandB: {e}")
+            print("Prova a fare login con: wandb login")
+            return
+        
+        # Construct project path - if no entity specified, try with user's entity
+        if args.entity:
+            project_path = f"{args.entity}/{args.project}"
+        else:
+            # Try to get user's default entity
+            try:
+                user_entity = api.viewer['entity']
+                project_path = f"{user_entity}/{args.project}"
+                print(f"Nessuna entità specificata, usando l'entità dell'utente: {user_entity}")
+            except:
+                project_path = args.project
+        
+        print(f"Tentativo di accesso al progetto: {project_path}")
+        
+        try:
+            # Get project info first
+            project = api.project(project_path)
+            print(f"Progetto trovato: {project.name}")
+            print(f"Entità del progetto: {project.entity}")
+        except Exception as e:
+            print(f"Errore nell'accesso al progetto {project_path}: {e}")
+            print("Progetti disponibili:")
+            try:
+                for proj in api.projects():
+                    print(f"  - {proj.entity}/{proj.name}")
+            except Exception as proj_e:
+                print(f"Errore nel listare i progetti: {proj_e}")
+            return
+        
+        # Get runs with detailed debugging
+        try:
+            print(f"Recupero runs dal progetto {project_path}...")
+            runs = api.runs(project_path)
+            runs_list = list(runs)
+            print(f"Numero totale di runs trovati: {len(runs_list)}")
+            
+            if len(runs_list) == 0:
+                print("NESSUN RUN TROVATO!")
+                print("Possibili cause:")
+                print("1. Il progetto non contiene run")
+                print("2. Non hai i permessi per vedere i run")
+                print("3. Il nome del progetto o dell'entità è errato")
+                return
+            else:
+                print(f"Primi 5 run trovati:")
+                for i, run in enumerate(runs_list[:5]):
+                    print(f"  {i+1}. ID: {run.id}, Nome: {run.name}, Tags: {run.tags}")
+            
+        except Exception as e:
+            print(f"Errore nel recupero dei runs: {e}")
+            return
+        
+        runs = runs_list
         
         # Filter runs by tags and config
         filtered_runs = []
@@ -191,10 +257,12 @@ def main():
             
             # Check if the run's config matches all specified config filters
             config_match = check_config_match(run.config, config_filters)
-            
+            print(f"Run ID: {run.id}, Tags: {run.tags}, Config: {run.config}")
+            print(f"Tags match: {tags_match}, Config match: {config_match}")
             if tags_match and config_match:
                 filtered_runs.append(run)
         
+        print(f"Runs dopo filtrazione: {len(filtered_runs)}")
         runs = filtered_runs
         
         # Group runs by the specified config parameter if max_runs_per_group is set
