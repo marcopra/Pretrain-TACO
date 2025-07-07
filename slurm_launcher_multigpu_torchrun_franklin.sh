@@ -28,38 +28,28 @@ echo "=== Network Interfaces ==="
 ip addr show | grep -E "^[0-9]+:|inet "
 echo "==========================="
 
-# Rilevamento automatico della rete Infiniband
+# Rilevamento migliorato delle interfacce di rete
 IB_INTERFACES=$(ip addr show | grep -E "ib[0-9]+" | head -1 | awk '{print $2}' | cut -d: -f1)
-ETH_INTERFACES=$(ip addr show | grep -E "eth[0-9]+|ens[0-9]+|enp[0-9]+" | head -1 | awk '{print $2}' | cut -d: -f1)
+# Trova interfacce Ethernet attive (UP e con IP)
+ETH_INTERFACES=$(ip addr show | grep -E "eno[0-9]+|eth[0-9]+|ens[0-9]+|enp[0-9]+" | grep "state UP" | head -1 | awk '{print $2}' | cut -d: -f1)
 
 echo "IB Interfaces found: $IB_INTERFACES"
 echo "Ethernet Interfaces found: $ETH_INTERFACES"
 
-# Configurazione NCCL adattiva
-if [ -n "$IB_INTERFACES" ]; then
-    echo "Configuring for Infiniband network..."
-    export NCCL_IB_DISABLE=0
-    export NCCL_NET_GDR_LEVEL=2
-    export NCCL_IB_GID_INDEX=3
-    export NCCL_SOCKET_IFNAME=$IB_INTERFACES
-    export NCCL_IB_HCA=mlx5
-    export NCCL_IB_TIMEOUT=22
-    export NCCL_IB_RETRY_CNT=7
-    export NCCL_DEBUG=WARN
-else
-    echo "Infiniband not found, falling back to Ethernet..."
-    export NCCL_IB_DISABLE=1
-    export NCCL_SOCKET_IFNAME=$ETH_INTERFACES
-    export NCCL_DEBUG=WARN
-fi
+# Configurazione NCCL semplificata per Ethernet
+echo "Configuring for Ethernet network (no Infiniband available)..."
+export NCCL_IB_DISABLE=1
+export NCCL_SOCKET_IFNAME=$ETH_INTERFACES
+export NCCL_DEBUG=INFO
+export NCCL_SOCKET_NTHREADS=1
+export NCCL_NSOCKS_PERTHREAD=1
 
-# Esclusioni comuni per entrambi i casi
+# Esclusioni comuni
 export NCCL_SOCKET_IFNAME=$NCCL_SOCKET_IFNAME,^lo,^docker,^virbr
 
 # Configurazioni generali per stabilità
-export NCCL_BUFFSIZE=8388608
-export NCCL_NTHREADS=4
-export NCCL_RINGS=2
+export NCCL_BUFFSIZE=2097152
+export NCCL_TREE_THRESHOLD=0
 
 echo "Final NCCL Configuration:"
 echo "NCCL_IB_DISABLE: $NCCL_IB_DISABLE"
@@ -76,7 +66,7 @@ srun torchrun \
     --rdzv_backend=c10d \
     --rdzv_endpoint=$MASTER_ADDR:$MASTER_PORT \
     train_metaworld_ed4ct.py \
-    batch_size=128 env_name=push-v2 \
+    batch_size=128 env_name=push-v3 \
     wandb_tag="SLURM_TORCHRUN" \
     agent.pretrained_path=/leonardo/home/userexternal/mprattico/Pretrain-TACO/models/resnet50_l5.tar \
     wandb_mode=offline \
