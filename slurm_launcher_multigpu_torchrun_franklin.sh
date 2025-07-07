@@ -1,19 +1,19 @@
 #!/bin/bash
 #SBATCH --job-name=metataco_train
-#SBATCH --nodes=2
-#SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=8
-#SBATCH --gres=gpu:
-#SBATCH --time=24:00:00
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=4
+#SBATCH --cpus-per-task=4
+#SBATCH --gres=gpu:4
+#SBATCH --time=48:00:00
 #SBATCH --output=job_%j.out
 #SBATCH --error=%j.err
+#SBATCH --partition=gpua-longrun
 
 cd $SLURM_SUBMIT_DIR
 source ~/.bashrc
-module unload anaconda3/2023.09-0
-module load anaconda3/2023.09-0
+
 conda activate metataco
-module unload anaconda3/2023.09-0
+
 
 # Set master node
 export MASTER_ADDR=$(scontrol show hostnames $SLURM_JOB_NODELIST | head -n 1)
