@@ -23,36 +23,27 @@ echo "MASTER_PORT: $MASTER_PORT"
 echo "SLURM_NODEID: $SLURM_NODEID"
 echo "SLURM_JOB_NUM_NODES: $SLURM_JOB_NUM_NODES"
 
-# Debug delle interfacce di rete disponibili
-echo "=== Network Interfaces ==="
-ip addr show | grep -E "^[0-9]+:|inet "
-echo "==========================="
-
-# Rilevamento migliorato delle interfacce di rete
-IB_INTERFACES=$(ip addr show | grep -E "ib[0-9]+" | head -1 | awk '{print $2}' | cut -d: -f1)
-# Trova interfacce Ethernet attive (UP e con IP)
-ETH_INTERFACES=$(ip addr show | grep -E "eno[0-9]+|eth[0-9]+|ens[0-9]+|enp[0-9]+" | grep "state UP" | head -1 | awk '{print $2}' | cut -d: -f1)
-
-echo "IB Interfaces found: $IB_INTERFACES"
-echo "Ethernet Interfaces found: $ETH_INTERFACES"
-
-# Configurazione NCCL semplificata per Ethernet
-echo "Configuring for Ethernet network (no Infiniband available)..."
+# Configurazione NCCL forzata per Ethernet (no Infiniband)
 export NCCL_IB_DISABLE=1
-export NCCL_SOCKET_IFNAME=$ETH_INTERFACES
+export NCCL_NET=Socket
+export NCCL_SOCKET_IFNAME=eno12399
 export NCCL_DEBUG=INFO
 export NCCL_SOCKET_NTHREADS=1
 export NCCL_NSOCKS_PERTHREAD=1
-
-# Esclusioni comuni
-export NCCL_SOCKET_IFNAME=$NCCL_SOCKET_IFNAME,^lo,^docker,^virbr
-
-# Configurazioni generali per stabilità
 export NCCL_BUFFSIZE=2097152
 export NCCL_TREE_THRESHOLD=0
 
+# Evita conflitti con configurazioni IB
+unset NCCL_NET_GDR_LEVEL
+unset NCCL_IB_GID_INDEX
+unset NCCL_IB_HCA
+unset NCCL_IB_TIMEOUT
+unset NCCL_IB_RETRY_CNT
+unset NCCL_IB_CUDA_SUPPORT
+
 echo "Final NCCL Configuration:"
 echo "NCCL_IB_DISABLE: $NCCL_IB_DISABLE"
+echo "NCCL_NET: $NCCL_NET"
 echo "NCCL_SOCKET_IFNAME: $NCCL_SOCKET_IFNAME"
 echo "NCCL_DEBUG: $NCCL_DEBUG"
 
@@ -66,7 +57,7 @@ srun torchrun \
     --rdzv_backend=c10d \
     --rdzv_endpoint=$MASTER_ADDR:$MASTER_PORT \
     train_metaworld_ed4ct.py \
-    batch_size=128 env_name=push-v3 \
+    batch_size=128 env_name=push-v2 \
     wandb_tag="SLURM_TORCHRUN" \
     agent.pretrained_path=/leonardo/home/userexternal/mprattico/Pretrain-TACO/models/resnet50_l5.tar \
     wandb_mode=offline \
