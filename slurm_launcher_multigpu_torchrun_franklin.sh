@@ -76,7 +76,7 @@ srun torchrun \
     --rdzv_backend=c10d \
     --rdzv_endpoint=$MASTER_ADDR:$MASTER_PORT \
     train_metaworld_ed4ct.py \
-    batch_size=128 env_name=push-v3 \
+    batch_size=128 env_name=push-v2 \
     wandb_tag="SLURM_TORCHRUN" \
     agent.pretrained_path=/leonardo/home/userexternal/mprattico/Pretrain-TACO/models/resnet50_l5.tar \
     wandb_mode=offline \
