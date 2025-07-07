@@ -5,12 +5,14 @@ Examples:
 python generate_config.py --base_path data_episodes/MT50/0.33 --output config.json
 python generate_config.py --base_path /path/to/datasets --n_pretrain 8 --n_test 2 --absolute_paths --output config.json
 python generate_config.py --scan_path /path/to/unstructured --n_pretrain 10 --n_test 3 --output my_config.json
+python generate_config.py --base_path data_episodes/MT50 --n_test 10 --permutations 5 --ood_constraints "basketball,bin-picking,button-press,push,shelf-place"
 """
 
 import os
 import json
 import random
 import argparse
+import itertools
 from pathlib import Path
 
 
@@ -102,18 +104,136 @@ def to_path_strings(datasets, absolute_paths=False, base_path=None):
 
 def count_episodes_in_dataset(dataset_path):
     """Count number of episodes (.npz files) in a dataset"""
+    # Removed - not needed anymore
+    return 0
+
+
+def extract_task_name(dataset_path):
+    """Extract task name from dataset path"""
     dataset_path = Path(dataset_path)
-    npz_files = list(dataset_path.glob('*.npz'))
-    return len(npz_files)
+    folder_name = dataset_path.name
+    
+    # Extract task name from folder name like "assembly-v2_task0_fs3_ar2_ri1_rg0_exp=0"
+    # The task name is the part before the first underscore that's not "task"
+    parts = folder_name.split('_')
+    if parts:
+        # Take the first part which should contain the task name
+        task_part = parts[0]
+        # Remove version suffixes like -v2, -v1
+        task_name = task_part.replace('-v2', '').replace('-v1', '')
+        return task_name
+    
+    # Fallback to using the full folder name if parsing fails
+    return folder_name
 
 
-def generate_config(base_path=None, scan_path=None, n_pretrain=8, n_test=2, 
-                   absolute_paths=False, output="config.json", seed=None):
-    """Generate configuration file"""
+def encode_task_name_camelcase(task_name):
+    """Convert task name to CamelCase encoding"""
+    # Remove common suffixes like -v2
+    clean_name = task_name.replace('-v2', '').replace('-v1', '')
+    
+    # Split by hyphens and capitalize each part
+    parts = clean_name.split('-')
+    camel_case = ''.join(word.capitalize() for word in parts)
+    
+    return camel_case
+
+
+def generate_encoded_task_string(task_names, max_length=200):
+    """Generate encoded string from task names, choosing shortest representation"""
+    # Encode all task names
+    encoded_tasks = [encode_task_name_camelcase(task) for task in sorted(task_names)]
+    
+    # Try the full concatenated string first
+    full_string = ''.join(encoded_tasks)
+    
+    if len(full_string) <= max_length:
+        return full_string, 'ID' if len(task_names) > 1 else 'ID'
+    
+    # If too long, try first 3-4 characters of each task
+    abbreviated = ''.join(task[:4] for task in encoded_tasks)
+    
+    if len(abbreviated) <= max_length:
+        return abbreviated, 'ID' if len(task_names) > 1 else 'ID'
+    
+    # If still too long, try first 3 characters
+    abbreviated_short = ''.join(task[:3] for task in encoded_tasks)
+    
+    if len(abbreviated_short) <= max_length:
+        return abbreviated_short, 'ID' if len(task_names) > 1 else 'ID'
+    
+    # If still too long, take first N tasks and add "Plus" at the end
+    if len(encoded_tasks) > 10:
+        # Take first 8 tasks with 3 chars each + "Plus" = ~28 chars
+        truncated = ''.join(task[:3] for task in encoded_tasks[:8]) + "Plus"
+        return truncated, 'ID' if len(task_names) > 1 else 'ID'
+    
+    # Last resort: just use count (this should rarely happen now)
+    return f"{len(task_names)}Tasks", 'ID' if len(task_names) > 1 else 'ID'
+
+
+def check_ood_constraints(test_datasets, ood_constraints):
+    """Check if OOD constraints are satisfied"""
+    test_task_names = [extract_task_name(dataset) for dataset in test_datasets]
+    
+    for constraint in ood_constraints:
+        if constraint not in test_task_names:
+            return False
+    return True
+
+
+def generate_valid_permutation(all_datasets, n_test, ood_constraints):
+    """Generate a single valid permutation that satisfies OOD constraints"""
+    # Find datasets that match OOD constraints
+    ood_datasets = []
+    for constraint in ood_constraints:
+        matching_datasets = [dataset for dataset in all_datasets 
+                           if extract_task_name(dataset) == constraint]
+        if not matching_datasets:
+            raise ValueError(f"OOD constraint task '{constraint}' not found in datasets")
+        ood_datasets.extend(matching_datasets)
+    
+    # Remove duplicates while preserving order
+    ood_datasets = list(dict.fromkeys(ood_datasets))
+    
+    if len(ood_datasets) > n_test:
+        raise ValueError(f"OOD constraints require {len(ood_datasets)} datasets but only {n_test} test datasets requested")
+    
+    # Get remaining datasets for selection
+    remaining_datasets = [d for d in all_datasets if d not in ood_datasets]
+    additional_test_needed = n_test - len(ood_datasets)
+    
+    if additional_test_needed == 0:
+        # Only OOD datasets in test set
+        test_datasets = ood_datasets
+        pretrain_datasets = remaining_datasets
+    else:
+        # Randomly select additional test datasets
+        if len(remaining_datasets) < additional_test_needed:
+            raise ValueError(f"Not enough remaining datasets to satisfy n_test requirement")
+        
+        additional_test = random.sample(remaining_datasets, additional_test_needed)
+        test_datasets = ood_datasets + additional_test
+        pretrain_datasets = [d for d in all_datasets if d not in test_datasets]
+    
+    return pretrain_datasets, test_datasets
+
+
+def generate_config(base_path=None, scan_path=None, n_pretrain=None, n_test=2, 
+                   absolute_paths=False, output="config.json", seed=None,
+                   permutations=None, ood_constraints=None):
+    """Generate configuration file(s)"""
     
     if seed is not None:
         random.seed(seed)
         print(f"Using random seed: {seed}")
+    
+    # Parse OOD constraints
+    if ood_constraints:
+        ood_constraints = [task.strip() for task in ood_constraints.split(',')]
+        print(f"OOD constraints: {ood_constraints}")
+    else:
+        ood_constraints = []
     
     # Determine which path to use
     if base_path and scan_path:
@@ -129,10 +249,9 @@ def generate_config(base_path=None, scan_path=None, n_pretrain=8, n_test=2,
     if base_path and has_structured_layout(base_path):
         print(f"Found structured layout in {base_path}")
         pretraining_datasets, test_datasets = get_structured_datasets(base_path)
-        print(f"Pretraining datasets: {len(pretraining_datasets)}")
-        print(f"Test datasets: {len(test_datasets)}")
+        all_datasets = pretraining_datasets + test_datasets
     else:
-        # Scan for all datasets and split randomly
+        # Scan for all datasets
         if base_path:
             print(f"No structured layout found in {base_path}, scanning for datasets...")
         else:
@@ -142,80 +261,157 @@ def generate_config(base_path=None, scan_path=None, n_pretrain=8, n_test=2,
         
         if not all_datasets:
             raise ValueError(f"No datasets found in {working_path}")
-        
-        print(f"Found {len(all_datasets)} total datasets")
-        pretraining_datasets, test_datasets = split_datasets_randomly(all_datasets, n_pretrain, n_test)
-        
-        print(f"Randomly assigned {len(pretraining_datasets)} datasets to pretraining")
-        print(f"Randomly assigned {len(test_datasets)} datasets to test")
     
-    # Convert to string paths
-    pretraining_paths = to_path_strings(pretraining_datasets, absolute_paths)
-    test_paths = to_path_strings(test_datasets, absolute_paths)
+    print(f"Found {len(all_datasets)} total datasets")
     
-    # Create config dictionary
-    config = {
-        "pretraining_datasets": pretraining_paths,
-        "test_datasets": test_paths,
-        "metadata": {
-            "total_pretraining_datasets": len(pretraining_paths),
-            "total_test_datasets": len(test_paths),
-            "generated_from": str(working_path),
-            "absolute_paths": absolute_paths,
-            "random_seed": seed
+    # Calculate n_pretrain if not specified
+    if n_pretrain is None:
+        n_pretrain = len(all_datasets) - n_test
+        print(f"Calculated n_pretrain = {n_pretrain}")
+    
+    # Validate parameters
+    if n_pretrain + n_test != len(all_datasets):
+        raise ValueError(f"n_pretrain ({n_pretrain}) + n_test ({n_test}) != total datasets ({len(all_datasets)})")
+    
+    # Generate permutations
+    if permutations is None or permutations == 1:
+        # Single configuration
+        if ood_constraints:
+            pretraining_datasets, test_datasets = generate_valid_permutation(all_datasets, n_test, ood_constraints)
+        else:
+            # Random split
+            pretraining_datasets, test_datasets = split_datasets_randomly(all_datasets, n_pretrain, n_test)
+        
+        configs_to_generate = [(pretraining_datasets, test_datasets, 0)]
+    else:
+        # Multiple permutations - generate exactly what's requested
+        configs_to_generate = []
+        seen_configs = set()
+        attempts = 0
+        max_attempts_per_config = 4
+        
+        for perm_id in range(permutations):
+            config_attempts = 0
+            found_unique = False
+            
+            while config_attempts < max_attempts_per_config and not found_unique:
+                config_attempts += 1
+                attempts += 1
+                
+                try:
+                    if ood_constraints:
+                        pretrain_datasets, test_datasets = generate_valid_permutation(all_datasets, n_test, ood_constraints)
+                    else:
+                        pretrain_datasets, test_datasets = split_datasets_randomly(all_datasets, n_pretrain, n_test)
+                    
+                    # Create a hashable representation to check for duplicates
+                    pretrain_names = tuple(sorted([extract_task_name(d) for d in pretrain_datasets]))
+                    test_names = tuple(sorted([extract_task_name(d) for d in test_datasets]))
+                    config_signature = (pretrain_names, test_names)
+                    
+                    if config_signature not in seen_configs:
+                        seen_configs.add(config_signature)
+                        configs_to_generate.append((pretrain_datasets, test_datasets, perm_id))
+                        found_unique = True
+                        print(f"Generated permutation {perm_id + 1}/{permutations}")
+                    
+                except Exception as e:
+                    print(f"Error generating permutation {perm_id}: {e}")
+                    continue
+            
+            if not found_unique:
+                raise RuntimeError(f"Failed to generate unique permutation {perm_id + 1} after {max_attempts_per_config} attempts. "
+                                 f"Total attempts so far: {attempts}")
+        
+        print(f"Successfully generated {len(configs_to_generate)} unique configurations in {attempts} total attempts")
+    
+    # Generate configuration files
+    generated_files = []
+    
+    for pretraining_datasets, test_datasets, perm_id in configs_to_generate:
+        # Convert to string paths
+        pretraining_paths = to_path_strings(pretraining_datasets, absolute_paths)
+        test_paths = to_path_strings(test_datasets, absolute_paths)
+        
+        # Generate encoded strings for naming - ensure alphabetical order
+        pretrain_task_names = sorted([extract_task_name(d) for d in pretraining_datasets])
+        test_task_names = sorted([extract_task_name(d) for d in test_datasets])
+        
+        pretrain_encoded, _ = generate_encoded_task_string(pretrain_task_names)
+        test_encoded, _ = generate_encoded_task_string(test_task_names)
+        
+        # Determine which set to use for filename and set type
+        if ood_constraints:
+            # If we have OOD constraints, use the shorter encoding between ID and OOD
+            if len(pretrain_encoded) <= len(test_encoded):
+                encoded_tasks = pretrain_encoded
+                set_type = "ID"
+            else:
+                encoded_tasks = test_encoded
+                set_type = "OOD"
+        else:
+            # No OOD constraints, use pretraining tasks (ID) by default
+            # unless test encoding is significantly shorter
+            if len(test_encoded) < len(pretrain_encoded):
+                encoded_tasks = test_encoded
+                set_type = "ID"  # Still ID since no OOD constraints
+            else:
+                encoded_tasks = pretrain_encoded
+                set_type = "ID"
+        
+        # Generate filename
+        filename = f"MT{n_pretrain}{set_type}{encoded_tasks}.json"
+        
+        # Use provided output path for directory
+        output_dir = Path(output).parent if output != "config.json" else Path(".")
+        output_path = output_dir / filename
+        
+        # Create config dictionary
+        config = {
+            "pretraining_datasets": pretraining_paths,
+            "test_datasets": test_paths,
+            "metadata": {
+                "total_pretraining_datasets": len(pretraining_paths),
+                "total_test_datasets": len(test_paths),
+                "n_pretrain": n_pretrain,
+                "n_test": n_test,
+                "generated_from": str(working_path),
+                "absolute_paths": absolute_paths,
+                "random_seed": seed,
+                "permutation_id": perm_id if permutations and permutations > 1 else None,
+                "ood_constraints": ood_constraints,
+                "pretrain_tasks": pretrain_task_names,
+                "test_tasks": test_task_names,
+                "encoded_tasks": encoded_tasks,
+                "set_type": set_type
+            }
         }
-    }
+        
+        # Remove episode counting - not needed
+        
+        # Save config
+        with open(output_path, 'w') as f:
+            json.dump(config, f, indent=2)
+        
+        generated_files.append(str(output_path))
+        
+        print(f"\nGenerated config saved to: {output_path}")
+        print(f"Pretraining datasets: {len(pretraining_paths)}")
+        print(f"Test datasets: {len(test_paths)}")
+        
+        if len(configs_to_generate) == 1:  # Only print details for single config
+            print("\nPretraining datasets:")
+            for i, path in enumerate(pretraining_paths, 1):
+                task_name = extract_task_name(path)
+                print(f"  {i}. {task_name} -> {path}")
+            
+            print("\nTest datasets:")
+            for i, path in enumerate(test_paths, 1):
+                task_name = extract_task_name(path)
+                print(f"  {i}. {task_name} -> {path}")
     
-    # Add episode counts - use the actual paths, not the dataset objects
-    config["metadata"]["pretraining_episodes"] = {}
-    config["metadata"]["test_episodes"] = {}
-    
-    total_pretrain_episodes = 0
-    for path in pretraining_paths:
-        # Resolve path properly for counting
-        if absolute_paths:
-            count_path = path
-        else:
-            count_path = Path.cwd() / path
-        episodes = count_episodes_in_dataset(count_path)
-        config["metadata"]["pretraining_episodes"][path] = episodes
-        total_pretrain_episodes += episodes
-    
-    total_test_episodes = 0
-    for path in test_paths:
-        # Resolve path properly for counting
-        if absolute_paths:
-            count_path = path
-        else:
-            count_path = Path.cwd() / path
-        episodes = count_episodes_in_dataset(count_path)
-        config["metadata"]["test_episodes"][path] = episodes
-        total_test_episodes += episodes
-    
-    config["metadata"]["total_pretraining_episodes"] = total_pretrain_episodes
-    config["metadata"]["total_test_episodes"] = total_test_episodes
-    
-    # Save config
-    output_path = Path(output)
-    with open(output_path, 'w') as f:
-        json.dump(config, f, indent=2)
-    
-    print(f"\nGenerated config saved to: {output_path}")
-    print(f"Pretraining datasets: {len(pretraining_paths)} ({total_pretrain_episodes} episodes)")
-    print(f"Test datasets: {len(test_paths)} ({total_test_episodes} episodes)")
-    
-    # Print dataset lists
-    print("\nPretraining datasets:")
-    for i, path in enumerate(pretraining_paths, 1):
-        episodes = config["metadata"]["pretraining_episodes"][path]
-        print(f"  {i}. {path} ({episodes} episodes)")
-    
-    print("\nTest datasets:")
-    for i, path in enumerate(test_paths, 1):
-        episodes = config["metadata"]["test_episodes"][path]
-        print(f"  {i}. {path} ({episodes} episodes)")
-    
-    return config
+    print(f"\nTotal generated files: {len(generated_files)}")
+    return generated_files
 
 
 if __name__ == "__main__":
@@ -229,10 +425,16 @@ if __name__ == "__main__":
                            help='Path to scan for datasets (will randomly split)')
     
     # Dataset split arguments
-    parser.add_argument('--n_pretrain', type=int, default=8,
-                       help='Number of datasets for pretraining (default: 8)')
+    parser.add_argument('--n_pretrain', type=int, default=None,
+                       help='Number of datasets for pretraining (default: total - n_test)')
     parser.add_argument('--n_test', type=int, default=2,
-                       help='Number of datasets for testing (default: 2)')
+                       help='Number of datasets for testing')
+    
+    # Permutation arguments
+    parser.add_argument('--permutations', type=int, default=None,
+                       help='Number of permutations to generate (default: None for single config)')
+    parser.add_argument('--ood_constraints', type=str, default=None,
+                       help='Comma-separated list of tasks that must be in test set (e.g., "basketball,bin-picking,button-press")')
     
     # Output arguments
     parser.add_argument('--output', type=str, default='config.json',
@@ -254,7 +456,23 @@ if __name__ == "__main__":
             n_test=args.n_test,
             absolute_paths=args.absolute_paths,
             output=args.output,
-            seed=args.seed
+            seed=args.seed,
+            permutations=args.permutations,
+            ood_constraints=args.ood_constraints
+        )
+    except Exception as e:
+        print(f"Error: {e}")
+        exit(1)
+        generate_config(
+            base_path=args.base_path,
+            scan_path=args.scan_path,
+            n_pretrain=args.n_pretrain,
+            n_test=args.n_test,
+            absolute_paths=args.absolute_paths,
+            output=args.output,
+            seed=args.seed,
+            permutations=args.permutations,
+            ood_constraints=args.ood_constraints
         )
     except Exception as e:
         print(f"Error: {e}")

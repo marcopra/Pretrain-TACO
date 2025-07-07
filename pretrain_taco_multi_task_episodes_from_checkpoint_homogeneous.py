@@ -16,6 +16,25 @@ from pathlib import Path
 from agents.taco import TACOAgent
 from pretraining_utils import load_unified_dataset
 
+
+def extract_task_name_from_path(dataset_path):
+    """Extract task name from dataset path (same logic as generate_config.py)"""
+    dataset_path = Path(dataset_path)
+    folder_name = dataset_path.name
+    
+    # Extract task name from folder name 
+    parts = folder_name.split('_')
+    if parts:
+        # Take the first part which should contain the task name
+        task_part = parts[0]
+        # Remove version suffixes like -v2, -v3
+        task_name = task_part.replace('-v2', '').replace('-v3', '')
+        return task_name
+    
+    # Fallback to using the full folder name if parsing fails
+    return folder_name
+
+
 # Main function
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -71,7 +90,7 @@ if __name__ == "__main__":
         with open(config_path, 'r') as f:
             config_data = json.load(f)
         dataset_dirs = config_data.get('pretraining_datasets', [])
-        dataset_names = [Path(d).name for d in dataset_dirs]
+        dataset_names = [extract_task_name_from_path(d) for d in dataset_dirs]
         print(f"Found {len(dataset_dirs)} pretraining datasets in config: {dataset_names}")
     else:
         # Original folder-based logic
@@ -91,9 +110,11 @@ if __name__ == "__main__":
         # Get dataset directories for folder-based config
         if os.path.exists(pretraining_dataset_path):
             dataset_dirs = [d for d in Path(pretraining_dataset_path).iterdir() if d.is_dir()]
+            dataset_names = [extract_task_name_from_path(d) for d in dataset_dirs]
             print(f"Found {len(dataset_dirs)} dataset subdirectories in {pretraining_dataset_path}")
         else:
             dataset_dirs = []
+            dataset_names = []
             print(f"Pretraining dataset path not found: {pretraining_dataset_path}")
     
     # Load datasets
