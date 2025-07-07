@@ -2,11 +2,11 @@
 
 # Define dataset config paths
 dataset_configs=(
-    "configs_data_MT/MT1IDButtonPressTopdownWall.json"
-    "configs_data_MT/MT1IDDrawerOpen.json"
-    "configs_data_MT/MT1IDHandlePressSide.json"
-    "configs_data_MT/MT1IDPushWall.json"
-    "configs_data_MT/MT1IDSweep.json"
+    # "configs_data_MT/MT1IDButtonPressTopdownWall.json"
+    # "configs_data_MT/MT1IDDrawerOpen.json"
+    # "configs_data_MT/MT1IDHandlePressSide.json"
+    # "configs_data_MT/MT1IDPushWall.json"
+    # "configs_data_MT/MT1IDSweep.json"
     "configs_data_MT/MT10IDAssemblyButtonPressTopdownDoorUnlockFaucetCloseHandlePressHandlePressSideHandlePullPickOutOfHolePickPlacePushWall.json"
     "configs_data_MT/MT10IDBoxCloseDoorUnlockDrawerCloseFaucetCloseFaucetOpenPickOutOfHolePushBackSweepSweepIntoWindowClose.json"
     "configs_data_MT/MT10IDBoxCloseDrawerCloseHandlePressSideHandlePullSideLeverPullPickOutOfHolePlateSlideBackSidePlateSlideSideReachSweepInto.json"
