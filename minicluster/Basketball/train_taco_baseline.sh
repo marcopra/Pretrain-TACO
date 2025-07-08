@@ -35,7 +35,7 @@ case $no_taco in
 esac
 
 # Number of runs
-num_runs=9
+num_runs=7
 
 # Run experiments in a loop
 for i in $(seq 1 $num_runs); do

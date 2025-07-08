@@ -78,7 +78,7 @@ esac
 model_path="/home/mprattico/Pretrain-TACO/models/taco_MT_MT50_OOD_Basketball_0.${exp}_lr\=${lr_value}_ts\=${ts_value}_curl_rew_best.pt"
 
 # Number of runs
-num_runs=9
+num_runs=7
 
 # Run experiments in a loop
 for i in $(seq 1 $num_runs); do
