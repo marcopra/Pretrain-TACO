@@ -1,21 +1,24 @@
 #!/bin/bash
-#PBS -l select=1:ncpus=4:ngpus=1
-#PBS -l walltime=24:00:00
-#PBS -j oe
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=4
+#SBATCH --time=24:00:00
+#SBATCH --output=%j.out
+#SBATCH --error=%j.err
+#SBATCH --partition=gpuv
 
+cd $SLURM_SUBMIT_DIR
 
-cd $PBS_O_WORKDIR
-
-# Use an optional experiment argument passed via qsub -v EXPERIMENT=...
+# Use environment variables passed via sbatch
 SEED=${SEED:-0}
-ENV_NAME=${ENV_NAME:-"push-v2"}
+ENV_NAME=${ENV_NAME:-"bin-picking-v2"}
 RANDOM_HAND=${RANDOM_HAND:-0}
 RANDOM_GOAL=${RANDOM_GOAL:-0}
 MODEL_PATH=${MODEL_PATH:-"none"}
 WANDB_TAG=${WANDB_TAG:-"none"}
-WANDB_PROJECT=${WANDB_PROJECT:-"taco_metaworld"}
 FREEZE=${FREEZE:-"false"}
 NO_TACO=${NO_TACO:-"false"}
+WANDB_PROJECT=${WANDB_PROJECT:-"taco_metaworld"}
 
 # Set seed argument based on SEED value
 if [ "$SEED" -eq 1 ]; then
@@ -48,18 +51,15 @@ cleanup() {
     echo "Cleanup completed"
 }
 
-# Set trap to ensure cleanup happens on job termination (including wall time limit)
+# Set trap to ensure cleanup happens on job termination
 trap cleanup EXIT HUP INT TERM
 
 # Load environment
 source ~/.bashrc
 conda activate metataco
 
-echo python3 train_metaworld.py agent.pretrained_path=\"${MODEL_PATH}\" exp_name=\"${EXP_NAME}\" seed=$SEED_ARG env_name=$ENV_NAME random_init=$RANDOM_HAND random_goal=$RANDOM_GOAL wandb_tag=$WANDB_TAG wandb_project=$WANDB_PROJECT num_train_frames=300000 agent.freeze_encoder=$FREEZE agent.no_taco=$NO_TACO
-
-
 # Use quotes and escape model path appropriately
 python3 train_metaworld.py agent.pretrained_path=\"${MODEL_PATH}\" exp_name=\"${EXP_NAME}\" seed=$SEED_ARG env_name=$ENV_NAME random_init=$RANDOM_HAND random_goal=$RANDOM_GOAL wandb_tag=$WANDB_TAG wandb_project=$WANDB_PROJECT num_train_frames=300000 agent.freeze_encoder=$FREEZE agent.no_taco=$NO_TACO
 
 # Cleanup will be triggered automatically by the trap
- rm -rf exp_local/metaworld/$EXP_NAME*
+rm -rf exp_local/metaworld/$EXP_NAME*

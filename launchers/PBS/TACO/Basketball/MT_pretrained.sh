@@ -12,6 +12,7 @@ RANDOM_HAND=${RANDOM_HAND:-0}
 RANDOM_GOAL=${RANDOM_GOAL:-0}
 MODEL_PATH=${MODEL_PATH:-"none"}
 WANDB_TAG=${WANDB_TAG:-"none"}
+WANDB_PROJECT=${WANDB_PROJECT:-"taco_metaworld"}
 FREEZE=${FREEZE:-"false"}
 NO_TACO=${NO_TACO:-"false"}
 
@@ -55,7 +56,7 @@ conda activate metataco
 
 
 # Use quotes and escape model path appropriately
-python3 train_metaworld.py agent.pretrained_path=\"${MODEL_PATH}\" exp_name=\"${EXP_NAME}\" seed=$SEED_ARG env_name=$ENV_NAME random_init=$RANDOM_HAND random_goal=$RANDOM_GOAL wandb_tag=$WANDB_TAG num_train_frames=300000 agent.freeze_encoder=$FREEZE agent.no_taco=$NO_TACO wandb_project=taco_MT
+python3 train_metaworld.py agent.pretrained_path=\"${MODEL_PATH}\" exp_name=\"${EXP_NAME}\" seed=$SEED_ARG env_name=$ENV_NAME random_init=$RANDOM_HAND random_goal=$RANDOM_GOAL wandb_tag=$WANDB_TAG wandb_project=$WANDB_PROJECT num_train_frames=300000 agent.freeze_encoder=$FREEZE agent.no_taco=$NO_TACO
 
 # Cleanup will be triggered automatically by the trap
 rm -rf exp_local/metaworld/$EXP_NAME*
