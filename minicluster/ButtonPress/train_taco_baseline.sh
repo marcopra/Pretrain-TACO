@@ -42,7 +42,7 @@ for i in $(seq 1 $num_runs); do
     echo "Running experiment $i of $num_runs"
     
     # Run the Python command with the appropriate arguments
-    python3 train_metaworld.py exp_name=baseline${cuda_device} seed=1 env_name=button-press-v2 random_init=true random_goal=false wandb_tag=baseline num_train_frames=300000 device=cuda:${cuda_device} agent.no_taco=${no_taco}
+    python3 train_metaworld.py exp_name=baseline${cuda_device} seed=1 env_name=button-press-v2 random_init=true random_goal=false wandb_tag=baseline num_train_frames=220000 device=cuda:${cuda_device} agent.no_taco=${no_taco}
 
     # Cleanup command
     rm -rf baseline${cuda_device}*

@@ -85,7 +85,7 @@ for i in $(seq 1 $num_runs); do
     echo "Running experiment $i of $num_runs"
     
     # Run the Python command with the appropriate arguments
-    python3 train_metaworld.py agent.pretrained_path="${model_path}" exp_name="${model_path}" seed=1 env_name=bin-picking-v2 random_init=true random_goal=false wandb_tag=MT50${wandb_suffix} num_train_frames=300000 device=cuda:${cuda_device} agent.no_taco=${no_taco}
+    python3 train_metaworld.py agent.pretrained_path="${model_path}" exp_name="${model_path}" seed=1 env_name=bin-picking-v2 random_init=true random_goal=false wandb_tag=MT50${wandb_suffix} num_train_frames=220000 device=cuda:${cuda_device} agent.no_taco=${no_taco}
 
     # Cleanup command
     rm -rf exp_local/metaworld${model_path}

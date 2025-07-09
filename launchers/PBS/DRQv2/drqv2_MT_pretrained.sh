@@ -41,11 +41,11 @@ trap cleanup EXIT HUP INT TERM
 source ~/.bashrc
 conda activate metataco
 
-echo python3 train_metaworld.py --config-name config_drqv2metaworld agent.pretrained_path=\"${MODEL_PATH}\" exp_name=\"${EXP_NAME}\" seed=$SEED_ARG env_name=$ENV_NAME random_init=$RANDOM_HAND random_goal=$RANDOM_GOAL wandb_tag=$WANDB_TAG num_train_frames=300000 agent.freeze_encoder=$FREEZE
+echo python3 train_metaworld.py --config-name config_drqv2metaworld agent.pretrained_path=\"${MODEL_PATH}\" exp_name=\"${EXP_NAME}\" seed=$SEED_ARG env_name=$ENV_NAME random_init=$RANDOM_HAND random_goal=$RANDOM_GOAL wandb_tag=$WANDB_TAG num_train_frames=220000 agent.freeze_encoder=$FREEZE
 
 
 # Use quotes and escape model path appropriately
-python3 train_metaworld.py --config-name config_drqv2metaworld agent.pretrained_path=\"${MODEL_PATH}\" exp_name=\"${EXP_NAME}\" seed=$SEED_ARG env_name=$ENV_NAME random_init=$RANDOM_HAND random_goal=$RANDOM_GOAL wandb_tag=$WANDB_TAG num_train_frames=300000 agent.freeze_encoder=$FREEZE
+python3 train_metaworld.py --config-name config_drqv2metaworld agent.pretrained_path=\"${MODEL_PATH}\" exp_name=\"${EXP_NAME}\" seed=$SEED_ARG env_name=$ENV_NAME random_init=$RANDOM_HAND random_goal=$RANDOM_GOAL wandb_tag=$WANDB_TAG num_train_frames=220000 agent.freeze_encoder=$FREEZE
 
 # Cleanup will be triggered automatically by the trap
  rm -rf exp_local/metaworld/$EXP_NAME*

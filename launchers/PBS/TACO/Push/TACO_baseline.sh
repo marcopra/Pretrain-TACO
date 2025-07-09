@@ -35,6 +35,6 @@ trap cleanup EXIT HUP INT TERM
 source ~/.bashrc
 conda activate metataco
 
-python3 train_metaworld.py agent.pretrained_path=none exp_name=$EXP_NAME seed=$SEED_ARG env_name=$ENV_NAME random_init=$RANDOM_HAND random_goal=$RANDOM_GOAL wandb_tag="baseline" num_train_frames=300000
+python3 train_metaworld.py agent.pretrained_path=none exp_name=$EXP_NAME seed=$SEED_ARG env_name=$ENV_NAME random_init=$RANDOM_HAND random_goal=$RANDOM_GOAL wandb_tag="baseline" num_train_frames=220000
 
 # Cleanup will be triggered automatically by the trap

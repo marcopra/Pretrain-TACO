@@ -68,7 +68,7 @@ for i in $(seq 1 $num_runs); do
     echo "Using seed: $seed"
     
     # Run the Python command with the appropriate arguments
-    python3 train_metaworld.py agent.pretrained_path="$model_path" exp_name="${model_path}_seed${seed}" seed=$seed env_name=$env_name_full random_init=true random_goal=false wandb_tag=MT50-debug wandb_project=taco_metaworld_debug num_train_frames=300000 device=cuda:${cuda_device} agent.no_taco=false
+    python3 train_metaworld.py agent.pretrained_path="$model_path" exp_name="${model_path}_seed${seed}" seed=$seed env_name=$env_name_full random_init=true random_goal=false wandb_tag=MT50-debug wandb_project=taco_metaworld_debug num_train_frames=220000 device=cuda:${cuda_device} agent.no_taco=false
 
     # Cleanup command
     rm -rf exp_local/metaworld/${model_path}_seed${seed}

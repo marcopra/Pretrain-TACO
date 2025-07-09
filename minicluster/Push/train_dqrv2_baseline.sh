@@ -50,7 +50,7 @@ for i in $(seq 1 $num_runs); do
     echo "Running experiment $i of $num_runs"
     
     # Run the Python command with the appropriate arguments
-    python3 train_metaworld.py --config-name config_drqv2metaworld exp_name=baseline${cuda_device}${freeze_suffix} seed=1 env_name=push-v2 random_init=true random_goal=false wandb_tag=baseline num_train_frames=300000 device=cuda:${cuda_device} agent.freeze_encoder=${freeze_encoder}
+    python3 train_metaworld.py --config-name config_drqv2metaworld exp_name=baseline${cuda_device}${freeze_suffix} seed=1 env_name=push-v2 random_init=true random_goal=false wandb_tag=baseline num_train_frames=220000 device=cuda:${cuda_device} agent.freeze_encoder=${freeze_encoder}
 
     # Cleanup command
     rm -rf exp_local/metaworld/baseline${cuda_device}${freeze_suffix}*
