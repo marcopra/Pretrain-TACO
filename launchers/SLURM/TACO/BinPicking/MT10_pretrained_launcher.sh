@@ -1,6 +1,6 @@
 #!/bin/bash
 
-seeds="1 1 1 1 1 1 1"
+seeds="1"
 env_names=("bin-picking-v2")
 model_paths=(
     "/home/mprattico/Pretrain-TACO/models/mt/MT10/taco_MT_MT10IDAssemblyButtonPressTopdownDoorUnlockFaucetCloseHandlePressHandlePressSideHandlePullPickOutOfHolePickPlacePushWall.json_lr=0.0005_ts=57856000_curl_rew_best.pt"

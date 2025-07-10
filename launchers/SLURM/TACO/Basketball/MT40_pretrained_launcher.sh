@@ -1,6 +1,6 @@
 #!/bin/bash
 
-seeds="1 1 1 1 1 1 1"
+seeds="1"
 env_names=("basketball-v2")
 model_paths=(
     "/home/mprattico/Pretrain-TACO/models/mt/MT40/taco_MT_MT40OODBasketballBinPickingButtonPressButtonPressTopdownWallDialTurnDoorCloseDrawerOpenPushShelfPlaceStickPush.json_lr=0.0005_ts=93644800_curl_rew_best.pt"
