@@ -1240,8 +1240,8 @@ def main():
     # Bootstrap options
     parser.add_argument('--bootstrap', action='store_true', default=False,
                         help='Use stratified bootstrap for confidence intervals')
-    parser.add_argument('--n_bootstrap', type=int, default=1000,
-                        help='Number of bootstrap samples (default: 1000)')
+    parser.add_argument('--n_bootstrap', type=int, default=10000,
+                        help='Number of bootstrap samples (default: 10000)')
     
     # Baseline whiskers option
     parser.add_argument('--baseline_whiskers', action='store_true', default=False,
