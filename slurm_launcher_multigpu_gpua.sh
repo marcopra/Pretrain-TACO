@@ -48,7 +48,7 @@ echo "==============================="
 SEED=$(($RANDOM % 10000)) 
 
 # Run with srun
-srun --ntasks=8 --ntasks-per-node=4 python train_metaworld_ed4ct.py \
+srun --ntasks=4 --ntasks-per-node=4 python train_metaworld_ed4ct.py \
     batch_size=256 env_name=push-v2 \
     wandb_tag="SLURM" \
     agent.pretrained_path=/home/mprattico/Pretrain-TACO/models/resnet50_l5.tar \
