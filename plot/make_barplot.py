@@ -1,8 +1,6 @@
 """
-python plot/make_boxplot.py --csv_path data_plot/push/exp --rename --color --baseline --custom_order --box_type std_err --whiskers_percentile 90 --fixed_x 100000 --y_min 0 --baseline_whiskers -y eval/success_rate
-python plot/make_boxplot.py --csv_path data_plot/push/exp --rename --color --baseline --custom_order --box_type std_err --whiskers_percentile 90 --fixed_x 100000 --y_min 0 -y eval/success_rate
-python plot/make_boxplot.py --csv_path data_plot/push/exp --rename --color --baseline --custom_order --box_type std_err --whiskers_percentile 90 --fixed_x 100000 --y_min 0 --baseline_whiskers -y eval/success_rate
-python plot/make_boxplot.py --csv_path data_plot/push/exp --rename --color --baseline --custom_order --box_type std_err --whiskers_percentile 90 --fixed_x 100000 --y_min 0 -y eval/success_rate
+python plot/make_barplot.py --csv_path data_plot/push/exp --rename --color --baseline --custom_order --bar_type std_err --error_bar_percentile 95 --fixed_x 100000 --y_min 0 --baseline_error_bars -y eval/success_rate
+python plot/make_barplot.py --csv_path data_plot/exp/all --rename --color --baseline --custom_order --bar_type std_err --error_bar_percentile 95 --fixed_x 100000 --y_min 0
 """
 
 import seaborn as sns
@@ -35,14 +33,6 @@ def read_csvs_from_directory(directory):
 def find_closest_x_value(df, x_column, target_x):
     """
     Trova il valore più vicino al target_x nel dataframe.
-    
-    Parameters:
-    - df: DataFrame contenente i dati
-    - x_column: Nome della colonna x
-    - target_x: Valore target da cercare
-    
-    Returns:
-    - Il valore più vicino al target_x presente nel dataframe
     """
     if x_column not in df.columns:
         return None
@@ -51,48 +41,14 @@ def find_closest_x_value(df, x_column, target_x):
     if len(x_values) == 0:
         return None
     
-    # Trova il valore più vicino
     closest_value = min(x_values, key=lambda x: abs(x - target_x))
     return closest_value
 
-def prepare_boxplot_data(grouped_dataframes, y_column):
+def prepare_barplot_data_at_x(grouped_dataframes, x_column, y_column, fixed_x):
     """
-    Prepare data for boxplot by collecting all y values for each algorithm.
-    
-    Parameters:
-    - grouped_dataframes: Dictionary with algorithm names as keys and list of dataframes as values
-    - y_column: Column name to extract values from
-    
-    Returns:
-    - List of dictionaries with 'algorithm' and 'value' columns
+    Prepare data for barplot by collecting y values at a specific x value for each algorithm.
     """
-    boxplot_data = []
-    
-    for algorithm, dataframes in grouped_dataframes.items():
-        for df in dataframes:
-            if y_column in df.columns:
-                for value in df[y_column].dropna():
-                    boxplot_data.append({
-                        'algorithm': algorithm,
-                        'value': value
-                    })
-    
-    return pd.DataFrame(boxplot_data)
-
-def prepare_boxplot_data_at_x(grouped_dataframes, x_column, y_column, fixed_x):
-    """
-    Prepare data for boxplot by collecting y values at a specific x value for each algorithm.
-    
-    Parameters:
-    - grouped_dataframes: Dictionary with algorithm names as keys and list of dataframes as values
-    - x_column: Column name for x-axis data
-    - y_column: Column name to extract values from
-    - fixed_x: Specific x value to extract data for
-    
-    Returns:
-    - DataFrame with 'algorithm' and 'value' columns for the specified x value
-    """
-    boxplot_data = []
+    barplot_data = []
     
     print(f"Cercando dati per x = {fixed_x}...")
     
@@ -101,11 +57,9 @@ def prepare_boxplot_data_at_x(grouped_dataframes, x_column, y_column, fixed_x):
         
         for df in dataframes:
             if x_column in df.columns and y_column in df.columns:
-                # Trova il valore x più vicino al target
                 closest_x = find_closest_x_value(df, x_column, fixed_x)
                 
                 if closest_x is not None:
-                    # Estrai i valori y corrispondenti al closest_x
                     matching_rows = df[df[x_column] == closest_x]
                     if not matching_rows.empty:
                         y_values = matching_rows[y_column].dropna()
@@ -114,9 +68,8 @@ def prepare_boxplot_data_at_x(grouped_dataframes, x_column, y_column, fixed_x):
                         if closest_x != fixed_x:
                             print(f"  {algorithm}: usando x = {closest_x} (più vicino a {fixed_x})")
         
-        # Aggiungi tutti i valori trovati per questo algoritmo
         for value in algorithm_values:
-            boxplot_data.append({
+            barplot_data.append({
                 'algorithm': algorithm,
                 'value': value
             })
@@ -126,29 +79,26 @@ def prepare_boxplot_data_at_x(grouped_dataframes, x_column, y_column, fixed_x):
         else:
             print(f"  {algorithm}: nessun valore trovato per x = {fixed_x}")
     
-    return pd.DataFrame(boxplot_data)
+    return pd.DataFrame(barplot_data)
 
 def apply_name_mapping(grouped_dataframes, name_mapping):
     """
     Applica il mapping dei nomi ai dataframe raggruppati.
-    Aggrega i dataframe per i nomi rinominati se ci sono duplicati.
     """
     renamed_dataframes = {}
     
     for original_name, dataframes in grouped_dataframes.items():
         new_name = name_mapping.get(original_name, original_name)
         
-        # Se il nome rinominato esiste già, aggiungi i dataframe a quelli esistenti
         if new_name in renamed_dataframes:
             renamed_dataframes[new_name].extend(dataframes)
         else:
             renamed_dataframes[new_name] = dataframes.copy()
     
-    # Stampa informazioni sull'aggregazione
     print("\n=== AGGREGAZIONE ALGORITMI ===")
     for renamed, dataframes in renamed_dataframes.items():
         original_names = [orig for orig, new in name_mapping.items() if new == renamed]
-        if not original_names:  # Se non c'è mapping, usa il nome stesso
+        if not original_names:
             original_names = [renamed]
         print(f"'{renamed}': {len(dataframes)} run da {len(original_names)} algoritmi originali")
         if len(original_names) > 1:
@@ -157,11 +107,11 @@ def apply_name_mapping(grouped_dataframes, name_mapping):
     
     return renamed_dataframes
 
-def load_or_create_boxplot_name_mapping(csv_path, algorithm_names, force_rename=False):
+def load_or_create_barplot_name_mapping(csv_path, algorithm_names, force_rename=False):
     """
-    Carica o crea un mapping dei nomi degli algoritmi per boxplot.
+    Carica o crea un mapping dei nomi degli algoritmi per barplot.
     """
-    mapping_file = os.path.join(csv_path, "algorithm_name_mapping_box.txt")
+    mapping_file = os.path.join(csv_path, "algorithm_name_mapping_bar.txt")
     mapping = {}
     
     if force_rename:
@@ -201,7 +151,6 @@ def load_or_create_boxplot_name_mapping(csv_path, algorithm_names, force_rename=
                         original = original.strip()
                         renamed = renamed.strip()
                         
-                        # Solo aggiungi il mapping se l'algoritmo originale esiste
                         if original in algorithm_names:
                             mapping[original] = renamed
             
@@ -219,7 +168,7 @@ def load_or_create_boxplot_name_mapping(csv_path, algorithm_names, force_rename=
             print(f"Errore nel caricamento del mapping: {e}")
             print("Creazione di un nuovo mapping...")
     
-    print("Creazione mapping nomi algoritmi per boxplot...")
+    print("Creazione mapping nomi algoritmi per barplot...")
     print(f"Algoritmi trovati: {algorithm_names}")
     
     for alg_name in algorithm_names:
@@ -279,40 +228,11 @@ def save_name_mapping(mapping_file, mapping, overwrite=False):
     else:
         print("Mapping non salvato.")
 
-def apply_name_mapping(grouped_dataframes, name_mapping):
-    """
-    Applica il mapping dei nomi ai dataframe raggruppati.
-    Aggrega i dataframe per i nomi rinominati se ci sono duplicati.
-    """
-    renamed_dataframes = {}
-    
-    for original_name, dataframes in grouped_dataframes.items():
-        new_name = name_mapping.get(original_name, original_name)
-        
-        # Se il nome rinominato esiste già, aggiungi i dataframe a quelli esistenti
-        if new_name in renamed_dataframes:
-            renamed_dataframes[new_name].extend(dataframes)
-        else:
-            renamed_dataframes[new_name] = dataframes.copy()
-    
-    # Stampa informazioni sull'aggregazione
-    print("\n=== AGGREGAZIONE ALGORITMI ===")
-    for renamed, dataframes in renamed_dataframes.items():
-        original_names = [orig for orig, new in name_mapping.items() if new == renamed]
-        if not original_names:  # Se non c'è mapping, usa il nome stesso
-            original_names = [renamed]
-        print(f"'{renamed}': {len(dataframes)} run da {len(original_names)} algoritmi originali")
-        if len(original_names) > 1:
-            print(f"  Algoritmi originali: {original_names}")
-    print("===============================\n")
-    
-    return renamed_dataframes
-
 def load_or_create_baseline_mapping(csv_path, algorithm_names, force_baseline=False):
     """
     Carica o crea un mapping per le baseline.
     """
-    mapping_file = os.path.join(csv_path, "baseline_mapping_box.txt")
+    mapping_file = os.path.join(csv_path, "baseline_mapping_bar.txt")
     baselines = []
     
     if force_baseline:
@@ -425,7 +345,7 @@ def load_or_create_custom_order(csv_path, algorithm_names, force_order=False):
     """
     Carica o crea un ordinamento personalizzato.
     """
-    mapping_file = os.path.join(csv_path, "custom_order_box.txt")
+    mapping_file = os.path.join(csv_path, "custom_order_bar.txt")
     custom_order = []
     
     if force_order:
@@ -460,7 +380,6 @@ def load_or_create_custom_order(csv_path, algorithm_names, force_order=False):
                     custom_order = [name.strip() for name in content.split(',')]
             print(f"Caricato ordinamento personalizzato da {mapping_file}: {custom_order}")
             
-            # Verifica che tutti gli algoritmi siano nell'ordinamento
             missing = [alg for alg in algorithm_names if alg not in custom_order]
             if missing:
                 print(f"Algoritmi mancanti nell'ordinamento: {missing}")
@@ -547,7 +466,7 @@ def save_custom_order(mapping_file, custom_order, overwrite=False):
 
 def load_or_create_color_mapping(csv_path, algorithm_names, force_color=False):
     """
-    Carica o crea un mapping dei colori per gli algoritmi (usa lo stesso file di make_plot.py).
+    Carica o crea un mapping dei colori per gli algoritmi.
     """
     mapping_file = os.path.join(csv_path, "algorithm_color_mapping.txt")
     mapping = {}
@@ -694,66 +613,43 @@ def save_color_mapping(mapping_file, mapping, overwrite=False):
 def calculate_interquartile_mean(values):
     """
     Calculate the interquartile mean (IQM) - 25% trimmed mean.
-    Discards the bottom and top 25% of values and calculates the mean of the remaining 50%.
-    
-    Parameters:
-    - values: Array-like of numerical values
-    
-    Returns:
-    - Interquartile mean value
     """
     if len(values) == 0:
         return np.nan
     
     values = np.array(values)
-    values = values[~np.isnan(values)]  # Remove NaN values
+    values = values[~np.isnan(values)]
     
     if len(values) == 0:
         return np.nan
     
     if len(values) < 4:
-        # For very small samples, fall back to regular mean
         return np.mean(values)
     
-    # Calculate Q1 and Q3
     q1 = np.percentile(values, 25)
     q3 = np.percentile(values, 75)
     
-    # Filter values within interquartile range
     iqr_values = values[(values >= q1) & (values <= q3)]
     
     if len(iqr_values) == 0:
-        return np.mean(values)  # Fallback to regular mean
+        return np.mean(values)
     
     return np.mean(iqr_values)
 
 def detect_task_structure(csv_path):
     """
     Detect if the path contains single task or multiple tasks.
-    
-    Parameters:
-    - csv_path: Path to analyze
-    
-    Returns:
-    - tuple: (is_single_task, task_data)
-      - is_single_task: True if single task, False if multi-task
-      - task_data: dict with task organization
     """
     if not os.path.exists(csv_path):
         raise ValueError(f"Path {csv_path} does not exist")
     
-    # Check if there are CSV files directly in this directory
     csv_files = [f for f in os.listdir(csv_path) if f.endswith('.csv')]
-    
-    # Check if there are subdirectories
     subdirs = [d for d in os.listdir(csv_path) 
                if os.path.isdir(os.path.join(csv_path, d))]
     
     if csv_files and not subdirs:
-        # Single task: CSV files directly in the directory
         return True, {'single_task': csv_path}
     elif subdirs and not csv_files:
-        # Multi-task: subdirectories containing CSV files
         task_data = {}
         for subdir in subdirs:
             subdir_path = os.path.join(csv_path, subdir)
@@ -769,18 +665,12 @@ def detect_task_structure(csv_path):
 def read_csvs_with_task_awareness(csv_path):
     """
     Read CSV files with task awareness for stratified bootstrap.
-    
-    Returns:
-    - tuple: (grouped_dataframes, task_structure)
-      - grouped_dataframes: dict with algorithm -> list of (dataframe, task_name)
-      - task_structure: dict with task organization info
     """
     is_single_task, task_data = detect_task_structure(csv_path)
     
     grouped_dataframes = {}
     
     if is_single_task:
-        # Single task: read all CSVs from the directory
         print(f"Detected single task in: {csv_path}")
         task_name = os.path.basename(csv_path)
         
@@ -792,11 +682,9 @@ def read_csvs_with_task_awareness(csv_path):
                 if algorithm_name not in grouped_dataframes:
                     grouped_dataframes[algorithm_name] = []
                 
-                # Store dataframe with task information
                 grouped_dataframes[algorithm_name].append((df, task_name))
     
     else:
-        # Multi-task: read CSVs from each subdirectory
         print(f"Detected multi-task structure with tasks: {list(task_data.keys())}")
         
         for task_name, task_path in task_data.items():
@@ -810,7 +698,6 @@ def read_csvs_with_task_awareness(csv_path):
                     if algorithm_name not in grouped_dataframes:
                         grouped_dataframes[algorithm_name] = []
                     
-                    # Store dataframe with task information
                     grouped_dataframes[algorithm_name].append((df, task_name))
     
     task_structure = {
@@ -829,22 +716,10 @@ def extract_dataframes_only(grouped_dataframes_with_tasks):
         grouped_dataframes[algorithm] = [df for df, task_name in df_task_pairs]
     return grouped_dataframes
 
-def prepare_boxplot_data_at_x_with_bootstrap(grouped_dataframes_with_tasks, x_column, y_column, fixed_x, central_line='median', n_bootstrap=1000):
+def prepare_barplot_data_at_x_with_bootstrap(grouped_dataframes_with_tasks, x_column, y_column, fixed_x, central_line='median', n_bootstrap=1000):
     """
-    Prepare data for boxplot using stratified bootstrap at a specific x value.
-    
-    Parameters:
-    - grouped_dataframes_with_tasks: Dictionary with algorithm names as keys and list of (dataframe, task_name) as values
-    - x_column: Column name for x-axis data
-    - y_column: Column name to extract values from
-    - fixed_x: Specific x value to extract data for
-    - central_line: Type of central statistic ('mean', 'median', 'iqm')
-    - n_bootstrap: Number of bootstrap samples
-    
-    Returns:
-    - DataFrame with 'algorithm', 'value', and bootstrap statistics
+    Prepare data for barplot using stratified bootstrap at a specific x value.
     """
-    # Convert string to function
     if central_line == 'mean':
         agg_func = np.mean
     elif central_line == 'median':
@@ -856,19 +731,17 @@ def prepare_boxplot_data_at_x_with_bootstrap(grouped_dataframes_with_tasks, x_co
     elif central_line == 'iqm':
         agg_func = calculate_interquartile_mean
     else:
-        agg_func = np.median  # default
+        agg_func = np.median
     
-    boxplot_data = []
+    barplot_data = []
     
-    print(f"Performing stratified bootstrap for boxplot at x = {fixed_x} with {n_bootstrap} samples...")
+    print(f"Performing stratified bootstrap for barplot at x = {fixed_x} with {n_bootstrap} samples...")
     
     for algorithm, df_task_pairs in grouped_dataframes_with_tasks.items():
-        # Organize data by task for this algorithm at fixed_x
-        task_values = {}  # task_name -> [values]
+        task_values = {}
         
         for df, task_name in df_task_pairs:
             if x_column in df.columns and y_column in df.columns:
-                # Find closest x value
                 closest_x = find_closest_x_value(df, x_column, fixed_x)
                 
                 if closest_x is not None:
@@ -884,21 +757,17 @@ def prepare_boxplot_data_at_x_with_bootstrap(grouped_dataframes_with_tasks, x_co
             print(f"  {algorithm}: no data found at x = {fixed_x}")
             continue
         
-        # Perform bootstrap resampling
         bootstrap_stats = []
         original_values = []
         
-        # Collect all original values
         for task_vals in task_values.values():
             original_values.extend(task_vals)
         
         for _ in range(n_bootstrap):
             bootstrap_sample = []
             
-            # For each task, resample runs independently
             for task_name, values in task_values.items():
                 if len(values) > 0:
-                    # Sample with replacement from this task
                     resampled = np.random.choice(values, size=len(values), replace=True)
                     bootstrap_sample.extend(resampled)
             
@@ -906,15 +775,13 @@ def prepare_boxplot_data_at_x_with_bootstrap(grouped_dataframes_with_tasks, x_co
                 bootstrap_stats.append(agg_func(bootstrap_sample))
         
         if bootstrap_stats:
-            # Calculate statistics from bootstrap distribution
             bootstrap_mean = np.mean(bootstrap_stats)
             bootstrap_ci_2_5 = np.percentile(bootstrap_stats, 2.5)
             bootstrap_ci_97_5 = np.percentile(bootstrap_stats, 97.5)
             bootstrap_ci_5 = np.percentile(bootstrap_stats, 5)
             bootstrap_ci_95 = np.percentile(bootstrap_stats, 95)
             
-            # Store original statistic and bootstrap statistics
-            boxplot_data.append({
+            barplot_data.append({
                 'algorithm': algorithm,
                 'value': agg_func(original_values),
                 'bootstrap_mean': bootstrap_mean,
@@ -929,56 +796,49 @@ def prepare_boxplot_data_at_x_with_bootstrap(grouped_dataframes_with_tasks, x_co
             print(f"  {algorithm}: {len(task_values)} tasks, {len(original_values)} runs, "
                   f"bootstrap CI 95%: [{bootstrap_ci_2_5:.2f}, {bootstrap_ci_97_5:.2f}]")
     
-    return pd.DataFrame(boxplot_data)
+    return pd.DataFrame(barplot_data)
 
-def create_boxplot(data, x_column='algorithm', y_column='value', 
+def create_barplot(data, x_column='algorithm', y_column='value', 
                   custom_order=None, baselines=None, log_y=False,
                   y_min=None, y_max=None, y_scale_factor=None,
                   y_label=None, plot_title=None, color_mapping=None, 
-                  central_line='median', box_type='std_err', whiskers_percentile=95,
-                  show_baseline_whiskers=False, show_tendency_line=False, 
+                  central_line='median', bar_type='std_err', error_bar_percentile=95,
+                  show_baseline_error_bars=False, show_tendency_line=False, 
                   use_bootstrap=False, **kwargs):
     """
-    Crea un boxplot con opzioni personalizzate.
+    Crea un barplot con opzioni personalizzate.
     
     Parameters:
-    - central_line: Tipo di linea centrale ('mean', 'median', 'min', 'max', 'iqm')
-    - box_type: Tipo di box/area ombreggiata ('std_err', 'std', 'confidence_interval', 'quartile')
-    - whiskers_percentile: Percentile per i whiskers quando box_type='confidence_interval' (es. 95 per 95% confidence). 
-                          Se 0, non mostra i whiskers
-    - show_baseline_whiskers: Se True, mostra whiskers verticali per le baseline
-    - show_tendency_line: Se True, mostra una linea che connette le linee centrali dei box
-    - use_bootstrap: Se True, usa statistiche bootstrap per whiskers
+    - central_line: Tipo di valore centrale per l'altezza della barra ('mean', 'median', 'min', 'max', 'iqm')
+    - bar_type: Tipo di barre di errore ('std_err', 'std', 'confidence_interval', 'quartile', 'min_max')
+    - error_bar_percentile: Percentile per confidence_interval (es. 95 per 95% CI). Ignorato per altri bar_type
+    - show_baseline_error_bars: Se True, mostra barre di errore per le baseline
+    - show_tendency_line: Se True, mostra una linea che connette le altezze delle barre
+    - use_bootstrap: Se True, usa statistiche bootstrap per le barre di errore
     """
     sns.set_style("darkgrid")
     plt.figure(figsize=(12, 8))
     
-    # Rimuovi i dati delle baseline dal dataset principale per il boxplot
+    # Rimuovi i dati delle baseline dal dataset principale per il barplot
     plot_data = data.copy()
     if baselines:
-        # Filtra i dati escludendo le baseline
         plot_data = plot_data[~plot_data[x_column].isin(baselines)]
     
     # Applica ordinamento personalizzato se specificato (escludendo le baseline)
     if custom_order:
-        # Rimuovi le baseline dall'ordinamento per il boxplot
-        box_order = [alg for alg in custom_order if not baselines or alg not in baselines]
-        if box_order:  # Solo se ci sono algoritmi non-baseline
-            plot_data[x_column] = pd.Categorical(plot_data[x_column], categories=box_order, ordered=True)
+        bar_order = [alg for alg in custom_order if not baselines or alg not in baselines]
+        if bar_order:
+            plot_data[x_column] = pd.Categorical(plot_data[x_column], categories=bar_order, ordered=True)
             plot_data = plot_data.sort_values(x_column)
     
-    # Se non ci sono dati per il boxplot (solo baseline), salta la creazione del boxplot
+    # Se non ci sono dati per il barplot (solo baseline), salta la creazione del barplot
     if len(plot_data) > 0:
-        # Aggrega i dati per ogni algoritmo per calcolare statistiche personalizzate
         algorithms = plot_data[x_column].unique()
         
-        # Prepara i dati per il boxplot personalizzato
         x_positions = []
-        central_values = []
-        box_lower = []
-        box_upper = []
-        whisker_lower = []
-        whisker_upper = []
+        bar_heights = []
+        error_lower = []
+        error_upper = []
         colors = []
         labels = []
         
@@ -991,108 +851,92 @@ def create_boxplot(data, x_column='algorithm', y_column='value',
             labels.append(algorithm)
             x_positions.append(i)
             
-            # Get the central value and other statistics
+            # Get the bar height and error bars
             if use_bootstrap and 'bootstrap_mean' in alg_data_rows.columns:
-                # Use bootstrap statistics for central line
+                # Use bootstrap statistics for bar height
                 if central_line == 'mean':
-                    central = alg_data_rows['bootstrap_mean'].iloc[0]
+                    bar_height = alg_data_rows['bootstrap_mean'].iloc[0]
                 else:
                     # For other central lines, use the original calculated value
-                    central = alg_data_rows['value'].iloc[0]
+                    bar_height = alg_data_rows['value'].iloc[0]
                 
-                # Use bootstrap confidence intervals for whiskers
-                if whiskers_percentile > 0:
-                    if whiskers_percentile == 95:
-                        whisker_lower.append(alg_data_rows['bootstrap_ci_2_5'].iloc[0])
-                        whisker_upper.append(alg_data_rows['bootstrap_ci_97_5'].iloc[0])
-                    elif whiskers_percentile == 90:
-                        whisker_lower.append(alg_data_rows['bootstrap_ci_5'].iloc[0])
-                        whisker_upper.append(alg_data_rows['bootstrap_ci_95'].iloc[0])
+                # Calculate error bars based on bar_type
+                if bar_type == 'confidence_interval':
+                    if error_bar_percentile == 95:
+                        error_lower.append(alg_data_rows['bootstrap_ci_2_5'].iloc[0])
+                        error_upper.append(alg_data_rows['bootstrap_ci_97_5'].iloc[0])
+                    elif error_bar_percentile == 90:
+                        error_lower.append(alg_data_rows['bootstrap_ci_5'].iloc[0])
+                        error_upper.append(alg_data_rows['bootstrap_ci_95'].iloc[0])
                     else:
-                        # Fallback to regular percentiles if specific bootstrap CI not available
-                        alg_values = alg_data_rows[y_column].values
-                        lower_percentile = (100 - whiskers_percentile) / 2
+                        # Fallback to regular percentiles for other confidence levels
+                        # Get original data for this algorithm
+                        alg_values = []
+                        for _, row in alg_data_rows.iterrows():
+                            # This is a simplified fallback - in practice you'd need access to original data
+                            alg_values.append(row[y_column])
+                        lower_percentile = (100 - error_bar_percentile) / 2
                         upper_percentile = 100 - lower_percentile
-                        whisker_lower.append(np.percentile(alg_values, lower_percentile))
-                        whisker_upper.append(np.percentile(alg_values, upper_percentile))
+                        error_lower.append(np.percentile(alg_values, lower_percentile))
+                        error_upper.append(np.percentile(alg_values, upper_percentile))
                 else:
-                    whisker_lower.append(None)
-                    whisker_upper.append(None)
-                
-                # For box, use a smaller confidence interval or standard error
-                if box_type == 'std_err':
-                    # Use a narrower CI for the box
-                    box_lower.append(alg_data_rows['bootstrap_ci_5'].iloc[0])
-                    box_upper.append(alg_data_rows['bootstrap_ci_95'].iloc[0])
-                elif box_type == 'confidence_interval':
-                    # Use the same CI as whiskers but for box
-                    if whiskers_percentile == 95:
-                        box_lower.append(alg_data_rows['bootstrap_ci_2_5'].iloc[0])
-                        box_upper.append(alg_data_rows['bootstrap_ci_97_5'].iloc[0])
-                    else:
-                        box_lower.append(alg_data_rows['bootstrap_ci_5'].iloc[0])
-                        box_upper.append(alg_data_rows['bootstrap_ci_95'].iloc[0])
-                else:
-                    # Fallback to original value for box bounds
-                    original_val = alg_data_rows[y_column].iloc[0]
-                    box_lower.append(original_val * 0.95)
-                    box_upper.append(original_val * 1.05)
+                    # For other bar_types with bootstrap, we need original data
+                    # This is a limitation - we should store more statistics in bootstrap
+                    # For now, fallback to confidence intervals
+                    error_lower.append(alg_data_rows['bootstrap_ci_5'].iloc[0])
+                    error_upper.append(alg_data_rows['bootstrap_ci_95'].iloc[0])
             else:
                 # Use original non-bootstrap logic
                 alg_data = alg_data_rows[y_column].dropna()
                 
-                # Calcola linea centrale
+                # Calcola altezza della barra (valore centrale)
                 if central_line == 'mean':
-                    central = np.mean(alg_data)
+                    bar_height = np.mean(alg_data)
                 elif central_line == 'median':
-                    central = np.median(alg_data)
+                    bar_height = np.median(alg_data)
                 elif central_line == 'min':
-                    central = np.min(alg_data)
+                    bar_height = np.min(alg_data)
                 elif central_line == 'max':
-                    central = np.max(alg_data)
+                    bar_height = np.max(alg_data)
                 elif central_line == 'iqm':
-                    central = calculate_interquartile_mean(alg_data)
+                    bar_height = calculate_interquartile_mean(alg_data)
                 else:
-                    central = np.median(alg_data)  # default
+                    bar_height = np.median(alg_data)  # default
                 
-                # Calcola box (area ombreggiata) in base al box_type
-                if box_type == 'std_err':
+                # Calcola barre di errore in base al bar_type
+                if bar_type == 'std_err':
+                    # Standard error
                     std_err = np.std(alg_data) / np.sqrt(len(alg_data))
-                    box_lower.append(central - std_err)
-                    box_upper.append(central + std_err)
-                elif box_type == 'std':
+                    error_lower.append(bar_height - std_err)
+                    error_upper.append(bar_height + std_err)
+                elif bar_type == 'std':
+                    # Standard deviation
                     std_val = np.std(alg_data)
-                    box_lower.append(central - std_val)
-                    box_upper.append(central + std_val)
-                elif box_type == 'confidence_interval':
-                    # Use whiskers_percentile for confidence interval
-                    lower_percentile = (100 - whiskers_percentile) / 2
+                    error_lower.append(bar_height - std_val)
+                    error_upper.append(bar_height + std_val)
+                elif bar_type == 'confidence_interval':
+                    # Confidence interval basato su error_bar_percentile
+                    lower_percentile = (100 - error_bar_percentile) / 2
                     upper_percentile = 100 - lower_percentile
-                    box_lower.append(np.percentile(alg_data, lower_percentile))
-                    box_upper.append(np.percentile(alg_data, upper_percentile))
-                elif box_type == 'quartile':
+                    error_lower.append(np.percentile(alg_data, lower_percentile))
+                    error_upper.append(np.percentile(alg_data, upper_percentile))
+                elif bar_type == 'quartile':
+                    # Quartili (25% - 75%)
                     q25 = np.percentile(alg_data, 25)
                     q75 = np.percentile(alg_data, 75)
-                    box_lower.append(q25)
-                    box_upper.append(q75)
+                    error_lower.append(q25)
+                    error_upper.append(q75)
+                elif bar_type == 'min_max':
+                    # Min-Max range
+                    error_lower.append(np.min(alg_data))
+                    error_upper.append(np.max(alg_data))
                 else:
-                    # Default: quartili
-                    q25 = np.percentile(alg_data, 25)
-                    q75 = np.percentile(alg_data, 75)
-                    box_lower.append(q25)
-                    box_upper.append(q75)
-                
-                # Calcola whiskers (confidence intervals) solo se whiskers_percentile > 0
-                if whiskers_percentile > 0:
-                    lower_percentile = (100 - whiskers_percentile) / 2
-                    upper_percentile = 100 - lower_percentile
-                    whisker_lower.append(np.percentile(alg_data, lower_percentile))
-                    whisker_upper.append(np.percentile(alg_data, upper_percentile))
-                else:
-                    whisker_lower.append(None)
-                    whisker_upper.append(None)
+                    # Default: standard error
+                    std_err = np.std(alg_data) / np.sqrt(len(alg_data))
+                    error_lower.append(bar_height - std_err)
+                    error_upper.append(bar_height + std_err)
             
-            central_values.append(central)
+            bar_heights.append(bar_height)
             
             # Determina il colore
             if color_mapping and algorithm in color_mapping:
@@ -1100,34 +944,26 @@ def create_boxplot(data, x_column='algorithm', y_column='value',
             else:
                 colors.append(sns.color_palette("tab10")[i % 10])
         
-        # Crea il boxplot personalizzato
+        # Crea il barplot
         ax = plt.gca()
         
-        # Disegna i box (aree ombreggiate)
-        for i, (x, lower, upper, color) in enumerate(zip(x_positions, box_lower, box_upper, colors)):
-            width = 0.6
-            rect = plt.Rectangle((x - width/2, lower), width, upper - lower, 
-                               facecolor=color, alpha=0.3, edgecolor=color, linewidth=1)
-            ax.add_patch(rect)
+        # Disegna le barre
+        bars = plt.bar(x_positions, bar_heights, color=colors, alpha=0.7, edgecolor='black', linewidth=1)
         
-        # Disegna le linee centrali
-        for x, central, color in zip(x_positions, central_values, colors):
-            plt.plot([x - 0.3, x + 0.3], [central, central], color=color, linewidth=3)
-        
-        # Disegna i whiskers solo se whiskers_percentile > 0
-        if whiskers_percentile > 0:
-            for x, w_lower, w_upper, central, color in zip(x_positions, whisker_lower, whisker_upper, central_values, colors):
-                if w_lower is not None and w_upper is not None:
-                    # Linee verticali dei whiskers
-                    plt.plot([x, x], [w_lower, w_upper], color=color, linewidth=1, alpha=0.7)
-                    # Cappucci dei whiskers
-                    plt.plot([x - 0.1, x + 0.1], [w_lower, w_lower], color=color, linewidth=1, alpha=0.7)
-                    plt.plot([x - 0.1, x + 0.1], [w_upper, w_upper], color=color, linewidth=1, alpha=0.7)
+        # Disegna le barre di errore
+        for x, height, e_lower, e_upper, color in zip(x_positions, bar_heights, error_lower, error_upper, colors):
+            if e_lower is not None and e_upper is not None:
+                # Calcola l'errore rispetto alla barra
+                yerr_lower = height - e_lower
+                yerr_upper = e_upper - height
+                
+                plt.errorbar(x, height, yerr=[[yerr_lower], [yerr_upper]], 
+                           color='black', capsize=5, capthick=2, linewidth=2)
         
         # Disegna la linea di tendenza se richiesta
         if show_tendency_line and len(x_positions) > 1:
-            plt.plot(x_positions, central_values, color='gray', linewidth=1, alpha=0.6, 
-                    linestyle='-')
+            plt.plot(x_positions, bar_heights, color='gray', linewidth=2, alpha=0.6, 
+                    linestyle='-', marker='o', markersize=4)
         
         # Imposta le etichette dell'asse x
         plt.xticks(x_positions, labels, rotation=45, ha='right')
@@ -1135,13 +971,6 @@ def create_boxplot(data, x_column='algorithm', y_column='value',
     # Aggiungi linee baseline se specificate
     if baselines:
         ax = plt.gca()
-        # Calcola la posizione x centrale del grafico
-        if len(plot_data) > 0:
-            # Se ci sono box, metti i whiskers baseline al centro
-            center_x = (len(x_positions) - 1) / 2 if x_positions else 0
-        else:
-            # Se non ci sono box, metti i whiskers al centro dell'asse
-            center_x = 0
         
         for baseline_name in baselines:
             if baseline_name in data[x_column].values:
@@ -1157,37 +986,27 @@ def create_boxplot(data, x_column='algorithm', y_column='value',
                 elif central_line == 'max':
                     baseline_value = baseline_data.max()
                 else:
-                    baseline_value = baseline_data.median()  # default
+                    baseline_value = baseline_data.median()
                 
                 # Disegna la linea orizzontale della baseline
-                plt.axhline(y=baseline_value, color='black', linestyle='--', alpha=0.7, 
+                plt.axhline(y=baseline_value, color='red', linestyle='--', alpha=0.8, linewidth=2,
                            label=f'Baseline: {baseline_name}')
                 
-                # Aggiungi whiskers verticali se richiesto
-                if show_baseline_whiskers and len(baseline_data) > 1:
-                    # Calcola i whiskers della baseline
-                    lower_percentile = (100 - whiskers_percentile) / 2
-                    upper_percentile = 100 - lower_percentile
-                    baseline_lower = np.percentile(baseline_data, lower_percentile)
-                    baseline_upper = np.percentile(baseline_data, upper_percentile)
-                    
-                    # Disegna whiskers verticali al centro del grafico
-                    whisker_width = 0.2  # Larghezza dei whiskers
-                    
-                    # Linea verticale principale del whisker
-                    plt.plot([center_x, center_x], [baseline_lower, baseline_upper], 
-                            color='black', linewidth=2, alpha=0.8)
-                    # Cappucci orizzontali dei whiskers
-                    plt.plot([center_x - whisker_width/2, center_x + whisker_width/2], 
-                            [baseline_lower, baseline_lower], 
-                            color='black', linewidth=2, alpha=0.8)
-                    plt.plot([center_x - whisker_width/2, center_x + whisker_width/2], 
-                            [baseline_upper, baseline_upper], 
-                            color='black', linewidth=2, alpha=0.8)
-                    
-                    print(f"Baseline {baseline_name}: centro={baseline_value:.2f}, "
-                          f"whiskers=[{baseline_lower:.2f}, {baseline_upper:.2f}] "
-                          f"({whiskers_percentile}% CI)")
+                # Aggiungi barre di errore per la baseline se richiesto
+                if show_baseline_error_bars and len(baseline_data) > 1:
+                    if error_bar_percentile > 0:
+                        lower_percentile = (100 - error_bar_percentile) / 2
+                        upper_percentile = 100 - lower_percentile
+                        baseline_lower = np.percentile(baseline_data, lower_percentile)
+                        baseline_upper = np.percentile(baseline_data, upper_percentile)
+                        
+                        # Aggiungi zona ombreggiata per l'intervallo di confidenza della baseline
+                        plt.axhspan(baseline_lower, baseline_upper, alpha=0.2, color='red',
+                                   label=f'{baseline_name} {error_bar_percentile}% CI')
+                        
+                        print(f"Baseline {baseline_name}: valore={baseline_value:.2f}, "
+                              f"intervallo=[{baseline_lower:.2f}, {baseline_upper:.2f}] "
+                              f"({error_bar_percentile}% CI)")
     
     # Imposta scala logaritmica se richiesta
     ax = plt.gca()
@@ -1248,15 +1067,15 @@ def main():
     parser.add_argument('--xaxis', '-x', default='buffer_size', help='Column name for x-axis data')
     parser.add_argument('--value', '-y', default='eval/episode_reward', help='Column name for y-axis data')
     parser.add_argument('--fixed_x', type=float, required=True, 
-                        help='Fixed x value for boxplot comparison (e.g., 100000)')
+                        help='Fixed x value for barplot comparison (e.g., 100000)')
     
-    # Boxplot configuration
+    # Barplot configuration
     parser.add_argument('--central_line', default='median', choices=['mean', 'median', 'min', 'max', 'iqm'],
-                        help='Type of central line in boxplot')
-    parser.add_argument('--box_type', default='quartile', choices=['std_err', 'std', 'confidence_interval', 'ci', 'quartile'],
-                        help='Type of box (shaded area) in boxplot (ci is short for confidence_interval)')
-    parser.add_argument('--whiskers_percentile', type=float, default=95.0,
-                        help='Percentile for whiskers (e.g., 95 for 95% confidence interval). Set to 0 to hide whiskers')
+                        help='Type of central value for bar height')
+    parser.add_argument('--bar_type', default='std_err', choices=['std_err', 'std', 'confidence_interval', 'ci', 'quartile', 'min_max'],
+                        help='Type of error bars in barplot (ci is short for confidence_interval)')
+    parser.add_argument('--error_bar_percentile', type=float, default=95.0,
+                        help='Percentile for confidence_interval type (e.g., 95 for 95% CI). Ignorato per altri bar_types')
     
     # Bootstrap options
     parser.add_argument('--bootstrap', action='store_true', default=False,
@@ -1264,13 +1083,13 @@ def main():
     parser.add_argument('--n_bootstrap', type=int, default=10000,
                         help='Number of bootstrap samples (default: 10000)')
     
-    # Baseline whiskers option
-    parser.add_argument('--baseline_whiskers', action='store_true', default=False,
-                        help='Show vertical whiskers for baseline confidence intervals at center of plot')
+    # Baseline error bars option
+    parser.add_argument('--baseline_error_bars', action='store_true', default=False,
+                        help='Show error bars/bands for baseline confidence intervals')
     
     # Tendency line option
     parser.add_argument('--tendency_line', action='store_true', default=False,
-                        help='Show a black line connecting the central lines of the boxplots')
+                        help='Show a line connecting the bar heights')
     
     # Axis scaling options
     parser.add_argument('--log_y', action='store_true', default=False, help='Use log scale for y-axis')
@@ -1287,7 +1106,7 @@ def main():
     parser.add_argument('--title', type=str, default=None, help='Plot title')
     
     parser.add_argument('--csv_path', type=str, default="data_plot/", help='csv folder')
-    parser.add_argument('--output', type=str, default="boxplot.png", help='Output filename')
+    parser.add_argument('--output', type=str, default="barplot.png", help='Output filename')
     
     # Rename options
     parser.add_argument('--rename', action='store_true', default=False, 
@@ -1295,7 +1114,7 @@ def main():
     parser.add_argument('--force-rename', action='store_true', default=False,
                         help='Force renaming even if mapping file exists')
     
-    # Color mapping options (usa lo stesso file di make_plot.py)
+    # Color mapping options
     parser.add_argument('--color', action='store_true', default=False,
                         help='Enable algorithm color mapping with interactive input')
     parser.add_argument('--force-color', action='store_true', default=False,
@@ -1316,8 +1135,8 @@ def main():
     args = parser.parse_args()
 
     # Map 'ci' to 'confidence_interval' for backward compatibility
-    if args.box_type == 'ci':
-        args.box_type = 'confidence_interval'
+    if args.bar_type == 'ci':
+        args.bar_type = 'confidence_interval'
 
     # Always use task-aware reading to handle both single and multi-task structures
     grouped_dataframes_with_tasks, task_structure = read_csvs_with_task_awareness(args.csv_path)
@@ -1329,7 +1148,7 @@ def main():
     # Apply renaming if requested
     if args.rename:
         algorithm_names = list(grouped_dataframes.keys())
-        name_mapping = load_or_create_boxplot_name_mapping(
+        name_mapping = load_or_create_barplot_name_mapping(
             args.csv_path, 
             algorithm_names, 
             force_rename=getattr(args, 'force_rename', False)
@@ -1348,10 +1167,10 @@ def main():
         
         grouped_dataframes = apply_name_mapping(grouped_dataframes, name_mapping)
     
-    # Prepare data for boxplot
+    # Prepare data for barplot
     if args.bootstrap:
         # Use stratified bootstrap method
-        boxplot_data = prepare_boxplot_data_at_x_with_bootstrap(
+        barplot_data = prepare_barplot_data_at_x_with_bootstrap(
             grouped_dataframes_with_tasks, 
             args.xaxis, 
             args.value, 
@@ -1362,10 +1181,10 @@ def main():
         use_bootstrap_in_plot = True
     else:
         # Use traditional method but with task-aware data
-        boxplot_data = prepare_boxplot_data_at_x(grouped_dataframes, args.xaxis, args.value, args.fixed_x)
+        barplot_data = prepare_barplot_data_at_x(grouped_dataframes, args.xaxis, args.value, args.fixed_x)
         use_bootstrap_in_plot = False
     
-    if boxplot_data.empty:
+    if barplot_data.empty:
         print(f"ERRORE: Nessun dato trovato per x = {args.fixed_x}")
         print("Verifica che il valore di --fixed_x sia presente nei tuoi dati.")
         print(f"Struttura task rilevata: {task_structure}")
@@ -1373,10 +1192,10 @@ def main():
         return
     
     # Get final algorithm names (after renaming)
-    final_algorithm_names = list(set(boxplot_data['algorithm'].values))
+    final_algorithm_names = list(set(barplot_data['algorithm'].values))
     print(f"Algoritmi nel dataset finale: {final_algorithm_names}")
     
-    # Apply color mapping if requested (usa lo stesso file di make_plot.py)
+    # Apply color mapping if requested
     color_mapping = None
     if args.color:
         color_mapping = load_or_create_color_mapping(
@@ -1403,10 +1222,10 @@ def main():
             force_order=getattr(args, 'force_order', False)
         )
     
-    # Create the boxplot
-    print(f"Creating boxplot for x = {args.fixed_x}...")
-    create_boxplot(
-        boxplot_data,
+    # Create the barplot
+    print(f"Creating barplot for x = {args.fixed_x}...")
+    create_barplot(
+        barplot_data,
         x_column='algorithm',
         y_column='value',
         custom_order=custom_order,
@@ -1419,9 +1238,9 @@ def main():
         plot_title=args.title or f"Comparison at {args.xaxis} = {args.fixed_x}",
         color_mapping=color_mapping,
         central_line=args.central_line,
-        box_type=args.box_type,
-        whiskers_percentile=args.whiskers_percentile,
-        show_baseline_whiskers=args.baseline_whiskers,
+        bar_type=args.bar_type,
+        error_bar_percentile=args.error_bar_percentile,
+        show_baseline_error_bars=args.baseline_error_bars,
         show_tendency_line=args.tendency_line,
         use_bootstrap=use_bootstrap_in_plot
     )
@@ -1431,7 +1250,7 @@ def main():
     
     # Save the plot
     plt.savefig(output_path, format='png', dpi=300)
-    print(f"Boxplot saved as {output_path}")
+    print(f"Barplot saved as {output_path}")
 
 
 if __name__ == "__main__":
