@@ -1,32 +1,18 @@
 """
-python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/shelf-place/exp --filter_by_config agent/no_taco!=true,env_name=shelf-place-v2 --filter_by_tags MT50 --group_by_config agent/pretrained_path
-# NO MT20 because not finished yet
-python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/mt/basketball --filter_by_config agent/no_taco!=true,env_name=basketball-v2 --filter_by_tags MT1,MT10,MT30,MT40,MT45 --group_by_config agent/pretrained_path
-python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/mt/bin-picking --filter_by_config agent/no_taco!=true,env_name=bin-picking-v2 --filter_by_tags MT1,MT10,MT30,MT40,MT45 --group_by_config agent/pretrained_path
-python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/mt/button-press --filter_by_config agent/no_taco!=true,env_name=button-press-v2 --filter_by_tags MT1,MT10,MT30,MT40,MT45 --group_by_config agent/pretrained_path
-python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/mt/push --filter_by_config agent/no_taco!=true,env_name=push-v2 --filter_by_tags MT1,MT10,MT30,MT40,MT45 --group_by_config agent/pretrained_path
-python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/mt/shelf-place --filter_by_config agent/no_taco!=true,env_name=shelf-place-v2 --filter_by_tags MT1,MT10,MT30,MT40,MT45 --group_by_config agent/pretrained_path
-
-python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/mt/basketball --filter_by_config agent/no_taco!=true,env_name=basketball-v2 --filter_by_tags     MT20 --group_by_config agent/pretrained_path
-python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/mt/bin-picking --filter_by_config agent/no_taco!=true,env_name=bin-picking-v2 --filter_by_tags   MT20 --group_by_config agent/pretrained_path
-python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/mt/button-press --filter_by_config agent/no_taco!=true,env_name=button-press-v2 --filter_by_tags MT20 --group_by_config agent/pretrained_path
-python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/mt/push --filter_by_config agent/no_taco!=true,env_name=push-v2 --filter_by_tags                 MT20 --group_by_config agent/pretrained_path
-python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/mt/shelf-place --filter_by_config agent/no_taco!=true,env_name=shelf-place-v2 --filter_by_tags   MT20 --group_by_config agent/pretrained_path
-
-python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/mt/all --filter_by_config agent/no_taco!=true,env_name=basketball-v2 --filter_by_tags     MT20 --group_by_config agent/pretrained_path
-python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/mt/all --filter_by_config agent/no_taco!=true,env_name=bin-picking-v2 --filter_by_tags   MT20 --group_by_config agent/pretrained_path
-python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/mt/all --filter_by_config agent/no_taco!=true,env_name=button-press-v2 --filter_by_tags MT20 --group_by_config agent/pretrained_path
-python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/mt/all --filter_by_config agent/no_taco!=true,env_name=shelf-place-v2 --filter_by_tags   MT20 --group_by_config agent/pretrained_path
-python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/mt/all --filter_by_config agent/no_taco!=true,env_name=push-v2 --filter_by_tags                 MT20 --group_by_config agent/pretrained_path
-
-python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/push --project taco_metaworld_resnet_ed4ct --group_by_config agent/pretrained_path
-python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/push --project taco_metaworld_resnet_ed4ct --filter_by_config env_name=push-v3,batch_size=1024 --group_by_config agent/pretrained_path
-
+python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/exp/basketball --filter_by_config "agent/no_taco!=true&env_name=basketball-v2&agent/pretrained_path!=/home/mprattico/Pretrain-TACO/models/taco_MT_MT50_OOD_Basketball_0.99_lr=0.0005_ts=409600_curl_rew_best.pt" --filter_by_tags     "(MT50&BEST)|baseline" --group_by_config agent/pretrained_path --project taco_metaworld_batch1 
 python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/exp/basketball --filter_by_config agent/no_taco!=true,env_name=basketball-v2 --filter_by_tags     MT50 --group_by_config agent/pretrained_path --project taco_metaworld_debug 
-python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/exp/bin-picking --filter_by_config agent/no_taco!=true,env_name=bin-picking-v2 --filter_by_tags   MT50 --group_by_config agent/pretrained_path --project taco_metaworld_debug
-python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/exp/button-press --filter_by_config agent/no_taco!=true,env_name=button-press-v2 --filter_by_tags MT50 --group_by_config agent/pretrained_path --project taco_metaworld_debug
-python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/exp/push --filter_by_config agent/no_taco!=true,env_name=push-v2 --filter_by_tags                 MT50 --group_by_config agent/pretrained_path --project taco_metaworld_debug
-python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/exp/shelf-place --filter_by_config agent/no_taco!=true,env_name=shelf-place-v2 --filter_by_tags   MT50 --group_by_config agent/pretrained_path --project taco_metaworld_debug
+python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/exp/bin-picking --filter_by_config "agent/no_taco!=true&env_name=bin-picking-v2&agent/pretrained_path!=/home/mprattico/Pretrain-TACO/models/taco_MT_MT50_OOD_BinPicking_0.99_lr=0.0005_ts=36300800_curl_rew_best.pt" --filter_by_tags     "(MT50&BEST)|baseline" --group_by_config agent/pretrained_path --project taco_metaworld_batch1 
+python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/exp/bin-picking --filter_by_config "agent/no_taco!=true&env_name=bin-picking-v2" --filter_by_tags     MT50 --group_by_config agent/pretrained_path --project taco_metaworld_debug 
+python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/exp/button-press --filter_by_config "agent/no_taco!=true&env_name=button-press-v2&agent/pretrained_path!=/home/mprattico/Pretrain-TACO/models/taco_MT_MT50_OOD_ButtonPress_0.99_lr=0.0005_ts=16435200_curl_rew_best.pt" --filter_by_tags     "(MT50&BEST)|baseline" --group_by_config agent/pretrained_path --project taco_metaworld_batch1 
+python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/exp/button-press --filter_by_config "agent/no_taco!=true&env_name=button-press-v2" --filter_by_tags     MT50 --group_by_config agent/pretrained_path --project taco_metaworld_debug 
+python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/exp/push --filter_by_config "agent/no_taco!=true&env_name=push-v2&agent/pretrained_path!=/home/mprattico/Pretrain-TACO/models/taco_MT_MT50_0.99_lr=0.0005_ts=50000896_curl_rew.pt" --filter_by_tags     "(MT50)|baseline" --group_by_config agent/pretrained_path --project taco_metaworld_batch1 
+python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/exp/push --filter_by_config "agent/no_taco!=true&env_name=push-v2" --filter_by_tags     MT50 --group_by_config agent/pretrained_path --project taco_metaworld_debug 
+python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/exp/shelf-place --filter_by_config "agent/no_taco!=true&env_name=shelf-place-v2&agent/pretrained_path!=/home/mprattico/Pretrain-TACO/models/taco_MT_MT50_OOD_ShelfPlace_0.99_lr=0.0005_ts=43315200_curl_rew_best.pt" --filter_by_tags     "(MT50&BEST)|baseline" --group_by_config agent/pretrained_path --project taco_metaworld_batch1 
+python /home/mprattico/Pretrain-TACO/plot/download_data_from_wandb.py --csv_path data_plot/exp/shelf-place --filter_by_config "agent/no_taco!=true&env_name=shelf-place-v2" --filter_by_tags     MT50 --group_by_config agent/pretrained_path --project taco_metaworld_debug 
+
+
+
+
 
 """
 import argparse
@@ -94,11 +80,105 @@ def check_config_match(run_config, config_filters):
     
     return True
 
-def parse_config_filters(config_filter_str):
-    """Parse the config filter string into a dictionary."""
-    if not config_filter_str:
-        return {}
+def evaluate_config_expression(run_config, expression):
+    """Evaluate a config expression with logical operators against a run's config."""
+    if not expression:
+        return True
     
+    flattened_config = flatten_dict(run_config)
+    expr = expression
+    
+    print(f"DEBUG: Original expression: {expression}")
+    print(f"DEBUG: Available config keys: {list(flattened_config.keys())}")
+    
+    # Find all config filter patterns in the expression
+    import re
+    # Improved pattern to handle file paths with special characters
+    # Use non-greedy matching and handle paths properly
+    config_patterns = []
+    
+    # Split by & and | first, then parse each part
+    parts = re.split(r'([&|()])', expression)
+    for part in parts:
+        part = part.strip()
+        if not part or part in ['&', '|', '(', ')']:
+            continue
+        
+        # Now parse this individual filter
+        if "!=" in part:
+            key, value = part.split("!=", 1)
+            config_patterns.append((part.strip(), key.strip(), "!=", value.strip()))
+        elif "==" in part:
+            key, value = part.split("==", 1)
+            config_patterns.append((part.strip(), key.strip(), "==", value.strip()))
+        elif "=" in part:
+            key, value = part.split("=", 1)
+            config_patterns.append((part.strip(), key.strip(), "==", value.strip()))
+    
+    print(f"DEBUG: Found config patterns: {config_patterns}")
+    
+    # Replace each config filter with True or False
+    for pattern, key, operator, value in config_patterns:
+        # Convert value to appropriate type
+        if value.lower() == 'true':
+            value = True
+        elif value.lower() == 'false':
+            value = False
+        elif value.isdigit():
+            value = int(value)
+        elif value.replace('.', '', 1).isdigit() and value.count('.') <= 1:
+            value = float(value)
+        
+        # Check if the config matches
+        config_match = False
+        if key not in flattened_config:
+            # If using != and the key doesn't exist, that's actually a match
+            if operator == "!=":
+                config_match = True
+        else:
+            # For string comparison, be more careful
+            config_value = str(flattened_config[key])
+            filter_value = str(value)
+            
+            print(f"DEBUG: Comparing '{key}': config='{config_value}' vs filter='{filter_value}' (operator: {operator})")
+            
+            # Apply the appropriate comparison based on operator
+            if operator == "==" and config_value == filter_value:
+                config_match = True
+            elif operator == "!=" and config_value != filter_value:
+                config_match = True
+        
+        print(f"DEBUG: Pattern '{pattern}' -> {config_match}")
+        
+        # Replace the pattern with the result
+        expr = expr.replace(pattern, str(config_match))
+    
+    # Replace operators with Python equivalents
+    expr = expr.replace('&', ' and ').replace('|', ' or ')
+    
+    print(f"DEBUG: Final expression: {expr}")
+    
+    try:
+        # Safely evaluate the boolean expression
+        result = eval(expr)
+        print(f"DEBUG: Expression result: {result}")
+        return result
+    except Exception as e:
+        print(f"Error evaluating config expression '{expression}': {e}")
+        # If evaluation fails, fall back to original logic
+        return True
+
+def parse_config_filters(config_filter_str):
+    """Parse the config filter string into a complex expression or dictionary."""
+    if not config_filter_str:
+        return None, {}
+    
+    # Check if the string contains logical operators
+    if any(op in config_filter_str for op in ['&', '|', '(', ')']):
+        # Return the expression as-is for complex evaluation
+        return config_filter_str, {}
+    
+    # Fall back to the original simple parsing
     filters = {}
     filter_pairs = config_filter_str.split(',')
     for pair in filter_pairs:
@@ -129,13 +209,47 @@ def parse_config_filters(config_filter_str):
         # Store both the operator and the value
         filters[key.strip()] = (operator, value)
     
-    return filters
+    return None, filters
+
+def evaluate_tag_expression(tags, expression):
+    """Evaluate a tag expression with logical operators against a list of tags."""
+    if not expression:
+        return True
+    
+    # Replace tag names with True/False based on presence in tags
+    expr = expression
+    
+    # Find all unique tag names in the expression
+    import re
+    tag_names = re.findall(r'\b[a-zA-Z0-9_-]+\b', expression)
+    
+    # Replace each tag name with True or False
+    for tag_name in set(tag_names):
+        if tag_name.lower() in ['and', 'or', 'true', 'false']:
+            continue
+        expr = expr.replace(tag_name, str(tag_name in tags))
+    
+    # Replace operators with Python equivalents
+    expr = expr.replace('&', ' and ').replace('|', ' or ')
+    
+    try:
+        # Safely evaluate the boolean expression
+        return eval(expr)
+    except:
+        # If evaluation fails, fall back to checking if any tag matches
+        return any(tag in tags for tag in tag_names)
 
 def parse_tag_filters(tags_filter_str):
-    """Parse tag filter string into inclusion and exclusion lists."""
+    """Parse tag filter string into a complex expression or simple lists."""
     if not tags_filter_str:
-        return [], []
+        return None, [], []
     
+    # Check if the string contains logical operators
+    if any(op in tags_filter_str for op in ['&', '|', '(', ')']):
+        # Return the expression as-is for complex evaluation
+        return tags_filter_str, [], []
+    
+    # Fall back to the original simple parsing
     include_tags = []
     exclude_tags = []
     
@@ -157,7 +271,7 @@ def parse_tag_filters(tags_filter_str):
             # Simple tag name
             include_tags.append(tag_filter.strip())
     
-    return include_tags, exclude_tags
+    return None, include_tags, exclude_tags
 
 def main():
     parser = argparse.ArgumentParser()
@@ -165,8 +279,9 @@ def main():
     parser.add_argument('--keys', type=str, default="eval/episode_reward,eval/success_rate", help='Data to be saved')
     parser.add_argument('--x-key', type=str, default="buffer_size", help='X axis key')
     parser.add_argument('--filter_by_tags', type=str, default="", 
-                      help='Filter by tags (comma-separated list). Use tag!= to exclude a tag')
-    parser.add_argument('--filter_by_config', type=str, default="", help='Filter by config parameters (format: key1=value1,key2=value2)')
+                      help='Filter by tags. Use simple comma-separated list or complex expressions with & (AND), | (OR), and parentheses. Example: "(MT50&baseline)|BEST"')
+    parser.add_argument('--filter_by_config', type=str, default="", 
+                        help='Filter by config parameters. Use simple format (key1=value1,key2=value2) or complex expressions with & (AND), | (OR), and parentheses. Example: "(agent/no_taco!=true&env_name=basketball-v2)|batch_size=1024"')
     parser.add_argument('--download', action='store_true', default=True, help='Download data from wandb')
     parser.add_argument('--processing', action='store_true', default=True)
     parser.add_argument('--project', type=str, default='taco_metaworld', help='Project name') 
@@ -180,8 +295,8 @@ def main():
 
     args = parser.parse_args()
     keys = args.keys.split(",")
-    include_tags, exclude_tags = parse_tag_filters(args.filter_by_tags)
-    config_filters = parse_config_filters(args.filter_by_config)
+    tag_expression, include_tags, exclude_tags = parse_tag_filters(args.filter_by_tags)
+    config_expression, config_filters = parse_config_filters(args.filter_by_config)
 
     print("Start Downloading")
     if args.download:
@@ -255,19 +370,28 @@ def main():
         # Filter runs by tags and config
         filtered_runs = []
         for run in runs:
-            # Check tags - must have at least one included tag (if any specified)
-            # AND must not have any excluded tags
-            tags_include_match = not include_tags or any(tag in run.tags for tag in include_tags)
-            tags_exclude_match = not exclude_tags or not any(tag in run.tags for tag in exclude_tags)
-            tags_match = tags_include_match and tags_exclude_match
+            # Check tags using new expression evaluator or old logic
+            if tag_expression:
+                tags_match = evaluate_tag_expression(run.tags, tag_expression)
+            else:
+                # Use original simple logic
+                tags_include_match = not include_tags or any(tag in run.tags for tag in include_tags)
+                tags_exclude_match = not exclude_tags or not any(tag in run.tags for tag in exclude_tags)
+                tags_match = tags_include_match and tags_exclude_match
             
-            # Check if the run's config matches all specified config filters
-            config_match = check_config_match(run.config, config_filters)
-            print(f"Run ID: {run.id}, Tags: {run.tags}, Config: {run.config}")
-            print(f"Tags match: {tags_match}, Config match: {config_match}")
+            # Check config using new expression evaluator or old logic
+            if config_expression:
+                print(f"\nDEBUG: Evaluating config for run {run.id}")
+                config_match = evaluate_config_expression(run.config, config_expression)
+            else:
+                # Use original simple logic
+                config_match = check_config_match(run.config, config_filters)
+            
+            print(f"DEBUG: Run {run.id} - tags_match: {tags_match}, config_match: {config_match}")
+            
             if tags_match and config_match:
                 filtered_runs.append(run)
-        
+
         print(f"Runs dopo filtrazione: {len(filtered_runs)}")
         runs = filtered_runs
         
@@ -301,11 +425,17 @@ def main():
         all_keys = keys.copy()
         all_keys.append(args.x_key)
         for run in runs:
-            print(flatten_dict(run.config)["agent/pretrained_path"])
+            flattened_config = flatten_dict(run.config)
+            print(f"\n=== SAVING RUN {run.id} ===")
+            print(f"Run name: {run.name}")
+            print(f"Tags: {run.tags}")
+            print(f"Config values:")
+            print(f"  - agent/no_taco: {flattened_config.get('agent/no_taco', 'NOT_FOUND')}")
+            print(f"  - env_name: {flattened_config.get('env_name', 'NOT_FOUND')}")
+            print(f"  - agent/pretrained_path: {flattened_config.get('agent/pretrained_path', 'NOT_FOUND')}")
             
             history = run.history(keys=all_keys)  
 
-            flattened_config = flatten_dict(run.config)
             if args.group_by_config in flattened_config:
                 param_value = str(flattened_config[args.group_by_config]).split("/")[-1]
                 print(f"param_value: {param_value}")
@@ -316,6 +446,7 @@ def main():
             run_name = f'{param_value}___{run.id}'
             history.to_csv(f"{args.csv_path}/{run_name}.csv")
             print(f"saved {run_name}.csv")
+            print(f"=== END RUN {run.id} ===\n")
             
         print("saving DONE")
     
