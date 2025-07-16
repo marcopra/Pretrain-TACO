@@ -52,7 +52,7 @@ srun --ntasks=4 --ntasks-per-node=4 python train_metaworld_ed4ct.py \
     batch_size=256 env_name=push-v2 \
     wandb_tag="SLURM" \
     agent.pretrained_path=/home/mprattico/Pretrain-TACO/models/moco_aug.pth.tar \
-    wandb_mode=offline \
+    wandb_mode=online \
     save_snapshot=false \
     seed=$SEED \
     exp_name="SLURM_TORCHRUN_MOCO${SEED}" 
