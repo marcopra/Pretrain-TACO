@@ -18,7 +18,7 @@ case $cuda_device in
         # Valid value
         ;;
     *)
-        echo "Error: Invalid cuda_device value. Allowed values are 0, 1, 2, or 3."
+        echo "Error: Invalid cuda_device value. Allowed values are 0 to 7."
         exit 1
         ;;
 esac
@@ -34,18 +34,26 @@ case $no_taco in
         ;;
 esac
 
+# Set model path for MT49 Basketball
+model_path="models/exp/0/taco_MT_MT50_OOD_Basketball_0.0_lr\=0.0005_ts\=115865600_curl_rew_best.pt"
+
+# Set suffix for experiment name based on no_taco value
+if [ "$no_taco" = "true" ]; then
+    wandb_suffix="-NOTACO_BASKETBALL"
+else
+    wandb_suffix="_BASKETBALL"
+fi
+
 # Number of runs
-num_runs=35
+num_runs=7
 
 # Run experiments in a loop
 for i in $(seq 1 $num_runs); do
     echo "Running experiment $i of $num_runs"
     
     # Run the Python command with the appropriate arguments
-    python3 train_metaworld.py exp_name=baseline${cuda_device} seed=1 env_name=bin-picking-v2 random_init=true random_goal=false wandb_tag=baseline num_train_frames=220000 device=cuda:${cuda_device} agent.no_taco=${no_taco}
+    python3 train_metaworld.py agent.pretrained_path="/home/mprattico/Pretrain-TACO/${model_path}" exp_name="/home/mprattico/Pretrain-TACO/${model_path}" seed=1 env_name=basketball-v2 random_init=true random_goal=false wandb_tag=MT49${wandb_suffix} wandb_project="taco_MT" num_train_frames=220000 device=cuda:${cuda_device} agent.no_taco=${no_taco}
 
     # Cleanup command
-    rm -rf baseline${cuda_device}*
+    rm -rf exp_local/metaworld/home/mprattico/Pretrain-TACO/${model_path}
 done
-
-
