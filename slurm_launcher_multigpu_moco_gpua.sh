@@ -49,7 +49,7 @@ SEED=$(($RANDOM % 10000))
 
 # Run with srun
 srun --ntasks=4 --ntasks-per-node=4 python train_metaworld_ed4ct.py \
-    batch_size=256 env_name=push-v3 \
+    batch_size=256 env_name=push-v2 \
     wandb_tag="SLURM" \
     agent.pretrained_path=/home/mprattico/Pretrain-TACO/models/moco_aug.pth.tar \
     wandb_mode=offline \
