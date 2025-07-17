@@ -863,11 +863,18 @@ def create_barplot(data, x_column='algorithm', y_column='value',
                 # Calculate error bars based on bar_type
                 if bar_type == 'confidence_interval':
                     if error_bar_percentile == 95:
+                        print("Using 95% confidence intervals from bootstrap data*********")
                         error_lower.append(alg_data_rows['bootstrap_ci_2_5'].iloc[0])
                         error_upper.append(alg_data_rows['bootstrap_ci_97_5'].iloc[0])
+                        print("The intervals are based on the bootstrap percentiles")
+                        print(f"Lower: {error_lower[-1]}, Upper: {error_upper[-1]} for algorithm {algorithm}")
                     elif error_bar_percentile == 90:
+                        print("Using 90% confidence intervals from bootstrap data*********")
+
                         error_lower.append(alg_data_rows['bootstrap_ci_5'].iloc[0])
                         error_upper.append(alg_data_rows['bootstrap_ci_95'].iloc[0])
+                        print("The intervals are based on the bootstrap percentiles")
+                        print(f"Lower: {error_lower[-1]}, Upper: {error_upper[-1]} for algorithm {algorithm}")
                     else:
                         # Fallback to regular percentiles for other confidence levels
                         # Get original data for this algorithm
@@ -885,6 +892,8 @@ def create_barplot(data, x_column='algorithm', y_column='value',
                     # For now, fallback to confidence intervals
                     error_lower.append(alg_data_rows['bootstrap_ci_5'].iloc[0])
                     error_upper.append(alg_data_rows['bootstrap_ci_95'].iloc[0])
+                    # Print in yellow that we are using bootstrap confidence intervals
+                    print("\033[93mUsing bootstrap confidence intervals for error bars\033[0m")
             else:
                 # Use original non-bootstrap logic
                 alg_data = alg_data_rows[y_column].dropna()
@@ -1074,7 +1083,7 @@ def main():
                         help='Type of central value for bar height')
     parser.add_argument('--bar_type', default='std_err', choices=['std_err', 'std', 'confidence_interval', 'ci', 'quartile', 'min_max'],
                         help='Type of error bars in barplot (ci is short for confidence_interval)')
-    parser.add_argument('--error_bar_percentile', type=float, default=95.0,
+    parser.add_argument('--error_bar_percentile', type=float, default=90.0,
                         help='Percentile for confidence_interval type (e.g., 95 for 95% CI). Ignorato per altri bar_types')
     
     # Bootstrap options
