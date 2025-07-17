@@ -10,6 +10,10 @@
 #SBATCH --partition=gpua
 
 cd $SLURM_SUBMIT_DIR
+
+# Load required modules
+module load intel/slurm
+
 echo "Running on node: $(hostname)"
 echo "Current directory: $(pwd)"
 
@@ -56,8 +60,8 @@ echo "LOCAL_RANK: $LOCAL_RANK"
 echo "=== Network Interface Debug ==="
 hostname
 echo "InfiniBand interfaces:"
-ip addr show ib0 | head -5
-ip addr show ib1 | head -5
+/sbin/ip addr show ib0 2>/dev/null | head -5 || echo "ib0 not available"
+/sbin/ip addr show ib1 2>/dev/null | head -5 || echo "ib1 not available"
 echo "=== InfiniBand Status ==="
 ibstat 2>/dev/null | head -15 || echo "ibstat not available"
 echo "==============================="
