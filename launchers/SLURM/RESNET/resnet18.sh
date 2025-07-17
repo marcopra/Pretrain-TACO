@@ -53,14 +53,13 @@ echo "LOCAL_RANK: $LOCAL_RANK"
 echo "=== Network Interface Debug ==="
 hostname
 echo "InfiniBand interfaces:"
-echo "ib0 and ib1 interfaces (skipped for compatibility)"
+ip addr show ib0 | head -5
+ip addr show ib1 | head -5
 echo "=== InfiniBand Status ==="
 ibstat 2>/dev/null | head -15 || echo "ibstat not available"
 echo "==============================="
 
 WANDB_TAG_FINAL="${WANDB_TAG}_${ENV_NAME}"
-SEED_ARG=$(($RANDOM % 10000))
-
 # Run with srun
 srun --ntasks=4 --ntasks-per-node=4 python train_metaworld_ed4ct.py \
     batch_size=256 env_name=$ENV_NAME \
@@ -71,6 +70,7 @@ srun --ntasks=4 --ntasks-per-node=4 python train_metaworld_ed4ct.py \
     num_train_frames=220000 \
     seed=$SEED_ARG \
     exp_name="RESNET18_${SEED_ARG}_${ENV_NAME}"
-    
+
+
 
 

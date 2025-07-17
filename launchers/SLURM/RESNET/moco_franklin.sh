@@ -26,8 +26,6 @@ else
     SEED_ARG=$SEED
 fi
 
-
-
 ENV_NAME=${ENV_NAME:-"basketball-v2"}
 
 # 2. Setup variabili NCCL
@@ -55,13 +53,14 @@ echo "LOCAL_RANK: $LOCAL_RANK"
 echo "=== Network Interface Debug ==="
 hostname
 echo "InfiniBand interfaces:"
-ip addr show ib0 | head -5
-ip addr show ib1 | head -5
+echo "ib0 and ib1 interfaces (skipped for compatibility)"
 echo "=== InfiniBand Status ==="
 ibstat 2>/dev/null | head -15 || echo "ibstat not available"
 echo "==============================="
 
 WANDB_TAG_FINAL="${WANDB_TAG}_${ENV_NAME}"
+SEED_ARG=$(($RANDOM % 10000))
+
 # Run with srun
 srun --ntasks=4 --ntasks-per-node=4 python train_metaworld_ed4ct.py \
     batch_size=256 env_name=$ENV_NAME \
