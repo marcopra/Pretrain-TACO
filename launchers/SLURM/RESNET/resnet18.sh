@@ -4,12 +4,24 @@
 #SBATCH --ntasks-per-node=4
 #SBATCH --cpus-per-task=8
 #SBATCH --gres=gpu:4
-#SBATCH --time=48:00:00
+#SBATCH --time=24:00:00
 #SBATCH --output=%j.out
 #SBATCH --error=%j.err
-#SBATCH --partition=gpua-longrun
+#SBATCH --partition=gpua
 
 cd $SLURM_SUBMIT_DIR
+
+# Use environment variables passed via sbatch
+SEED=${SEED:-0}
+ENV_NAME=${ENV_NAME:-"push-v2"}
+WANDB_TAG=${WANDB_TAG:-"RESNET18"}
+
+# Set seed argument based on SEED value
+if [ "$SEED" -eq 1 ]; then
+    SEED_ARG=$(($RANDOM % 10000)) 
+else
+    SEED_ARG=$SEED
+fi
 
 source ~/.bashrc
 conda activate metataco
@@ -45,18 +57,17 @@ echo "=== InfiniBand Status ==="
 ibstat 2>/dev/null | head -15 || echo "ibstat not available"
 echo "==============================="
 
-SEED=$(($RANDOM % 10000)) 
-
+WANDB_TAG_FINAL="${WANDB_TAG}_${ENV_NAME}"
 # Run with srun
 srun --ntasks=4 --ntasks-per-node=4 python train_metaworld_ed4ct.py \
-    batch_size=256 env_name=push-v2 \
-    wandb_tag="SLURM" \
+    batch_size=256 env_name=$ENV_NAME \
+    wandb_tag="$WANDB_TAG_FINAL" \
     agent.pretrained_path=resnet18_l5.tar \
     wandb_mode=online \
     save_snapshot=false \
     num_train_frames=220000 \
-    seed=$SEED \
-    exp_name="SLURM_TORCHRUN_${SEED}" 
+    seed=$SEED_ARG \
+    exp_name="RESNET18_${SEED_ARG}_${ENV_NAME}"
 
 
 
