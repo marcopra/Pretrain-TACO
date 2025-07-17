@@ -1,6 +1,6 @@
 #!/bin/bash
 
-seeds="1"
+seeds="1 1 1 1 1"
 env_names=("button-press-v2")
 model_paths=(
     "/home/mprattico/Pretrain-TACO/models/mt/MT49/taco_MT_MT50_OOD_ButtonPress_0.0_lr=0.0005_ts=192512000_curl_rew_best.pt"
