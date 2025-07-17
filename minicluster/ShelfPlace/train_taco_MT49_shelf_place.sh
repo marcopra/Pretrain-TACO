@@ -38,7 +38,7 @@ case $no_taco in
 esac
 
 # Set model path for MT49 ShelfPlace
-model_path="models/exp/0/taco_MT_MT50_OOD_ShelfPlace_0.0_lr\=0.0005_ts\=177766400_curl_rew_best.pt"
+model_path="models/mt/MT49/taco_MT_MT50_OOD_ShelfPlace_0.0_lr\=0.0005_ts\=177766400_curl_rew_best.pt"
 
 # Set suffix for experiment name based on no_taco value
 if [ "$no_taco" = "true" ]; then
