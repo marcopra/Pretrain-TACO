@@ -64,7 +64,7 @@ WANDB_TAG_FINAL="${WANDB_TAG}_${ENV_NAME}"
 srun --ntasks=4 --ntasks-per-node=4 python train_metaworld_ed4ct.py \
     batch_size=256 env_name=$ENV_NAME \
     wandb_tag="$WANDB_TAG_FINAL" \
-    agent.pretrained_path=resnet18_l5.tar \
+    agent.pretrained_path=resnet18_l5_pretrained.tar \
     wandb_mode=online \
     save_snapshot=false \
     num_train_frames=220000 \
