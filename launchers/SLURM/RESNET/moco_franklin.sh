@@ -11,12 +11,8 @@
 
 cd $SLURM_SUBMIT_DIR
 
-# Load required modules
-module load intel/slurm
-
-echo "Running on node: $(hostname)"
-echo "Current directory: $(pwd)"
-
+source ~/.bashrc
+conda activate metataco
 
 # Use environment variables passed via sbatch
 SEED=${SEED:-0}
@@ -30,8 +26,7 @@ else
     SEED_ARG=$SEED
 fi
 
-source ~/.bashrc
-conda activate metataco
+
 
 ENV_NAME=${ENV_NAME:-"basketball-v2"}
 
@@ -60,8 +55,8 @@ echo "LOCAL_RANK: $LOCAL_RANK"
 echo "=== Network Interface Debug ==="
 hostname
 echo "InfiniBand interfaces:"
-/sbin/ip addr show ib0 2>/dev/null | head -5 || echo "ib0 not available"
-/sbin/ip addr show ib1 2>/dev/null | head -5 || echo "ib1 not available"
+ip addr show ib0 | head -5
+ip addr show ib1 | head -5
 echo "=== InfiniBand Status ==="
 ibstat 2>/dev/null | head -15 || echo "ibstat not available"
 echo "==============================="

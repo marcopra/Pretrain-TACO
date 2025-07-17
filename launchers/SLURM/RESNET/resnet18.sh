@@ -11,11 +11,9 @@
 
 cd $SLURM_SUBMIT_DIR
 
-# Load required modules
-module load intel/slurm
+source ~/.bashrc
+conda activate metataco
 
-echo "Running on node: $(hostname)"
-echo "Current directory: $(pwd)"
 # Use environment variables passed via sbatch
 SEED=${SEED:-0}
 ENV_NAME=${ENV_NAME:-"push-v2"}
@@ -28,8 +26,7 @@ else
     SEED_ARG=$SEED
 fi
 
-source ~/.bashrc
-conda activate metataco
+
 
 # 2. Setup variabili NCCL
 export NCCL_IB_DISABLE=0
@@ -56,8 +53,8 @@ echo "LOCAL_RANK: $LOCAL_RANK"
 echo "=== Network Interface Debug ==="
 hostname
 echo "InfiniBand interfaces:"
-/sbin/ip addr show ib0 2>/dev/null | head -5 || echo "ib0 not available"
-/sbin/ip addr show ib1 2>/dev/null | head -5 || echo "ib1 not available"
+ip addr show ib0 | head -5
+ip addr show ib1 | head -5
 echo "=== InfiniBand Status ==="
 ibstat 2>/dev/null | head -15 || echo "ibstat not available"
 echo "==============================="
@@ -68,6 +65,11 @@ srun --ntasks=4 --ntasks-per-node=4 python train_metaworld_ed4ct.py \
     batch_size=256 env_name=$ENV_NAME \
     wandb_tag="$WANDB_TAG_FINAL" \
     agent.pretrained_path=resnet18_l5.tar \
+    wandb_mode=online \
+    save_snapshot=false \
+    num_train_frames=220000 \
+    seed=$SEED_ARG \
+    exp_name="RESNET18_${SEED_ARG}_${ENV_NAME}"
     wandb_mode=online \
     save_snapshot=false \
     num_train_frames=220000 \
