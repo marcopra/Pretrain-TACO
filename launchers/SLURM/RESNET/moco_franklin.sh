@@ -28,6 +28,7 @@ fi
 
 source ~/.bashrc
 conda activate metataco
+
 ENV_NAME=${ENV_NAME:-"basketball-v2"}
 
 # 2. Setup variabili NCCL
