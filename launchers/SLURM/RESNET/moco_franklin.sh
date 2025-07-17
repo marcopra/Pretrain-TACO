@@ -10,6 +10,9 @@
 #SBATCH --partition=gpua
 
 cd $SLURM_SUBMIT_DIR
+echo "Running on node: $(hostname)"
+echo "Current directory: $(pwd)"
+
 
 # Use environment variables passed via sbatch
 SEED=${SEED:-0}
