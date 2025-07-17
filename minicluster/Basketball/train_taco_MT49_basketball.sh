@@ -1,4 +1,7 @@
 #!/bin/bash
+# Number of runs
+num_runs=35
+
 
 # Check if cuda_device argument is provided
 if [ $# -lt 1 ] || [ $# -gt 2 ]; then
@@ -43,9 +46,6 @@ if [ "$no_taco" = "true" ]; then
 else
     wandb_suffix="_BASKETBALL"
 fi
-
-# Number of runs
-num_runs=7
 
 # Run experiments in a loop
 for i in $(seq 1 $num_runs); do
