@@ -24,5 +24,6 @@ conda activate metataco
 # python3 train_metaworld.py agent.pretrained_path="/home/mprattico/Pretrain-TACO/models/taco_MT_exp\=80_1OOD_push_config_ts\=200000512.pt" exp_name=pretrained_taco_80200M random_init=true device=cuda:0
 # python pretrain_taco_multi_task.py --dataset_config "mt_config/ST/ST_exp=20_ri1_rg1_push_config.json" --use_wandb --total_steps 300_000_000 --checkpoint "20_000_000,200_000_000" --lr 1e-4
 python3 train_metaworld.py exp_name=prova random_init=true device=cuda:0 agent.freeze_encoder=true agent.pretrained_path="/home/mprattico/Pretrain-TACO/models/debug/taco_MT_ST50_OOD_Push_0.0_lr\=0.0005_ts\=5000192.pt" 
+python pretrain_taco_multi_task_episodes_from_checkpoint_homogeneous.py --dataset_config "configs_data_MT/MT10IDAssemblyButtonPressTopdownDoorUnlockFaucetCloseHandlePressHandlePressSideHandlePullPickOutOfHolePickPlacePushWall.json" --total_steps 200_000_000 --checkpoint "100_000_000, 200_000_000" --lr 5e-4 --save_path models_prova --homogeneous --max_size 98000
 
 # Cleanup will be triggered automatically by the trap

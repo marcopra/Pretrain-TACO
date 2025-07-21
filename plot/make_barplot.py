@@ -801,7 +801,7 @@ def prepare_barplot_data_at_x_with_bootstrap(grouped_dataframes_with_tasks, x_co
 def create_barplot(data, x_column='algorithm', y_column='value', 
                   custom_order=None, baselines=None, log_y=False,
                   y_min=None, y_max=None, y_scale_factor=None,
-                  y_label=None, plot_title=None, color_mapping=None, 
+                  y_label=None, x_label=None, plot_title=None, color_mapping=None, 
                   central_line='median', bar_type='std_err', error_bar_percentile=95,
                   show_baseline_error_bars=False, show_tendency_line=False, 
                   use_bootstrap=False, **kwargs):
@@ -946,7 +946,8 @@ def create_barplot(data, x_column='algorithm', y_column='value',
                     error_upper.append(bar_height + std_err)
             
             bar_heights.append(bar_height)
-            
+            print(f"Algorithm: {algorithm}, Bar height: {bar_height:.2f}, "
+                  f"Error lower: {error_lower[-1]:.2f}, Error upper: {error_upper[-1]:.2f}")
             # Determina il colore
             if color_mapping and algorithm in color_mapping:
                 colors.append(color_mapping[algorithm])
@@ -1051,7 +1052,7 @@ def create_barplot(data, x_column='algorithm', y_column='value',
             y_axis_label = y_label or 'Value'
     
     plt.ylabel(y_axis_label)
-    plt.xlabel('Algorithm')
+    plt.xlabel(x_label or 'Algorithm')
     
     # Imposta titolo personalizzato se specificato
     if plot_title is not None:
@@ -1083,7 +1084,7 @@ def main():
                         help='Type of central value for bar height')
     parser.add_argument('--bar_type', default='std_err', choices=['std_err', 'std', 'confidence_interval', 'ci', 'quartile', 'min_max'],
                         help='Type of error bars in barplot (ci is short for confidence_interval)')
-    parser.add_argument('--error_bar_percentile', type=float, default=90.0,
+    parser.add_argument('--error_bar_percentile', '--epercentile',  type=float, default=95.0,
                         help='Percentile for confidence_interval type (e.g., 95 for 95% CI). Ignorato per altri bar_types')
     
     # Bootstrap options
@@ -1110,6 +1111,7 @@ def main():
     # Axis formatting
     parser.add_argument('--y_scale', type=float, default=None, help='Scale factor for y-axis values (e.g., 1e3)')
     parser.add_argument('--y_label', type=str, default=None, help='Custom y-axis label')
+    parser.add_argument('--x_label', type=str, default=None, help='Custom x-axis label')
     
     # Plot title
     parser.add_argument('--title', type=str, default=None, help='Plot title')
@@ -1244,7 +1246,8 @@ def main():
         y_max=args.y_max,
         y_scale_factor=args.y_scale,
         y_label=args.y_label,
-        plot_title=args.title or f"Comparison at {args.xaxis} = {args.fixed_x}",
+        x_label=args.x_label,
+        plot_title=args.title, # or f"Comparison at {args.xaxis} = {args.fixed_x}",
         color_mapping=color_mapping,
         central_line=args.central_line,
         bar_type=args.bar_type,

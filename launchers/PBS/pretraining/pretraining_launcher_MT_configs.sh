@@ -2,14 +2,14 @@
 
 # Define dataset config paths
 dataset_configs=(
-    "configs_data_MT/MT1IDButtonPressTopdownWall.json"
-    "configs_data_MT/MT1IDDrawerOpen.json"
-    "configs_data_MT/MT1IDHandlePressSide.json"
-    "configs_data_MT/MT1IDPushWall.json"
-    "configs_data_MT/MT1IDSweep.json"
-    "configs_data_MT/MT10IDAssemblyButtonPressTopdownDoorUnlockFaucetCloseHandlePressHandlePressSideHandlePullPickOutOfHolePickPlacePushWall.json"
-    "configs_data_MT/MT10IDBoxCloseDoorUnlockDrawerCloseFaucetCloseFaucetOpenPickOutOfHolePushBackSweepSweepIntoWindowClose.json"
-    "configs_data_MT/MT10IDBoxCloseDrawerCloseHandlePressSideHandlePullSideLeverPullPickOutOfHolePlateSlideBackSidePlateSlideSideReachSweepInto.json"
+    # "configs_data_MT/MT1IDButtonPressTopdownWall.json"
+    # "configs_data_MT/MT1IDDrawerOpen.json"
+    # "configs_data_MT/MT1IDHandlePressSide.json"
+    # "configs_data_MT/MT1IDPushWall.json"
+    # "configs_data_MT/MT1IDSweep.json"
+    # "configs_data_MT/MT10IDAssemblyButtonPressTopdownDoorUnlockFaucetCloseHandlePressHandlePressSideHandlePullPickOutOfHolePickPlacePushWall.json"
+    # "configs_data_MT/MT10IDBoxCloseDoorUnlockDrawerCloseFaucetCloseFaucetOpenPickOutOfHolePushBackSweepSweepIntoWindowClose.json"
+    # "configs_data_MT/MT10IDBoxCloseDrawerCloseHandlePressSideHandlePullSideLeverPullPickOutOfHolePlateSlideBackSidePlateSlideSideReachSweepInto.json"
     # "configs_data_MT/MT10IDButtonPressTopdownCoffeeButtonCoffeePushDisassembleDoorLockDoorOpenDrawerOpenPickOutOfHolePickPlaceStickPull.json"
     # "configs_data_MT/MT10IDCoffeeButtonCoffeePushDoorUnlockFaucetOpenHandlePressHandlePullSidePlateSlidePlateSlideBackPlateSlideSideWindowOpen.json"
     # "configs_data_MT/MT30OODAsseBaskBinPBoxCButtButtButtCoffDisaDoorDoorDoorDrawHammHandPickPushPushShelStic.json"
@@ -22,6 +22,12 @@ dataset_configs=(
     # "configs_data_MT/MT40OODBasketballBinPickingButtonPressDoorCloseHandInsertLeverPullPegUnplugSidePushReachShelfPlace.json"
     # "configs_data_MT/MT40OODBasketballBinPickingButtonPressDoorLockDoorUnlockHandlePullPushShelfPlaceSweepIntoWindowClose.json"
     # "configs_data_MT/MT40OODBasketballBinPickingButtonPressDrawerCloseDrawerOpenFaucetOpenPickOutOfHolePushShelfPlaceWindowClose.json"
+    "configs_data_MT/MT49OODBasketball.json"
+    "configs_data_MT/MT49OODBinPicking.json"
+    "configs_data_MT/MT49OODButtonPress.json"
+    "configs_data_MT/MT49OODPush.json"
+    "configs_data_MT/MT49OODShelfPlace.json"
+
 )
 exps_values=("0.0")
 

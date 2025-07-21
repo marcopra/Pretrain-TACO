@@ -282,15 +282,15 @@ def main():
                       help='Filter by tags. Use simple comma-separated list or complex expressions with & (AND), | (OR), and parentheses. Example: "(MT50&baseline)|BEST"')
     parser.add_argument('--filter_by_config', type=str, default="", 
                         help='Filter by config parameters. Use simple format (key1=value1,key2=value2) or complex expressions with & (AND), | (OR), and parentheses. Example: "(agent/no_taco!=true&env_name=basketball-v2)|batch_size=1024"')
-    parser.add_argument('--download', action='store_true', default=True, help='Download data from wandb')
-    parser.add_argument('--processing', action='store_true', default=True)
+    parser.add_argument('--download', action='store_true', default=False, help='Download data from wandb')
+    parser.add_argument('--processing', action='store_true', default=False)
     parser.add_argument('--project', type=str, default='taco_metaworld', help='Project name') 
     parser.add_argument('--entity', type=str, default=None, help='WandB entity/team name (optional)')
     parser.add_argument('--n_points', type=int, default=1000, help='Number of points to plot')
     parser.add_argument('--max_x', type=int, default=100_000, help='maximum x axis value of points to plot')
     parser.add_argument('--min_x', type=int, default=0, help='minimum x axis value of points to plot')
     parser.add_argument('--group_by_config', type=str, default="pretrained_path", help='Config parameter to use for grouping and naming saved files')
-    parser.add_argument('--max_runs_per_group', type=int, default=7, 
+    parser.add_argument('--max_runs_per_group', type=int, default=15, 
                         help='Maximum number of runs to download per group (based on group_by_config). If None, download all runs')
 
     args = parser.parse_args()
