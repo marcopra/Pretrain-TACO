@@ -69,6 +69,6 @@ srun --ntasks=4 --ntasks-per-node=4 python train_metaworld_ed4ct.py \
     wandb_mode=online \
     save_snapshot=false \
     num_train_frames=204000 \
-    num_seed_frames=4000 \
+    num_seed_frames=8000 \
     seed=$SEED_ARG \
     exp_name="MOCO_${SEED_ARG}_$ENV_NAME"

@@ -69,8 +69,8 @@ case $exp in
         lr_value="0.0005"
         ;;
     99)
-        ts_value="409600"
-        lr_value="0.001"
+        ts_value="3430400"
+        lr_value="0.0005"
         ;;
 esac
 

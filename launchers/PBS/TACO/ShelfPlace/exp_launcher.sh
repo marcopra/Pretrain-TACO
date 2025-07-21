@@ -1,0 +1,29 @@
+#!/bin/bash
+
+seeds="1"
+env_names=("shelf-place-v2")
+model_paths=(
+    "/home/mprattico/Pretrain-TACO/models/exp/33/taco_MT_MT50_OOD_ShelfPlace_0.33_lr=0.0005_ts=153600_curl_rew_best.pt"
+    "/home/mprattico/Pretrain-TACO/models/exp/66/taco_MT_MT50_OOD_ShelfPlace_0.66_lr=0.0005_ts=153139200_curl_rew_best.pt"
+    "/home/mprattico/Pretrain-TACO/models/exp/99/taco_MT_MT50_OOD_ShelfPlace_0.99_lr=0.0005_ts=24166400_curl_rew_best.pt"
+)
+   
+random_hand_inital="true"
+random_goal_inital="false"
+wandb_tags=("33_SHELFPLACE" "66_SHELFPLACE" "99_SHELFPLACE")
+no_taco="false"
+
+for random_hand in $random_hand_inital; do
+    for random_goal in $random_goal_inital; do
+        for seed in $seeds; do
+            for env_name in "${env_names[@]}"; do
+                for i in "${!model_paths[@]}"; do
+                    model_path="${model_paths[$i]}"
+                    wandb_tag="${wandb_tags[$i]}"
+                    echo "Submitting job: ENV_NAME=${env_name}, RANDOM_HAND=${random_hand}, RANDOM_GOAL=${random_goal}, SEED=${seed}, TAG=${wandb_tag}"
+                    qsub -v SEED="${seed}",ENV_NAME="${env_name}",RANDOM_HAND="${random_hand}",RANDOM_GOAL="${random_goal}",MODEL_PATH="${model_path}",WANDB_TAG="${wandb_tag}",NO_TACO="${no_taco}",WANDB_PROJECT="TACO_EXP" launchers/PBS/TACO/ShelfPlace/MT_pretrained.sh
+                done
+            done
+        done
+    done
+done
