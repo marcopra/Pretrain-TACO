@@ -68,6 +68,7 @@ srun --ntasks=4 --ntasks-per-node=4 python train_metaworld_ed4ct.py \
     agent.pretrained_path=/home/mprattico/Pretrain-TACO/models/moco_aug.pth.tar \
     wandb_mode=online \
     save_snapshot=false \
-    num_train_frames=220000 \
+    num_train_frames=204000 \
+    num_seed_frames=4000 \
     seed=$SEED_ARG \
     exp_name="MOCO_${SEED_ARG}_$ENV_NAME"
