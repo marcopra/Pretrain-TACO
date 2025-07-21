@@ -385,7 +385,7 @@ if __name__ == "__main__":
                 if current_eval_loss < best_eval_loss:
                     print(f"New best model found! eval/total_loss: {current_eval_loss:.6f} (previous best: {best_eval_loss:.6f})")
                     best_eval_loss = current_eval_loss
-                    
+                    wandb.log({"best_eval_loss": current_eval_loss})
                     # Delete previous best model if it exists
                     if best_model_path is not None and os.path.exists(best_model_path):
                         print(f"Deleting previous best model: {best_model_path}")
