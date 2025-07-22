@@ -1,6 +1,6 @@
 #!/bin/bash
 
-seeds="1"
+seeds="1 1 1 1 1 1 1"
 env_names=("bin-picking-v2")
 model_paths=(
     "/home/mprattico/Pretrain-TACO/models/multiheads_exp0_MT49/taco_MT_MT49OODBinPicking.json_lr=0.0005_ts=121753600_curl_rew_best.pt"

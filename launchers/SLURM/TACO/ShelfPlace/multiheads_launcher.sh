@@ -1,6 +1,6 @@
 #!/bin/bash
 
-seeds="1"
+seeds="1 1 1 1 1 1 1"
 env_names=("shelf-place-v2")
 model_paths=(
     "/home/mprattico/Pretrain-TACO/models/multiheads_exp0_MT49/taco_MT_MT49OODShelfPlace.json_lr=0.0005_ts=139520000_curl_rew_best.pt"
