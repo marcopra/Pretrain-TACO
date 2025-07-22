@@ -125,6 +125,30 @@ class TACO(nn.Module):
         logits = logits - torch.max(logits, 1)[0][:, None]
         return logits
     
+    def load_checkpoint(self, state_dict):
+        """
+        Load TACO weights from checkpoint with safe reward network loading.
+        
+        Args:
+            state_dict: The state dictionary from the checkpoint
+        """
+        # Prima carica tutto quello che può con strict=False
+        self.load_state_dict(state_dict, strict=False)
+        
+        # Poi prova a caricare specificamente la rete reward
+        try:
+            reward_state_dict = {k.replace('reward.', ''): v for k, v in state_dict.items() if k.startswith('reward.')}
+            if reward_state_dict:
+                self.reward.load_state_dict(reward_state_dict)
+                print("Successfully loaded reward network from checkpoint")
+            else:
+                print("No reward network found in checkpoint, keeping initialized weights")
+        except Exception as e:
+            print(f"Failed to load reward network from checkpoint: {e}")
+            print("Reward network will be initialized from scratch")
+            # Re-inizializza la rete reward
+            self.reward.apply(utils.weight_init)
+
     
 class Actor(nn.Module):
     def __init__(self, repr_dim, action_shape, feature_dim, hidden_dim):
@@ -269,8 +293,25 @@ class TACOAgent:
         checkpoint = torch.load(model_path, map_location=map_location)
         
         self.encoder.load_state_dict(checkpoint['encoder'])
-        self.TACO.load_state_dict(checkpoint['taco'])
         self.act_tok.load_state_dict(checkpoint['act_tok'])
+        
+        # Usa il metodo della classe TACO per caricare i pesi
+        self.TACO.load_checkpoint(checkpoint['taco'])
+        
+        # Prova a caricare specificamente la rete reward
+        try:
+            # Estrai solo i parametri della rete reward dal checkpoint
+            reward_state_dict = {k.replace('reward.', ''): v for k, v in checkpoint['taco'].items() if k.startswith('reward.')}
+            if reward_state_dict:
+                self.TACO.reward.load_state_dict(reward_state_dict)
+                print("Successfully loaded reward network from checkpoint")
+            else:
+                print("No reward network found in checkpoint, keeping initialized weights")
+        except Exception as e:
+            print(f"Failed to load reward network from checkpoint: {e}")
+            print("Reward network will be initialized from scratch")
+            # Re-inizializza la rete reward
+            self.TACO.reward.apply(utils.weight_init)
         
         # Store model fingerprints if we're freezing the encoder
         if freeze_encoder:
@@ -567,6 +608,7 @@ class TACOAgent:
                 logits = self.TACO.compute_logits(z_a, z_pos)
                 labels = torch.arange(logits.shape[0]).long().to(self.device)
                 curl_loss = self.cross_entropy_loss(logits, labels)
+                print("curl_loss", curl_loss)
             else:
                 curl_loss = torch.tensor(0.)
             
