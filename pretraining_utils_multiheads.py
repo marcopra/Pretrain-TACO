@@ -5,6 +5,7 @@ import random
 import numpy as np
 import tempfile
 import os
+import threading
 
 class ColorPrint:
     @staticmethod
@@ -194,20 +195,77 @@ def can_use_direct_loading(dataset_paths, selected_episodes, max_episodes_per_da
     
     return False, None
 
+class EpisodePool:
+    """Manages a shared pool of episodes for split validation to prevent data leakage"""
+    def __init__(self, temp_dir, all_episodes, task_to_id):
+        self.temp_dir = Path(temp_dir)
+        self.task_to_id = task_to_id
+        self.lock = threading.Lock()
+        self.used_episodes = set()
+        
+        # Create symlinks for all episodes
+        self.episode_map = {}  # Maps original episode path to symlink path
+        counter = 0
+        
+        for episode_file in all_episodes:
+            task_name = extract_task_name_from_path(episode_file.parent)
+            task_id = task_to_id[task_name]
+            
+            processed_path = create_symlink_with_proper_naming(
+                episode_file, self.temp_dir, counter, task_id
+            )
+            if processed_path is not None:
+                self.episode_map[str(episode_file)] = processed_path
+                counter += 1
+    
+    def mark_episode_used(self, episode_path):
+        """Mark an episode as used by removing its symlink"""
+        with self.lock:
+            episode_path_str = str(episode_path)
+            if episode_path_str in self.episode_map:
+                symlink_path = self.episode_map[episode_path_str]
+                if symlink_path.exists():
+                    symlink_path.unlink()
+                self.used_episodes.add(episode_path_str)
+    
+    def get_available_episodes(self):
+        """Get list of available (unused) episode symlinks"""
+        with self.lock:
+            available = []
+            for orig_path, symlink_path in self.episode_map.items():
+                if orig_path not in self.used_episodes and symlink_path.exists():
+                    available.append(symlink_path)
+            return available
+
+# Global episode pool for split validation
+_episode_pool = None
+
+def set_episode_pool(pool):
+    """Set the global episode pool"""
+    global _episode_pool
+    _episode_pool = pool
+
+def get_episode_pool():
+    """Get the global episode pool"""
+    return _episode_pool
+
 def load_unified_dataset(config_or_path, batch_size=32, num_workers=4,
                          nstep=3, multistep=3, discount=0.99, 
                          max_episodes_per_dataset=8, max_size=None,
-                         homogeneous=False, is_test=False, **kwargs):
+                         homogeneous=False, is_test=False, 
+                         validation_split_ratio=0.8, use_training_split=True, **kwargs):
     """
     Load episodes from datasets specified in config or folder structure
     
     Args:
         config_or_path: Either path to config.json or folder with pretraining_datasets/test_dataset
-        max_episodes_per_dataset: Maximum episodes to load per dataset
-        max_size: Maximum size of replay buffer (only for training)
+        max_episodes_per_dataset: Maximum episodes to load per dataset (for training only when splitting)
+        max_size: Maximum size of replay buffer (for training only when splitting)
         homogeneous: Whether to load transitions evenly across datasets
         is_test: Whether this is test dataset (affects max_size behavior)
-        **kwargs: Additional arguments (including validation split parameters)
+        validation_split_ratio: Ratio of data to use for training when splitting
+        use_training_split: Whether to use training split (True) or validation split (False)
+        **kwargs: Additional arguments
     """
     config_path = Path(config_or_path)
     
@@ -235,37 +293,122 @@ def load_unified_dataset(config_or_path, batch_size=32, num_workers=4,
     # Create task mapping
     task_to_id, id_to_task = create_task_mapping(dataset_paths)
     
-    if homogeneous:
-        ColorPrint.green("Using homogeneous dataset loading")
-        selected_episodes = select_episodes_homogeneous(
-            dataset_paths, max_episodes_per_dataset, max_size, is_test
-        )
+    # Check if we're doing split validation
+    using_split_validation = 'validation_split_ratio' in kwargs and not is_test
+    
+    # Handle split validation case
+    if using_split_validation:
+        global _episode_pool
+        
+        if use_training_split:
+            # First call: create episode pool and load training data
+            ColorPrint.blue("Creating episode pool for split validation")
+            
+            # Collect all episodes without any filtering first
+            all_episodes = []
+            for dataset_path in dataset_paths:
+                dataset_path = Path(dataset_path)
+                episode_files = list(dataset_path.glob('*.npz'))
+                all_episodes.extend(episode_files)
+            
+            # Create temporary directory and episode pool
+            temp_dir = Path(tempfile.mkdtemp())
+            print(f"Temporary directory created at: {temp_dir}")
+            
+            _episode_pool = EpisodePool(temp_dir, all_episodes, task_to_id)
+            
+            # Now select episodes for training with constraints
+            if homogeneous:
+                selected_episodes = select_episodes_homogeneous(
+                    dataset_paths, max_episodes_per_dataset, max_size, is_test
+                )
+            else:
+                selected_episodes = []
+                for dataset_path in dataset_paths:
+                    dataset_path = Path(dataset_path)
+                    episode_files = list(dataset_path.glob('*.npz'))
+                    
+                    if max_episodes_per_dataset is not None:
+                        episode_files = episode_files[:max_episodes_per_dataset]
+                    
+                    selected_episodes.extend(episode_files)
+            
+            # Mark selected episodes as used in the pool
+            for episode_file in selected_episodes:
+                _episode_pool.mark_episode_used(episode_file)
+            
+            # Get the symlink paths for training
+            training_symlinks = []
+            for episode_file in selected_episodes:
+                episode_path_str = str(episode_file)
+                if episode_path_str in _episode_pool.episode_map:
+                    symlink_path = _episode_pool.episode_map[episode_path_str]
+                    if symlink_path.exists():  # Double check it wasn't removed
+                        training_symlinks.append(symlink_path)
+            
+            print(f"Selected {len(training_symlinks)} episodes for training")
+            
+            # Create a temporary directory with only training symlinks
+            train_temp_dir = Path(tempfile.mkdtemp())
+            counter = 0
+            for symlink_path in training_symlinks:
+                # Create new symlink in training directory
+                new_name = f"train_{counter:06d}_{symlink_path.name.split('_')[-1]}"
+                new_path = train_temp_dir / new_name
+                os.symlink(symlink_path.readlink(), new_path)
+                counter += 1
+            
+            loader_dir = train_temp_dir
+            
+        else:
+            # Second call: load validation data from remaining episodes
+            ColorPrint.blue("Loading validation split from remaining episodes")
+            
+            if _episode_pool is None:
+                raise RuntimeError("Episode pool not initialized. Training split must be loaded first.")
+            
+            # Get available (unused) episodes for validation
+            available_episodes = _episode_pool.get_available_episodes()
+            print(f"Found {len(available_episodes)} episodes available for validation")
+            
+            # Create validation temporary directory
+            val_temp_dir = Path(tempfile.mkdtemp())
+            counter = 0
+            for symlink_path in available_episodes:
+                # Create new symlink in validation directory
+                new_name = f"val_{counter:06d}_{symlink_path.name.split('_')[-1]}"
+                new_path = val_temp_dir / new_name
+                if symlink_path.exists():  # Check if symlink still exists
+                    os.symlink(symlink_path.readlink(), new_path)
+                    counter += 1
+            
+            loader_dir = val_temp_dir
+    
     else:
-        selected_episodes = []
-        for dataset_path in dataset_paths:
-            dataset_path = Path(dataset_path)
-            episode_files = list(dataset_path.glob('*.npz'))
-            
-            if max_episodes_per_dataset is not None:
-                episode_files = episode_files[:max_episodes_per_dataset]
-            
-            selected_episodes.extend(episode_files)
-    
-    print(f"Selected {len(selected_episodes)} episodes total")
-    
-    # Check if we can use direct loading
-    can_direct_load, direct_path = can_use_direct_loading(
-        dataset_paths, selected_episodes, max_episodes_per_dataset, homogeneous
-    )
-    
-    # For task tracking, we need to create temporary directory with task IDs
-    # Even if we could use direct loading, we need to add task IDs
-    ColorPrint.yellow("Creating temporary directory with task IDs")
-    temp_dir = Path(tempfile.mkdtemp())
-    print(f"Temporary directory created at: {temp_dir}")
-    
-    try:
-        # Create episodes with task IDs
+        # Original behavior for non-split cases
+        if homogeneous:
+            ColorPrint.green("Using homogeneous dataset loading")
+            selected_episodes = select_episodes_homogeneous(
+                dataset_paths, max_episodes_per_dataset, max_size, is_test
+            )
+        else:
+            selected_episodes = []
+            for dataset_path in dataset_paths:
+                dataset_path = Path(dataset_path)
+                episode_files = list(dataset_path.glob('*.npz'))
+                
+                if max_episodes_per_dataset is not None:
+                    episode_files = episode_files[:max_episodes_per_dataset]
+                
+                selected_episodes.extend(episode_files)
+        
+        print(f"Selected {len(selected_episodes)} episodes total")
+        
+        # Create temporary directory with task IDs
+        ColorPrint.yellow("Creating temporary directory with task IDs")
+        temp_dir = Path(tempfile.mkdtemp())
+        print(f"Temporary directory created at: {temp_dir}")
+        
         counter = 0
         for episode_file in selected_episodes:
             # Get task ID for this episode
@@ -278,29 +421,23 @@ def load_unified_dataset(config_or_path, batch_size=32, num_workers=4,
             if processed_path is not None:
                 counter += 1
         
-        # Create loader
-        loader = make_replay_loader(
-            replay_dir=temp_dir,
-            max_size=1000000 if max_size is None else max_size,
-            batch_size=batch_size,
-            num_workers=num_workers,
-            save_snapshot=True,
-            nstep=nstep,
-            multistep=multistep,
-            discount=discount
-        )
-        
-        # Attach task mapping to loader for reference
-        loader.task_to_id = task_to_id
-        loader.id_to_task = id_to_task
-        loader.num_tasks = len(task_to_id)  # Add number of tasks for multiheads
-        
-        return loader
-    finally:
-        # Cleanup temporary directory and symlinks
-        import shutil
-        try:
-            shutil.rmtree(temp_dir)
-            print(f"Temporary directory {temp_dir} cleaned up successfully")
-        except Exception as e:
-            ColorPrint.yellow(f"Warning: Could not cleanup temporary directory {temp_dir}: {e}")
+        loader_dir = temp_dir
+    
+    # Create loader
+    loader = make_replay_loader(
+        replay_dir=loader_dir,
+        max_size=1000000 if max_size is None else max_size,
+        batch_size=batch_size,
+        num_workers=num_workers,
+        save_snapshot=True,
+        nstep=nstep,
+        multistep=multistep,
+        discount=discount
+    )
+    
+    # Attach task mapping to loader for reference
+    loader.task_to_id = task_to_id
+    loader.id_to_task = id_to_task
+    loader.num_tasks = len(task_to_id)
+    
+    return loader

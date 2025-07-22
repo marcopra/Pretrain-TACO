@@ -150,11 +150,11 @@ if __name__ == "__main__":
         
     else:  # validation_source == 'split'
         # When splitting, we need to respect max_size and max_episodes for training set
-        # First load the full dataset to understand its size, then split appropriately
         print(f"Using split validation with ratio {args.validation_split_ratio}")
         print(f"Training set will respect max_episodes_per_dataset={args.max_episodes_per_dataset}, max_size={args.max_size}")
         
-        # Load training data with the specified constraints
+        print("Creating training dataset")
+        # Load training data with the specified constraints (this creates the episode pool)
         train_dataloader = load_unified_dataset(
             config_or_path=pretraining_config,
             batch_size=args.batch_size,
@@ -167,21 +167,27 @@ if __name__ == "__main__":
             use_training_split=True  # Only get the training portion
         )
         
-        # Load validation data from the remaining data (no size constraints)
+        print("Creating validation dataset")
+        # Load validation data from the remaining episodes (no size constraints)
         valid_dataloader = load_unified_dataset(
             config_or_path=pretraining_config,
             batch_size=args.batch_size,
             num_workers=args.num_workers,
             max_episodes_per_dataset=None,  # Use all remaining episodes for validation
             max_size=None,  # Use all remaining data for validation
-            homogeneous=args.homogeneous,
+            homogeneous=False,  # Don't apply homogeneous loading to validation split
             is_test=False,
             validation_split_ratio=args.validation_split_ratio,
             use_training_split=False  # Only get the validation portion
         )
+
+        # print the length of the datasets
+        print(f"Training dataset size: {len(train_dataloader)}")
+        print(f"Validation dataset size: {len(valid_dataloader)}")
         
         # Load test set separately if test evaluation is enabled
         if args.test_eval_frequency > 0:
+            print("Creating test dataset")
             test_dataloader = load_unified_dataset(
                 config_or_path=test_config,
                 batch_size=args.batch_size,
@@ -381,13 +387,17 @@ if __name__ == "__main__":
                 for key in eval_metrics_sum:
                     eval_metrics_sum[key] /= num_eval_batches
                 
-                # Check if this is the best model based on validation loss
+                # Update best validation loss and log to wandb
                 current_eval_loss = eval_metrics_sum['eval/total_loss']
                 if current_eval_loss < best_eval_loss:
+                    best_eval_loss = current_eval_loss
+                    print(f"New best validation loss: {best_eval_loss:.6f}")
+                
+                # For validation_source='test', save best model based on validation loss
+                if args.validation_source == 'test' and current_eval_loss < best_eval_loss:
                     print(f"New best model found! eval/total_loss: {current_eval_loss:.6f} (previous best: {best_eval_loss:.6f})")
                     best_eval_loss = current_eval_loss
-                    if args.use_wandb:
-                        wandb.log({"best_eval_loss": current_eval_loss})
+                    
                     # Delete previous best model if it exists
                     if best_model_path is not None and os.path.exists(best_model_path):
                         print(f"Deleting previous best model: {best_model_path}")
@@ -464,6 +474,35 @@ if __name__ == "__main__":
                 for key in test_metrics_sum:
                     test_metrics_sum[key] /= num_test_batches
                 
+                # Check if this is the best model based on test loss (for split validation)
+                current_test_loss = test_metrics_sum['test/total_loss']
+                if current_test_loss < best_test_loss:
+                    print(f"New best model found! test/total_loss: {current_test_loss:.6f} (previous best: {best_test_loss:.6f})")
+                    best_test_loss = current_test_loss
+                    
+                    # Delete previous best model if it exists
+                    if best_model_path is not None and os.path.exists(best_model_path):
+                        print(f"Deleting previous best model: {best_model_path}")
+                        os.remove(best_model_path)
+                    
+                    # Save new best model based on test loss
+                    curl_str = "curl" if not args.no_curl else "nocurl"
+                    reward_str = "rew" if not args.no_reward else "norew"
+                    optimizer_str = f"_{args.optimizer}" if args.optimizer != "adam" else ""
+                    best_model_path = f"{args.save_path}/taco_MT_{'_'.join(args.dataset_config.split('/')[1:])}_lr={args.lr}{optimizer_str}_ts={steps}_{curl_str}_{reward_str}_best.pt"
+                    print(f"Saving new best model to {best_model_path} at step {steps} (based on test loss)")
+                    os.makedirs(args.save_path, exist_ok=True)
+                    torch.save({
+                        'encoder': taco_agent.encoder.state_dict(),
+                        'taco': taco_agent.TACO.state_dict(),
+                        'act_tok': taco_agent.act_tok.state_dict(),
+                        'args': vars(args),
+                        'steps': steps,
+                        'epoch': epoch,
+                        'best_test_loss': best_test_loss,
+                        'best_eval_loss': best_eval_loss,
+                    }, best_model_path)
+                
                 # Log test metrics to wandb
                 if args.use_wandb:
                     test_metrics_sum['steps'] = steps
@@ -485,11 +524,18 @@ if __name__ == "__main__":
             if args.use_wandb:
                 metrics['steps'] = steps
                 metrics['epoch'] = epoch
+                
+                # Always log current best losses
+                metrics['best_eval_loss'] = best_eval_loss
+                if args.validation_source == 'split':
+                    metrics['best_test_loss'] = best_test_loss
+                
                 # Log validation metrics if we just computed them
                 if (steps//args.batch_size - 1) % args.eval_frequency == 0 and 'eval_metrics_sum' in locals():
                     metrics.update(eval_metrics_sum)
+                
                 wandb.log(metrics)
-            
+
             # Print metrics every n batches
             if batch_count % args.log_frequency == 0:
                 print(f"Steps: {steps}/{args.total_steps}, Batch: {batch_count}, Metrics: {metrics}")
