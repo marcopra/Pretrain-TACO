@@ -206,7 +206,7 @@ if __name__ == "__main__":
     
     # Initialize best model tracking
     best_eval_loss = float('inf')
-    best_test_loss = float('inf')
+    best_test_loss = float('inf')  # Keep for logging purposes only
     best_model_path = None
     
     # Load saved checkpoint if provided
@@ -387,14 +387,9 @@ if __name__ == "__main__":
                 for key in eval_metrics_sum:
                     eval_metrics_sum[key] /= num_eval_batches
                 
-                # Update best validation loss and log to wandb
+                # *** BEST MODEL SAVING: Only based on validation loss (best_eval_loss) ***
                 current_eval_loss = eval_metrics_sum['eval/total_loss']
                 if current_eval_loss < best_eval_loss:
-                    best_eval_loss = current_eval_loss
-                    print(f"New best validation loss: {best_eval_loss:.6f}")
-                
-                # For validation_source='test', save best model based on validation loss
-                if args.validation_source == 'test' and current_eval_loss < best_eval_loss:
                     print(f"New best model found! eval/total_loss: {current_eval_loss:.6f} (previous best: {best_eval_loss:.6f})")
                     best_eval_loss = current_eval_loss
                     
@@ -403,12 +398,12 @@ if __name__ == "__main__":
                         print(f"Deleting previous best model: {best_model_path}")
                         os.remove(best_model_path)
                     
-                    # Save new best model
+                    # Save new best model based on validation loss only
                     curl_str = "curl" if not args.no_curl else "nocurl"
                     reward_str = "rew" if not args.no_reward else "norew"
                     optimizer_str = f"_{args.optimizer}" if args.optimizer != "adam" else ""
                     best_model_path = f"{args.save_path}/taco_MT_{'_'.join(args.dataset_config.split('/')[1:])}_lr={args.lr}{optimizer_str}_ts={steps}_{curl_str}_{reward_str}_best.pt"
-                    print(f"Saving new best model to {best_model_path} at step {steps}")
+                    print(f"Saving new best model to {best_model_path} at step {steps} (based on validation loss)")
                     os.makedirs(args.save_path, exist_ok=True)
                     torch.save({
                         'encoder': taco_agent.encoder.state_dict(),
@@ -474,34 +469,12 @@ if __name__ == "__main__":
                 for key in test_metrics_sum:
                     test_metrics_sum[key] /= num_test_batches
                 
-                # Check if this is the best model based on test loss (for split validation)
+                # Update best test loss for logging purposes only (no model saving)
                 current_test_loss = test_metrics_sum['test/total_loss']
                 if current_test_loss < best_test_loss:
-                    print(f"New best model found! test/total_loss: {current_test_loss:.6f} (previous best: {best_test_loss:.6f})")
+                    print(f"New best test loss achieved: {current_test_loss:.6f} (previous best: {best_test_loss:.6f})")
                     best_test_loss = current_test_loss
-                    
-                    # Delete previous best model if it exists
-                    if best_model_path is not None and os.path.exists(best_model_path):
-                        print(f"Deleting previous best model: {best_model_path}")
-                        os.remove(best_model_path)
-                    
-                    # Save new best model based on test loss
-                    curl_str = "curl" if not args.no_curl else "nocurl"
-                    reward_str = "rew" if not args.no_reward else "norew"
-                    optimizer_str = f"_{args.optimizer}" if args.optimizer != "adam" else ""
-                    best_model_path = f"{args.save_path}/taco_MT_{'_'.join(args.dataset_config.split('/')[1:])}_lr={args.lr}{optimizer_str}_ts={steps}_{curl_str}_{reward_str}_best.pt"
-                    print(f"Saving new best model to {best_model_path} at step {steps} (based on test loss)")
-                    os.makedirs(args.save_path, exist_ok=True)
-                    torch.save({
-                        'encoder': taco_agent.encoder.state_dict(),
-                        'taco': taco_agent.TACO.state_dict(),
-                        'act_tok': taco_agent.act_tok.state_dict(),
-                        'args': vars(args),
-                        'steps': steps,
-                        'epoch': epoch,
-                        'best_test_loss': best_test_loss,
-                        'best_eval_loss': best_eval_loss,
-                    }, best_model_path)
+                    print("NOTE: Model is NOT saved based on test loss, only validation loss is used for best model selection.")
                 
                 # Log test metrics to wandb
                 if args.use_wandb:
@@ -560,7 +533,7 @@ if __name__ == "__main__":
             
             if steps >= args.total_steps:
                 break
-    
+
     # *** Save the trained TACO agent ***
     print(f"Saving model to {args.save_path}")
     os.makedirs(args.save_path, exist_ok=True)
