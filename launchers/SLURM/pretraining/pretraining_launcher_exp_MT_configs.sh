@@ -21,8 +21,6 @@ dataset_configs=(
 
 # Submit jobs for all combinations
 for dataset_config in "${dataset_configs[@]}"; do
-    for exps in "${exps_values[@]}"; do
-        echo "Submitting SLURM job: DATASET_CONFIG=${dataset_config}, EXPS=${exps}"
-        sbatch --export=DATASET_CONFIG="${dataset_config}",EXPS="${exps}" launchers/SLURM/pretraining/pretraining.sh
-    done
+        echo "Submitting SLURM job: DATASET_CONFIG=${dataset_config}"
+        sbatch --export=DATASET_CONFIG="${dataset_config}" launchers/SLURM/pretraining/pretraining.sh
 done
