@@ -10,7 +10,7 @@ model_paths=(
    
 random_hand_inital="true"
 random_goal_inital="false"
-wandb_tags=("0.33_BUTTONPRESS" "0.66_BUTTONPRESS" "0.99_BUTTONPRESS")
+wandb_tags=("33_BUTTONPRESS" "66_BUTTONPRESS" "99_BUTTONPRESS")
 no_taco="false"
 
 for random_hand in $random_hand_inital; do
@@ -21,7 +21,7 @@ for random_hand in $random_hand_inital; do
                     model_path="${model_paths[$i]}"
                     wandb_tag="${wandb_tags[$i]}"
                     echo "Submitting job: ENV_NAME=${env_name}, RANDOM_HAND=${random_hand}, RANDOM_GOAL=${random_goal}, SEED=${seed}, TAG=${wandb_tag}"
-                    sbatch --export=SEED="${seed}",ENV_NAME="${env_name}",RANDOM_HAND="${random_hand}",RANDOM_GOAL="${random_goal}",MODEL_PATH="${model_path}",WANDB_TAG="${wandb_tag}",NO_TACO="${no_taco}",WANDB_PROJECT="taco_multiheads" launchers/SLURM/TACO/ButtonPress/MT_pretrained.sh
+                    sbatch --export=SEED="${seed}",ENV_NAME="${env_name}",RANDOM_HAND="${random_hand}",RANDOM_GOAL="${random_goal}",MODEL_PATH="${model_path}",WANDB_TAG="${wandb_tag}",NO_TACO="${no_taco}",WANDB_PROJECT="taco_multihead" launchers/SLURM/TACO/ButtonPress/MT_pretrained.sh
                 done
             done
         done
