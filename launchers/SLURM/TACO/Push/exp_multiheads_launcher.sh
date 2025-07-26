@@ -27,4 +27,4 @@ for random_hand in $random_hand_inital; do
         done
     done
 done
-done
+
