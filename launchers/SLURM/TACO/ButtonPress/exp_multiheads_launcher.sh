@@ -3,6 +3,7 @@
 seeds="1 1 1 1 1 1 1"
 env_names=("button-press-v2")
 model_paths=(
+    "/home/mprattico/Pretrain-TACO/models/multiheads/exp/0.0/taco_MT_MT49OODButtonPress.json_lr=0.0005_ts=131584000_curl_rew_best.pt"
     "/home/mprattico/Pretrain-TACO/models/multiheads/exp/0.33/taco_MT_exp_0.33_MT49OODButtonPress.json_lr=0.0005_ts=198553600_curl_rew_best.pt"
     "/home/mprattico/Pretrain-TACO/models/multiheads/exp/0.66/taco_MT_exp_0.66_MT49OODButtonPress.json_lr=0.0005_ts=199168000_curl_rew_best.pt"
     "/home/mprattico/Pretrain-TACO/models/multiheads/exp/0.99/taco_MT_exp_0.99_MT49OODButtonPress.json_lr=0.0005_ts=161126400_curl_rew_best.pt"
@@ -10,7 +11,7 @@ model_paths=(
    
 random_hand_inital="true"
 random_goal_inital="false"
-wandb_tags=("33_BUTTONPRESS" "66_BUTTONPRESS" "99_BUTTONPRESS")
+wandb_tags=("0_BUTTONPRESS" "33_BUTTONPRESS" "66_BUTTONPRESS" "99_BUTTONPRESS")
 no_taco="false"
 
 for random_hand in $random_hand_inital; do

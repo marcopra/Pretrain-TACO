@@ -3,14 +3,15 @@
 seeds="1 1 1 1 1 1 1"
 env_names=("shelf-place-v2")
 model_paths=(
+    "/home/mprattico/Pretrain-TACO/models/multiheads/exp/0.0/taco_MT_MT49OODShelfPlace.json_lr=0.0005_ts=139520000_curl_rew_best.pt"
     "/home/mprattico/Pretrain-TACO/models/multiheads/exp/0.33/taco_MT_exp_0.33_MT49OODShelfPlace.json_lr=0.0005_ts=191436800_curl_rew_best.pt"
-    # "/home/mprattico/Pretrain-TACO/models/multiheads/exp/0.66/taco_MT_exp_0.66_MT49OODShelfPlace.json_lr=0.0005_ts=198195200_curl_rew_best.pt"
+    "/home/mprattico/Pretrain-TACO/models/multiheads/exp/0.66/taco_MT_exp_0.66_MT49OODShelfPlace.json_lr=0.0005_ts=198195200_curl_rew_best.pt"
     "/home/mprattico/Pretrain-TACO/models/multiheads/exp/0.99/taco_MT_exp_0.99_MT49OODShelfPlace.json_lr=0.0005_ts=199270400_curl_rew_best.pt"
 )
    
 random_hand_inital="true"
 random_goal_inital="false"
-wandb_tags=( "33_SHELFPLACE" "66_SHELFPLACE" "99_SHELFPLACE")
+wandb_tags=("0_SHELFPLACE" "33_SHELFPLACE" "66_SHELFPLACE" "99_SHELFPLACE")
 no_taco="false"
 
 for random_hand in $random_hand_inital; do

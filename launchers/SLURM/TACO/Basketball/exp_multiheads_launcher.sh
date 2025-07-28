@@ -3,14 +3,15 @@
 seeds="1 1 1 1 1 1 1"
 env_names=("basketball-v2")
 model_paths=(
-    # "/home/mprattico/Pretrain-TACO/models/multiheads/exp/0.33/taco_MT_exp_0.33_MT49OODBasketball.json_lr=0.0005_ts=195532800_curl_rew_best.pt"
+    "/home/mprattico/Pretrain-TACO/models/multiheads/exp/0.0/taco_MT_MT49OODBasketball.json_lr=0.0005_ts=118579200_curl_rew_best.pt"
+    "/home/mprattico/Pretrain-TACO/models/multiheads/exp/0.33/taco_MT_exp_0.33_MT49OODBasketball.json_lr=0.0005_ts=195532800_curl_rew_best.pt"
     "/home/mprattico/Pretrain-TACO/models/multiheads/exp/0.66/taco_MT_exp_0.66_MT49OODBasketball.json_lr=0.0005_ts=195993600_curl_rew_best.pt"
     "/home/mprattico/Pretrain-TACO/models/multiheads/exp/0.99/taco_MT_exp_0.99_MT49OODBasketball.json_lr=0.0005_ts=11724800_curl_rew_best.pt"
 )
    
 random_hand_inital="true"
 random_goal_inital="false"
-wandb_tags=("33_BASKETBALL" "66_BASKETBALL" "99_BASKETBALL")
+wandb_tags=("0_BASKETBALL" "33_BASKETBALL" "66_BASKETBALL" "99_BASKETBALL")
 no_taco="false"
 
 for random_hand in $random_hand_inital; do

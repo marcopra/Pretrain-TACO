@@ -3,14 +3,15 @@
 seeds="1 1 1 1 1 1 1"
 env_names=("push-v2")
 model_paths=(
-    # "/home/mprattico/Pretrain-TACO/models/multiheads/exp/0.33/taco_MT_exp_0.33_MT49OODPush.json_lr=0.0005_ts=199219200_curl_rew_best.pt"
-    # "/home/mprattico/Pretrain-TACO/models/multiheads/exp/0.66/taco_MT_exp_0.66_MT49OODPush.json_lr=0.0005_ts=196761600_curl_rew_best.pt"
+    "/home/mprattico/Pretrain-TACO/models/multiheads/exp/0.0/taco_MT_MT49OODPush.json_lr=0.0005_ts=114688000_curl_rew_best.pt"
+    "/home/mprattico/Pretrain-TACO/models/multiheads/exp/0.33/taco_MT_exp_0.33_MT49OODPush.json_lr=0.0005_ts=199219200_curl_rew_best.pt"
+    "/home/mprattico/Pretrain-TACO/models/multiheads/exp/0.66/taco_MT_exp_0.66_MT49OODPush.json_lr=0.0005_ts=196761600_curl_rew_best.pt"
     "/home/mprattico/Pretrain-TACO/models/multiheads/exp/0.99/taco_MT_exp_0.99_MT49OODPush.json_lr=0.0005_ts=64819200_curl_rew_best.pt"
 )
    
 random_hand_inital="true"
 random_goal_inital="false"
-wandb_tags=("33_PUSH" "66_PUSH" "99_PUSH")
+wandb_tags=("0_PUSH" "33_PUSH" "66_PUSH" "99_PUSH")
 no_taco="false"
 
 for random_hand in $random_hand_inital; do
