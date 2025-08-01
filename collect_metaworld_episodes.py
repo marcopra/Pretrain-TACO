@@ -212,24 +212,24 @@ def collect_episodes(config_name, env_names, expert_probs, tasks=[0], num_episod
                 dataset_name = f"{env_name}_task{task}_fs{frame_stack}_ar{action_repeat}_ri{int(random_init)}_rg{int(randomize_goal_and_object_pos)}_exp={int(expert_prob*100)}"
                 
                 # Create output directory structure
-                output_dir = Path(f"data_episodes/{config_name}/pretraining_datasets/{dataset_name}")
+                output_dir = Path(f"data_episodes/{config_name}/{dataset_name}")
                 output_dir.mkdir(parents=True, exist_ok=True)
                 
-                # Check if episodes already exist in this directory
-                existing_episodes = list(output_dir.glob('*.npz'))
-                if existing_episodes:
-                    episode_count = len(existing_episodes)
-                    logger.info(f"Found {episode_count} existing episodes in {output_dir}")
-                    logger.info(f"Skipping collection for {env_name}, task {task}, expert_prob={expert_prob}")
+                # # Check if episodes already exist in this directory
+                # existing_episodes = list(output_dir.glob('*.npz'))
+                # if existing_episodes:
+                #     episode_count = len(existing_episodes)
+                #     logger.info(f"Found {episode_count} existing episodes in {output_dir}")
+                #     logger.info(f"Skipping collection for {env_name}, task {task}, expert_prob={expert_prob}")
                     
-                    # Add a note to the successful trajectories file about the skipped run
-                    success_file_path = output_dir / "successful_trajectories.txt"
-                    timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                    with open(success_file_path, 'a') as f:
-                        f.write(f"\n[{timestamp}] Collection skipped - {episode_count} episodes already exist in directory\n")
+                #     # Add a note to the successful trajectories file about the skipped run
+                #     success_file_path = output_dir / "successful_trajectories.txt"
+                #     timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                #     with open(success_file_path, 'a') as f:
+                #         f.write(f"\n[{timestamp}] Collection skipped - {episode_count} episodes already exist in directory\n")
                     
-                    logger.info(f"Added skip note to {success_file_path}")
-                    continue
+                #     logger.info(f"Added skip note to {success_file_path}")
+                #     continue
                 
                 # Create videos directory if needed
                 videos_dir = output_dir / "videos"
