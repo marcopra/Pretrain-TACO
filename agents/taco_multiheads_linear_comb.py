@@ -141,19 +141,21 @@ class TACO(nn.Module):
         logits = logits - torch.max(logits, 1)[0][:, None]
         return logits
     
-    def predict_reward(self, features, task_ids, validation_mode='train'):
+    def predict_reward(self, features, task_ids, mode='train'):
         """
         Predict rewards using task-specific networks or reward combiner.
         
         Args:
             features: Input features (batch_size, feature_dim)
             task_ids: Task IDs for each sample (batch_size,)
-            validation_mode: 'train' for using specific task networks, 'combiner' for learned linear combination, 'test' for averaging
+            mode: 'train' for using specific task networks, 'combiner' for learned linear combination, 'test' for averaging
         
         Returns:
             reward_pred: Predicted rewards (batch_size, 1)
         """
-        if self.use_reward_combiner and validation_mode in ['combiner', 'train']:
+        
+        if mode == 'combiner':
+            assert self.use_reward_combiner, "Reward combiner not set up. Use add_reward_combiner() to initialize."
             # Use learned linear combination of frozen reward networks
             combination_weights = F.softmax(self.reward_combiner, dim=0)  # Ensure weights sum to 1
             
@@ -171,7 +173,8 @@ class TACO(nn.Module):
             
             return reward_pred.unsqueeze(-1)  # (batch_size, 1)
             
-        elif validation_mode == 'train' and not self.use_reward_combiner:
+        elif mode == 'train':
+            assert not self.use_reward_combiner, "Reward combiner is not used in training mode. Use 'combiner' mode for pretrained models."
             # Use task-specific networks
             batch_size = features.shape[0]
             reward_pred = torch.zeros(batch_size, 1, device=self.device)
@@ -184,7 +187,7 @@ class TACO(nn.Module):
                     reward_pred[mask] = task_rewards
                     
             return reward_pred
-        else:
+        elif mode == 'test':
             # Average predictions from all task networks for test evaluation
             all_predictions = []
             for task_network in self.reward_networks:
@@ -194,6 +197,8 @@ class TACO(nn.Module):
             # Average all predictions
             reward_pred = torch.stack(all_predictions, dim=0).mean(dim=0)
             return reward_pred
+        else:
+            raise ValueError(f"Invalid mode '{mode}'. Use 'train', 'combiner', or 'test'.")
 
 class Actor(nn.Module):
     def __init__(self, repr_dim, action_shape, feature_dim, hidden_dim):
@@ -601,16 +606,16 @@ class TACOAgent:
         
         ### Compute reward prediction loss
         reward_loss = torch.tensor(0., device=self.device)
-        if self.reward and task_id is not None:
-            
+        if self.reward:
             features = torch.concat([z_a, action_seq_en], dim=-1)
             
             # Use reward combiner if available (for pretrained models)
             if self.using_pretrained and self.TACO.use_reward_combiner:
-                reward_pred = self.TACO.predict_reward(features, task_id.squeeze(), validation_mode='combiner')
+                reward_pred = self.TACO.predict_reward(features, task_id.squeeze(), mode='combiner')
                 reward_loss = F.mse_loss(reward_pred, reward)
             else:
-                reward_pred = self.TACO.predict_reward(features, task_id.squeeze(), validation_mode='train')
+                raise ValueError("This script has been only tested with TACO with reward combiner with $$$pretrained models$$$, please use the TACO or TACO multihead script to train TACO without reward combiner.")
+                reward_pred = self.TACO.predict_reward(features, task_id.squeeze(), mode='train')
                 reward_loss = F.mse_loss(reward_pred, reward)
         
         ### Compute TACO loss
@@ -661,6 +666,7 @@ class TACOAgent:
                 batch, self.device)
             task_id = None
         else:
+            raise ValueError("this script has been only tested with TACO with reward combiner, please use the TACO or TACO multohead script to train TACO without reward combiner.")
             obs, action, action_seq, reward, discount, next_obs, r_next_obs, task_id = utils.to_torch(
                 batch, self.device)
 
@@ -720,82 +726,82 @@ class TACOAgent:
         torch.save(state, save_path)
         print(f"Model saved to {save_path}")
         
-    def evaluate_taco(self, obs, action, action_seq, next_obs, reward, task_id=None, use_test_mode=False):
-        """
-        Evaluate TACO with different reward prediction modes.
+    # def evaluate_taco(self, obs, action, action_seq, next_obs, reward, task_id=None, use_test_mode=False):
+    #     """
+    #     Evaluate TACO with different reward prediction modes.
         
-        Args:
-            obs, action, action_seq, next_obs, reward: Standard inputs
-            task_id: Task IDs for each sample
-            use_test_mode: If True, use averaged reward predictions (for test set evaluation)
-                          If False, use task-specific reward predictions (for validation split)
-        """
-        with torch.no_grad():
-            metrics = dict()
-            metrics['batch_reward'] = reward.mean().item()
+    #     Args:
+    #         obs, action, action_seq, next_obs, reward: Standard inputs
+    #         task_id: Task IDs for each sample
+    #         use_test_mode: If True, use averaged reward predictions (for test set evaluation)
+    #                       If False, use task-specific reward predictions (for validation split)
+    #     """
+    #     with torch.no_grad():
+    #         metrics = dict()
+    #         metrics['batch_reward'] = reward.mean().item()
 
-            obs_anchor = self.aug(obs.float())
-            obs_pos = self.aug(obs.float())
-            z_a = self.TACO.encode(obs_anchor)
-            z_pos = self.TACO.encode(obs_pos, ema=True)
-            ### Compute CURL loss
-            if self.curl:
-                logits = self.TACO.compute_logits(z_a, z_pos)
-                labels = torch.arange(logits.shape[0]).long().to(self.device)
-                curl_loss = self.cross_entropy_loss(logits, labels)
-                metrics['curl_loss'] = curl_loss.item()
-            else:
-                curl_loss = torch.tensor(0.)
+    #         obs_anchor = self.aug(obs.float())
+    #         obs_pos = self.aug(obs.float())
+    #         z_a = self.TACO.encode(obs_anchor)
+    #         z_pos = self.TACO.encode(obs_pos, ema=True)
+    #         ### Compute CURL loss
+    #         if self.curl:
+    #             logits = self.TACO.compute_logits(z_a, z_pos)
+    #             labels = torch.arange(logits.shape[0]).long().to(self.device)
+    #             curl_loss = self.cross_entropy_loss(logits, labels)
+    #             metrics['curl_loss'] = curl_loss.item()
+    #         else:
+    #             curl_loss = torch.tensor(0.)
             
-            ### Compute action encodings
-            action_en = self.TACO.act_tok(action, seq=False) 
-            action_seq_en = self.TACO.act_tok(action_seq, seq=True)
+    #         ### Compute action encodings
+    #         action_en = self.TACO.act_tok(action, seq=False) 
+    #         action_seq_en = self.TACO.act_tok(action_seq, seq=True)
             
-            ### Compute reward prediction loss
-            if self.reward:
-                features = torch.concat([z_a, action_seq_en], dim=-1)
+    #         ### Compute reward prediction loss
+    #         if self.reward:
+    #             features = torch.concat([z_a, action_seq_en], dim=-1)
                 
-                # Determine validation mode based on use_test_mode flag and model type
-                if use_test_mode:
-                    validation_mode = 'test'
-                elif self.using_pretrained and self.TACO.use_reward_combiner:
-                    validation_mode = 'combiner'
-                else:
-                    validation_mode = 'train'
-                
-                reward_pred = self.TACO.predict_reward(features, task_id.squeeze(), validation_mode)
-                reward_loss = F.mse_loss(reward_pred, reward)
+    #             # Determine validation mode based on use_test_mode flag and model type
+    #             if use_test_mode:
+    #                 mode = 'test'
+    #             elif self.using_pretrained and self.TACO.use_reward_combiner:
+    #                 mode = 'combiner'
+    #             else:
+    #                 mode = 'train'
 
-                # Average percentage of reward prediction error
-                metrics['avg_rew_pred_error_percentage'] = torch.mean(torch.abs(reward_pred - reward) / (reward + 1e-6)).item() 
-                error = reward_pred - reward
-                metrics['log_cosh'] = torch.mean(torch.log(torch.cosh(error + 1e-12))).item()
-                threshold = 1e-3  # puoi settarlo in base al tuo dominio
-                mask = reward.abs() > threshold
-                if mask.any():
-                    metrics['rel_error_filtered'] = torch.mean(
-                        torch.abs(reward_pred[mask] - reward[mask]) / (reward[mask] + 1e-6)
-                    ).item()
-                else:
-                    metrics['rel_error_filtered'] = 0.0
-                numerator = torch.abs(reward_pred - reward)
-                denominator = torch.abs(reward_pred) + torch.abs(reward) + 1e-6
-                metrics['smape'] = torch.mean(2.0 * numerator / denominator).item()
+    #             reward_pred = self.TACO.predict_reward(features, task_id.squeeze(), mode=mode)
+    #             reward_loss = F.mse_loss(reward_pred, reward)
 
-            else:
-                reward_loss = torch.tensor(0.)
+    #             # Average percentage of reward prediction error
+    #             metrics['avg_rew_pred_error_percentage'] = torch.mean(torch.abs(reward_pred - reward) / (reward + 1e-6)).item() 
+    #             error = reward_pred - reward
+    #             metrics['log_cosh'] = torch.mean(torch.log(torch.cosh(error + 1e-12))).item()
+    #             threshold = 1e-3  # puoi settarlo in base al tuo dominio
+    #             mask = reward.abs() > threshold
+    #             if mask.any():
+    #                 metrics['rel_error_filtered'] = torch.mean(
+    #                     torch.abs(reward_pred[mask] - reward[mask]) / (reward[mask] + 1e-6)
+    #                 ).item()
+    #             else:
+    #                 metrics['rel_error_filtered'] = 0.0
+    #             numerator = torch.abs(reward_pred - reward)
+    #             denominator = torch.abs(reward_pred) + torch.abs(reward) + 1e-6
+    #             metrics['smape'] = torch.mean(2.0 * numerator / denominator).item()
+
+    #         else:
+    #             reward_loss = torch.tensor(0.)
             
-            ### Compute TACO loss
-            next_z = self.TACO.encode(self.aug(next_obs.float()), ema=True)
-            curr_za = self.TACO.project_sa(z_a, action_seq_en) 
-            logits = self.TACO.compute_logits(curr_za, next_z)
-            labels = torch.arange(logits.shape[0]).long().to(self.device)
+    #         ### Compute TACO loss
+    #         next_z = self.TACO.encode(self.aug(next_obs.float()), ema=True)
+    #         curr_za = self.TACO.project_sa(z_a, action_seq_en) 
+    #         logits = self.TACO.compute_logits(curr_za, next_z)
+    #         labels = torch.arange(logits.shape[0]).long().to(self.device)
 
-            taco_loss = self.cross_entropy_loss(logits, labels)
+    #         taco_loss = self.cross_entropy_loss(logits, labels)
             
-            if self.use_tb:
-                metrics['reward_loss']  = reward_loss.item()
-                metrics['curl_loss'] = curl_loss.item()
-                metrics['taco_loss']  = taco_loss.item()
-                metrics['total_loss'] = taco_loss.item() + curl_loss.item() + reward_loss.item()
-            return metrics
+    #         if self.use_tb:
+    #             metrics['reward_loss']  = reward_loss.item()
+    #             metrics['curl_loss'] = curl_loss.item()
+    #             metrics['taco_loss']  = taco_loss.item()
+    #             metrics['total_loss'] = taco_loss.item() + curl_loss.item() + reward_loss.item()
+    #         return metrics
