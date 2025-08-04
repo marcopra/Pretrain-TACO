@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Number of runs
-num_runs=7
+num_runs=21
 
 # Check if cuda_device argument is provided
 if [ $# -lt 1 ] || [ $# -gt 2 ]; then
