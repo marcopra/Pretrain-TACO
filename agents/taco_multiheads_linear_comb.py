@@ -157,7 +157,7 @@ class TACO(nn.Module):
         if mode == 'combiner':
             assert self.use_reward_combiner, "Reward combiner not set up. Use add_reward_combiner() to initialize."
             # Use learned linear combination of frozen reward networks
-            combination_weights = F.softmax(self.reward_combiner, dim=0)  # Ensure weights sum to 1
+            combination_weights = F.softmax(self.reward_combiner, dim=0).to(self.device)  # Ensure weights sum to 1
             
             # Get predictions from all frozen reward networks
             all_predictions = []
@@ -166,12 +166,12 @@ class TACO(nn.Module):
                 all_predictions.append(pred)
             
             # Stack predictions: (batch_size, num_tasks)
-            stacked_predictions = torch.stack(all_predictions, dim=-1).squeeze(-1)
+            stacked_predictions = torch.stack(all_predictions, dim=-1).squeeze(-1).to(self.device)
             
             # Apply learned combination weights: (batch_size,)
             reward_pred = torch.matmul(stacked_predictions, combination_weights)
             
-            return reward_pred.unsqueeze(-1)  # (batch_size, 1)
+            return reward_pred # (batch_size, 1)
             
         elif mode == 'train':
             assert not self.use_reward_combiner, "Reward combiner is not used in training mode. Use 'combiner' mode for pretrained models."
@@ -611,7 +611,7 @@ class TACOAgent:
             
             # Use reward combiner if available (for pretrained models)
             if self.using_pretrained and self.TACO.use_reward_combiner:
-                reward_pred = self.TACO.predict_reward(features, task_id.squeeze(), mode='combiner')
+                reward_pred = self.TACO.predict_reward(features, None, mode='combiner')
                 reward_loss = F.mse_loss(reward_pred, reward)
             else:
                 raise ValueError("This script has been only tested with TACO with reward combiner with $$$pretrained models$$$, please use the TACO or TACO multihead script to train TACO without reward combiner.")
