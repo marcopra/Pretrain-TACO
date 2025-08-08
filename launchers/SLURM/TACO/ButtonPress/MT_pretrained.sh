@@ -20,6 +20,7 @@ WANDB_TAG=${WANDB_TAG:-"none"}
 FREEZE=${FREEZE:-"false"}
 NO_TACO=${NO_TACO:-"false"}
 WANDB_PROJECT=${WANDB_PROJECT:-"taco_metaworld"}
+AGENT=${AGENT:-"taco"}
 
 # Set seed argument based on SEED value
 if [ "$SEED" -eq 1 ]; then
@@ -60,7 +61,7 @@ source ~/.bashrc
 conda activate metataco
 
 # Use quotes and escape model path appropriately
-python3 train_metaworld.py agent.pretrained_path=\"${MODEL_PATH}\" exp_name=\"${EXP_NAME}\" seed=$SEED_ARG env_name=$ENV_NAME random_init=$RANDOM_HAND random_goal=$RANDOM_GOAL wandb_tag=$WANDB_TAG wandb_project=$WANDB_PROJECT num_train_frames=220000 agent.freeze_encoder=$FREEZE agent.no_taco=$NO_TACO
+python3 train_metaworld.py agent.pretrained_path=\"${MODEL_PATH}\" exp_name=\"${EXP_NAME}\" seed=$SEED_ARG env_name=$ENV_NAME random_init=$RANDOM_HAND random_goal=$RANDOM_GOAL wandb_tag=$WANDB_TAG wandb_project=$WANDB_PROJECT num_train_frames=220000 agent.freeze_encoder=$FREEZE agent.no_taco=$NO_TACO agent=$AGENT
 
 # Cleanup will be triggered automatically by the trap
 rm -rf exp_local/metaworld/$EXP_NAME*

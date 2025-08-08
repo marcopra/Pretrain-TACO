@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Number of runs
-num_runs=7
+num_runs=35
 
 # Check if arguments are provided
 if [ $# -lt 2 ] || [ $# -gt 3 ]; then
