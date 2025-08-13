@@ -1,6 +1,8 @@
 import hydra
 import utils
 import torch
+import mvp
+from r3m import load_r3m
 import itertools
 import numpy as np
 import torch.nn as nn
@@ -49,7 +51,7 @@ class RandomShiftsAug(nn.Module):
         
 
 class Encoder(nn.Module):
-    def __init__(self, obs_shape, feature_dim, pretrained_path=None):
+    def __init__(self, obs_shape, feature_dim, pretrained_path=None, device="cuda"):
         super().__init__()
         assert len(obs_shape) == 3
         # obs_shape is (N*C, H, W) where N is number of stacked frames, C=3 for RGB
@@ -66,6 +68,7 @@ class Encoder(nn.Module):
         
         # Parse pretrained_path to determine model configuration
         self.resnet, self.normalize, self.resize = self._create_resnet(pretrained_path)
+        self.resnet = self.resnet.to(device)
         
         # Calculate representation dimension based on the model architecture
         self.repr_dim = self._calculate_repr_dim() * self.num_stack
@@ -89,7 +92,39 @@ class Encoder(nn.Module):
                 resnet = moco_conv4_compressed(pretrained_path)
             else:
                 resnet = moco_conv5(pretrained_path)
-            print(f"MoCo model loaded: {resnet}")    
+             # Apply standard ResNet transforms for pretrained checkpoints
+            normalize = transforms.Normalize(
+                mean=[0.485, 0.456, 0.406],
+                std=[0.229, 0.224, 0.225]
+            )
+            # Apply resize and center crop as per ResNet standard
+            resize = transforms.Compose([
+                transforms.Resize(224),
+            ])
+            print(f"MoCo model loaded") 
+        elif 'mvp' in pretrained_path:
+            resnet = mvp.load("vits-mae-hoi")
+             # Apply standard ResNet transforms for pretrained checkpoints
+            normalize = transforms.Normalize(
+                mean=[0.485, 0.456, 0.406],
+                std=[0.229, 0.224, 0.225]
+            )
+            # Apply resize and center crop as per ResNet standard
+            resize = transforms.Compose([
+                transforms.Resize(224),
+            ])
+        elif 'r3m' in pretrained_path:
+            resnet = load_r3m("resnet50")
+             # Apply standard ResNet transforms for pretrained checkpoints
+            normalize = transforms.Normalize(
+                mean=[0.485, 0.456, 0.406],
+                std=[0.229, 0.224, 0.225]
+            )
+            # Apply resize and center crop as per ResNet standard
+            resize = transforms.Compose([
+                transforms.Resize(224),
+            ])
+
         elif os.path.exists(pretrained_path) or  'resnet50_l5' in pretrained_path:
             print(f"Loading ResNet model from {pretrained_path}")
             # Load from checkpoint file - these are pretrained models that need standard transforms
@@ -414,14 +449,20 @@ class TACOAgent:
         
         ### State & Action Encoders - exclude from optimization if frozen
         if freeze_encoder:
+            
             # Freeze encoder and TACO parameters
-            for param in self.encoder.parameters():
-                param.requires_grad = False
-            for param in self.TACO.parameters():
-                param.requires_grad = False
-            if hasattr(self.act_tok, 'parameters'):
-                for param in self.act_tok.parameters():
+            if 'mvp' in pretrained_path:
+                self.encoder.resnet.freeze()
+            elif 'r3m' in pretrained_path:
+                self.encoder.resnet.eval()
+            else:
+                for param in self.encoder.parameters():
                     param.requires_grad = False
+                for param in self.TACO.parameters():
+                    param.requires_grad = False
+                if hasattr(self.act_tok, 'parameters'):
+                    for param in self.act_tok.parameters():
+                        param.requires_grad = False
             
             # Only optimize non-frozen parameters
             parameters = []

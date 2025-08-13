@@ -305,7 +305,7 @@ def main():
         
         # Initialize WandB API with debugging
         try:
-            api = wandb.Api()
+            api = wandb.Api(timeout=120)
             print(f"WandB API inizializzata correttamente")
             print(f"Current user: {api.viewer}")
         except Exception as e:

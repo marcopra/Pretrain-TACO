@@ -1,6 +1,8 @@
 import hydra
 import utils
 import torch
+import mvp
+from r3m import load_r3m
 import itertools
 import numpy as np
 import torch.nn as nn
@@ -92,7 +94,39 @@ class Encoder(nn.Module):
                 resnet = moco_conv4_compressed(pretrained_path)
             else:
                 resnet = moco_conv5(pretrained_path)
+             # Apply standard ResNet transforms for pretrained checkpoints
+            normalize = transforms.Normalize(
+                mean=[0.485, 0.456, 0.406],
+                std=[0.229, 0.224, 0.225]
+            )
+            # Apply resize and center crop as per ResNet standard
+            resize = transforms.Compose([
+                transforms.Resize(224),
+            ])
             print(f"MoCo model loaded")    
+        elif 'mvp' in pretrained_path:
+            resnet = mvp.load("vits-mae-hoi")
+             # Apply standard ResNet transforms for pretrained checkpoints
+            normalize = transforms.Normalize(
+                mean=[0.485, 0.456, 0.406],
+                std=[0.229, 0.224, 0.225]
+            )
+            # Apply resize and center crop as per ResNet standard
+            resize = transforms.Compose([
+                transforms.Resize(224),
+            ])
+        elif 'r3m' in pretrained_path:
+            resnet = load_r3m("resnet50")
+             # Apply standard ResNet transforms for pretrained checkpoints
+            normalize = transforms.Normalize(
+                mean=[0.485, 0.456, 0.406],
+                std=[0.229, 0.224, 0.225]
+            )
+            # Apply resize and center crop as per ResNet standard
+            resize = transforms.Compose([
+                transforms.Resize(224),
+            ])
+
         elif os.path.exists(pretrained_path) or  'resnet50_l5' in pretrained_path:
             print(f"Loading ResNet model from {pretrained_path}")
             # Load from checkpoint file - these are pretrained models that need standard transforms
@@ -453,13 +487,18 @@ class TACOAgent:
         ### State & Action Encoders - exclude from optimization if frozen
         if freeze_encoder:
             # Freeze encoder and TACO parameters
-            for param in self.encoder.parameters():
-                param.requires_grad = False
-            for param in self.TACO.parameters():
-                param.requires_grad = False
-            if hasattr(self.act_tok, 'parameters'):
-                for param in self.act_tok.parameters():
+            if 'mvp' in pretrained_path:
+                self.encoder.resnet.freeze()
+            elif 'r3m' in pretrained_path:
+                self.encoder.resnet.eval()
+            else:
+                for param in self.encoder.parameters():
                     param.requires_grad = False
+                for param in self.TACO.parameters():
+                    param.requires_grad = False
+                if hasattr(self.act_tok, 'parameters'):
+                    for param in self.act_tok.parameters():
+                        param.requires_grad = False
             
             # Only optimize non-frozen parameters
             parameters = []
