@@ -70,8 +70,11 @@ class Encoder(nn.Module):
         self.resnet, self.normalize, self.resize = self._create_resnet(pretrained_path)
         self.resnet = self.resnet
         
+        # Move resnet to device before calculating dimensions
+        self.resnet = self.resnet.to(device)
+        
         # Calculate representation dimension based on the model architecture
-        self.repr_dim = self._calculate_repr_dim() * self.num_stack
+        self.repr_dim = self._calculate_repr_dim(device) * self.num_stack
     
     def _create_resnet(self, pretrained_path):
         """Create ResNet model based on pretrained_path configuration"""
@@ -115,7 +118,7 @@ class Encoder(nn.Module):
                 transforms.Resize(224),
             ])
         elif 'r3m' in pretrained_path:
-            resnet = load_r3m("resnet50").to("cpu")
+            resnet = load_r3m("resnet50")
              # Apply standard ResNet transforms for pretrained checkpoints
             normalize = transforms.Normalize(
                 mean=[0.485, 0.456, 0.406],
@@ -229,10 +232,18 @@ class Encoder(nn.Module):
         else:
             raise ValueError(f"Unsupported layer cut: l{layer_num}")
     
-    def _calculate_repr_dim(self):
+    def _calculate_repr_dim(self, device="cuda"):
         """Calculate representation dimension based on model architecture"""
+        # Determine the actual device of the model
+        if hasattr(self.resnet, 'module'):
+            # For DataParallel models (like r3m)
+            model_device = next(self.resnet.module.parameters()).device
+        else:
+            # For regular models
+            model_device = next(self.resnet.parameters()).device
+        
         # Test with a dummy input to get output dimensions
-        dummy_input = torch.randn(1, 3, self.height, self.width)
+        dummy_input = torch.randn(1, 3, self.height, self.width, device=model_device)
         
         # Apply transforms in the same order as forward pass
         if self.resize is not None:
@@ -241,8 +252,6 @@ class Encoder(nn.Module):
             dummy_input = self.normalize(dummy_input)
             
         with torch.no_grad():
-            # bring dummy input to the same device as resnet
-            dummy_input = dummy_input.to(self.resnet.device)
             output = self.resnet(dummy_input)
             return output.view(output.size(0), -1).size(1)
     
