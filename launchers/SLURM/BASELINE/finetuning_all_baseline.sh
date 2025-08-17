@@ -17,8 +17,6 @@ model_paths=(
 random_hand_inital="true"
 random_goal_inital="false"
 no_taco="false"
-freeze="true"
-
 freeze="false"
 agent="taco_resnet"
 for random_hand in $random_hand_inital; do
@@ -33,4 +31,3 @@ for random_hand in $random_hand_inital; do
         done
     done
 done
-
