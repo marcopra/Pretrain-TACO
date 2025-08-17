@@ -241,7 +241,8 @@ class Encoder(nn.Module):
             dummy_input = self.normalize(dummy_input)
             
         with torch.no_grad():
-
+            # bring dummy input to the same device as resnet
+            dummy_input = dummy_input.to(self.resnet.device)
             output = self.resnet(dummy_input)
             return output.view(output.size(0), -1).size(1)
     
