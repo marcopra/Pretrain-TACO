@@ -68,7 +68,7 @@ class Encoder(nn.Module):
         
         # Parse pretrained_path to determine model configuration
         self.resnet, self.normalize, self.resize = self._create_resnet(pretrained_path)
-        self.resnet = self.resnet.to(device)
+        self.resnet = self.resnet
         
         # Calculate representation dimension based on the model architecture
         self.repr_dim = self._calculate_repr_dim() * self.num_stack
@@ -78,6 +78,7 @@ class Encoder(nn.Module):
         normalize = None
         resize = None
         
+        print(os.path.exists(pretrained_path), 'moco' in pretrained_path, "aoaooa")
         if pretrained_path is None or pretrained_path.lower() == 'none':
             # Default: ResNet18 without pretrained weights
             resnet = models.resnet18(weights=None)
@@ -114,7 +115,7 @@ class Encoder(nn.Module):
                 transforms.Resize(224),
             ])
         elif 'r3m' in pretrained_path:
-            resnet = load_r3m("resnet50")
+            resnet = load_r3m("resnet50").to("cpu")
              # Apply standard ResNet transforms for pretrained checkpoints
             normalize = transforms.Normalize(
                 mean=[0.485, 0.456, 0.406],
@@ -240,6 +241,7 @@ class Encoder(nn.Module):
             dummy_input = self.normalize(dummy_input)
             
         with torch.no_grad():
+
             output = self.resnet(dummy_input)
             return output.view(output.size(0), -1).size(1)
     
