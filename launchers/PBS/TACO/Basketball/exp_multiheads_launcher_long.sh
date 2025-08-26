@@ -14,6 +14,7 @@ random_goal_inital="false"
 wandb_tags=("0_BASKETBALL" "33_BASKETBALL" "66_BASKETBALL" "99_BASKETBALL")
 no_taco="false"
 num_steps=2100000
+save_snapshot="true"
 
 for random_hand in $random_hand_inital; do
     for random_goal in $random_goal_inital; do
@@ -23,7 +24,7 @@ for random_hand in $random_hand_inital; do
                     model_path="${model_paths[$i]}"
                     wandb_tag="${wandb_tags[$i]}"
                     echo "Submitting job: ENV_NAME=${env_name}, RANDOM_HAND=${random_hand}, RANDOM_GOAL=${random_goal}, SEED=${seed}, TAG=${wandb_tag}"
-                    qsub -v SEED="${seed}",ENV_NAME="${env_name}",RANDOM_HAND="${random_hand}",RANDOM_GOAL="${random_goal}",MODEL_PATH="${model_path}",WANDB_TAG="${wandb_tag}",NO_TACO="${no_taco}",WANDB_PROJECT="taco_multihead_long",NUM_STEPS="${num_steps}" launchers/PBS/TACO/Basketball/MT_pretrained.sh
+                    qsub -v SEED="${seed}",ENV_NAME="${env_name}",RANDOM_HAND="${random_hand}",RANDOM_GOAL="${random_goal}",MODEL_PATH="${model_path}",WANDB_TAG="${wandb_tag}",NO_TACO="${no_taco}",WANDB_PROJECT="taco_multihead_long",NUM_STEPS="${num_steps}",SAVE_SNAPSHOT="${save_snapshot}" launchers/PBS/TACO/Basketball/MT_pretrained.sh
                 done
             done
         done
