@@ -314,7 +314,7 @@ class Workspace:
             episode_step += 1
             self._global_step += 1
             
-        self.save_policy('expert')
+
 
     def save_snapshot(self):
         snapshot = self.work_dir / 'snapshot.pt'
