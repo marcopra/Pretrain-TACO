@@ -55,7 +55,7 @@ env_lists=(
 )
 
 # Define dataset sizes
-n_episodes=(15)
+n_episodes=(45)
 
 # Define expert probabilities
 expert_probs_options=("0.0" "0.33" "0.66" "0.99")
