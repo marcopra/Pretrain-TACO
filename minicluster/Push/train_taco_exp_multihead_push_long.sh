@@ -31,19 +31,19 @@ esac
 # Validate model_exp value and set model path
 case $model_exp in
     0)
-        model_path="models/multiheads/exp/0.0/taco_MT_MT49OODPush.json_lr\=0.0005_ts\=118579200_curl_rew_best.pt"
+        model_path="models/multiheads/exp/0.0/taco_MT_MT49OODPush.json_lr\=0.0005_ts\=114688000_curl_rew_best.pt"
         wandb_tag="0_PUSH"
         ;;
     33)
-        model_path="models/multiheads/exp/0.33/taco_MT_exp_0.33_MT49OODPush.json_lr\=0.0005_ts\=195532800_curl_rew_best.pt"
+        model_path="models/multiheads/exp/0.33/taco_MT_exp_0.33_MT49OODPush.json_lr\=0.0005_ts\=199219200_curl_rew_best.pt"
         wandb_tag="33_PUSH"
         ;;
     66)
-        model_path="models/multiheads/exp/0.66/taco_MT_exp_0.66_MT49OODPush.json_lr\=0.0005_ts\=195993600_curl_rew_best.pt"
+        model_path="models/multiheads/exp/0.66/taco_MT_exp_0.66_MT49OODPush.json_lr\=0.0005_ts\=196761600_curl_rew_best.pt"
         wandb_tag="66_PUSH"
         ;;
     99)
-        model_path="models/multiheads/exp/0.99/taco_MT_exp_0.99_MT49OODPush.json_lr\=0.0005_ts\=11724800_curl_rew_best.pt"
+        model_path="models/multiheads/exp/0.99/taco_MT_exp_0.99_MT49OODPush.json_lr\=0.0005_ts\=64819200_curl_rew_best.pt"
         wandb_tag="99_PUSH"
         ;;
     *)
