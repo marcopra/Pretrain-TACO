@@ -19,7 +19,7 @@ for dataset_config in "${dataset_configs[@]}"; do
     for dataset_size in "${dataset_sizes[@]}"; do
         for exps in "${exps_values[@]}"; do
             echo "Submitting SLURM job: DATASET_CONFIG=${dataset_config}, DATASET_SIZE=${dataset_size}, EXPS=${exps}"
-            sbatch -v DATASET_CONFIG="${dataset_config}",DATASET_SIZE="${dataset_size}",EXPS="${exps}" launchers/SLURM/pretraining/pretraining_MT_configs.sh
+            sbatch --export=DATASET_CONFIG="${dataset_config}",DATASET_SIZE="${dataset_size}",EXPS="${exps}" launchers/SLURM/pretraining/pretraining_MT_configs.sh
         done
     done
 done
