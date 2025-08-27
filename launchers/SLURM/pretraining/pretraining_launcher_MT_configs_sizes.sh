@@ -3,14 +3,14 @@
 # Define dataset config paths
 dataset_configs=(
     "configs_data_MT/MT49OODBasketball.json"
-    "configs_data_MT/MT49OODBinPicking.json"
-    "configs_data_MT/MT49OODButtonPress.json"
-    "configs_data_MT/MT49OODPush.json"
-    "configs_data_MT/MT49OODShelfPlace.json"
+    # "configs_data_MT/MT49OODBinPicking.json"
+    # "configs_data_MT/MT49OODButtonPress.json"
+    # "configs_data_MT/MT49OODPush.json"
+    # "configs_data_MT/MT49OODShelfPlace.json"
 )
 
 # Define dataset sizes to experiment with
-dataset_sizes=(30000 500000)
+dataset_sizes=(30000)
 
 exps_values=("0.0")
 
