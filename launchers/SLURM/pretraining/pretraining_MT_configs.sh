@@ -1,11 +1,23 @@
 #!/bin/bash
-#PBS -l select=1:ncpus=4:ngpus=1
-#PBS -l walltime=24:00:00
-#PBS -j oe
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=4
+#SBATCH --gres=gpu:1
+#SBATCH --time=24:00:00
+#SBATCH --output=%j.out
+#SBATCH --error=%j.err
+#SBATCH --partition=gpuv
 
-cd $PBS_O_WORKDIR
+cd $SLURM_SUBMIT_DIR
 
-# Use environment variables passed via qsub -v
+# Use environment variables passed via sbatch
+# DATASET_CONFIG and EXPS should be set when submitting
+
+# Load environment
+source ~/.bashrc
+conda activate metataco
+
+# Use environment variables passed via sbatch
 # DATASET_CONFIG, DATASET_SIZE, and EXPS should be set when submitting
 
 # Set default dataset size if not provided

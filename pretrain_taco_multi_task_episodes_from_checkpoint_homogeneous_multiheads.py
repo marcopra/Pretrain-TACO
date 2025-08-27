@@ -302,6 +302,10 @@ if __name__ == "__main__":
         num_tasks = train_dataloader.num_tasks
         print(f"Number of tasks: {num_tasks}")
 
+    # Get dataset length for file naming
+    dataset_length = len(train_dataloader.dataset) if hasattr(train_dataloader, 'dataset') else len(train_dataloader)
+    print(f"Training dataset length: {dataset_length}")
+
     taco_agent = TACOAgent(
         obs_shape=obs_shape,
         action_shape=action_shape,
@@ -402,7 +406,7 @@ if __name__ == "__main__":
                     curl_str = "curl" if not args.no_curl else "nocurl"
                     reward_str = "rew" if not args.no_reward else "norew"
                     optimizer_str = f"_{args.optimizer}" if args.optimizer != "adam" else ""
-                    best_model_path = f"{args.save_path}/taco_MT_{'_'.join(args.dataset_config.split('/')[1:])}_lr={args.lr}{optimizer_str}_ts={steps}_{curl_str}_{reward_str}_best.pt"
+                    best_model_path = f"{args.save_path}/taco_MT_{'_'.join(args.dataset_config.split('/')[1:])}_lr={args.lr}{optimizer_str}_ts={steps}_len={dataset_length}_{curl_str}_{reward_str}_best.pt"
                     print(f"Saving new best model to {best_model_path} at step {steps} (based on validation loss)")
                     os.makedirs(args.save_path, exist_ok=True)
                     torch.save({
@@ -519,7 +523,7 @@ if __name__ == "__main__":
                 curl_str = "curl" if not args.no_curl else "nocurl"
                 reward_str = "rew" if not args.no_reward else "norew"
                 optimizer_str = f"_{args.optimizer}" if args.optimizer != "adam" else ""
-                checkpoint_path = f"{args.save_path}/taco_MT_{'_'.join(args.dataset_config.split('/')[1:])}_lr={args.lr}{optimizer_str}_ts={steps}_{curl_str}_{reward_str}.pt"
+                checkpoint_path = f"{args.save_path}/taco_MT_{'_'.join(args.dataset_config.split('/')[1:])}_lr={args.lr}{optimizer_str}_ts={steps}_len={dataset_length}_{curl_str}_{reward_str}.pt"
                 print(f"Saving checkpoint at step {steps} to {checkpoint_path}")
                 os.makedirs(args.save_path, exist_ok=True)
                 torch.save({
@@ -547,7 +551,7 @@ if __name__ == "__main__":
         'args': vars(args),  # Save configuration for easier loading
         'steps': steps,
         'epoch': epoch,
-    }, f"{args.save_path}/taco_MT_{'_'.join(args.dataset_config.split('/')[1:])}_lr={args.lr}{optimizer_str}_ts={args.total_steps}_{curl_str}_{reward_str}.pt")
+    }, f"{args.save_path}/taco_MT_{'_'.join(args.dataset_config.split('/')[1:])}_lr={args.lr}{optimizer_str}_ts={args.total_steps}_len={dataset_length}_{curl_str}_{reward_str}.pt")
     
     print(f"Training completed after {steps} steps and {epoch} epochs")
     if args.use_wandb:

@@ -45,16 +45,16 @@ esac
 # Create the experiment name once to ensure consistency
 EXP_NAME="${MODEL_PATH}_${SEED_ARG}"
 
-# Define cleanup function
-cleanup() {
-    echo "Performing cleanup: Removing experiment folder"
-    rm -rf exp_local/metaworld/$EXP_NAME
-    echo "exp_local/metaworld/$EXP_NAME"
-    echo "Cleanup completed"
-}
+# # Define cleanup function
+# cleanup() {
+#     echo "Performing cleanup: Removing experiment folder"
+#     rm -rf exp_local/metaworld/$EXP_NAME
+#     echo "exp_local/metaworld/$EXP_NAME"
+#     echo "Cleanup completed"
+# }
 
-# Set trap to ensure cleanup happens on job termination
-trap cleanup EXIT HUP INT TERM
+# # Set trap to ensure cleanup happens on job termination
+# trap cleanup EXIT HUP INT TERM
 
 # Load environment
 source ~/.bashrc
