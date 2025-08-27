@@ -31,19 +31,19 @@ esac
 # Validate model_exp value and set model path
 case $model_exp in
     0)
-        model_path="models/multiheads/exp/0.0/taco_MT_MT49OODShelfPlace.json_lr\=0.0005_ts\=118579200_curl_rew_best.pt"
+        model_path="models/multiheads/exp/0.0/taco_MT_MT49OODShelfPlace.json_lr\=0.0005_ts\=139520000_curl_rew_best.pt"
         wandb_tag="0_SHELFPLACE"
         ;;
     33)
-        model_path="models/multiheads/exp/0.33/taco_MT_exp_0.33_MT49OODShelfPlace.json_lr\=0.0005_ts\=195532800_curl_rew_best.pt"
+        model_path="models/multiheads/exp/0.33/taco_MT_exp_0.33_MT49OODShelfPlace.json_lr\=0.0005_ts\=191436800_curl_rew_best.pt"
         wandb_tag="33_SHELFPLACE"
         ;;
     66)
-        model_path="models/multiheads/exp/0.66/taco_MT_exp_0.66_MT49OODShelfPlace.json_lr\=0.0005_ts\=195993600_curl_rew_best.pt"
+        model_path="models/multiheads/exp/0.66/taco_MT_exp_0.66_MT49OODShelfPlace.json_lr\=0.0005_ts\=198195200_curl_rew_best.pt"
         wandb_tag="66_SHELFPLACE"
         ;;
     99)
-        model_path="models/multiheads/exp/0.99/taco_MT_exp_0.99_MT49OODShelfPlace.json_lr\=0.0005_ts\=11724800_curl_rew_best.pt"
+        model_path="models/multiheads/exp/0.99/taco_MT_exp_0.99_MT49OODShelfPlace.json_lr\=0.0005_ts\=199270400_curl_rew_best.pt"
         wandb_tag="99_SHELFPLACE"
         ;;
     *)
