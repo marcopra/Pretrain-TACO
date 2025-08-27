@@ -10,7 +10,7 @@ dataset_configs=(
 )
 
 # Define dataset sizes to experiment with
-dataset_sizes=(30000)
+dataset_sizes=(300000)
 
 exps_values=("0.0")
 
