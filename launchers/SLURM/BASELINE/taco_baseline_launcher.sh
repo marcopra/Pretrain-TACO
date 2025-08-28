@@ -13,7 +13,7 @@ random_hand_inital="true"
 random_goal_inital="false"
 wandb_tag="BASELINE_BASKETBALL"
 no_taco="false"
-num_steps=2100000
+num_steps=1100000
 save_snapshot="true"
 
 for random_hand in $random_hand_inital; do
