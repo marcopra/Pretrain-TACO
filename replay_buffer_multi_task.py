@@ -109,9 +109,11 @@ class ReplayBuffer(IterableDataset):
 
     def __len__(self):
         return self._size
-    
+        
     def _sample_episode(self):
-        eps_fn = random.choice(self._episode_fns)
+        # Usa randint invece di choice per liste grandi
+        idx = np.random.randint(0, len(self._episode_fns))
+        eps_fn = self._episode_fns[idx]
         return self._episodes[eps_fn]
 
     def _store_episode(self, eps_fn):
