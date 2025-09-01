@@ -41,6 +41,7 @@ def format_pretrained_path(feature_extractor):
     
     # Map feature extractor names to formatted paths
     extractor_map = {
+        "vit_s": "vit_s_scratch",
         "vit_b": "vit_b_scratch",
         "vit_l": "vit_l_scratch", 
         "resnet18": "resnet18_l5_scratch",
@@ -95,7 +96,7 @@ if __name__ == "__main__":
                         help='Frequency of test evaluation when using validation_source=split (0 to disable)')
     # Feature extractor argument
     parser.add_argument('--feature_extractor', '-fe', type=str, default='conv', 
-                        choices=['conv', 'vit_b', 'vit_l', 'resnet18', 'resnet50', 'r3m', 'mvp'],
+                        choices=['conv', 'vit_s', 'vit_b', 'vit_l', 'resnet18', 'resnet50', 'r3m', 'mvp'],
                         help='Type of feature extractor to use (default: conv)')
     args = parser.parse_args()
 

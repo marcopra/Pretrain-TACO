@@ -10,8 +10,8 @@ dataset_configs=(
 )
 
 feature_extractors=(
-    "vit_s_scratch"
-    "resnet50_l5_scratch"
+    "vit_s"
+    "resnet50_l5"
     # "conv"
 )
 # Define dataset sizes to experiment with
