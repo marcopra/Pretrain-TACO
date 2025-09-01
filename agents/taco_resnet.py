@@ -12,6 +12,7 @@ from torchvision.models import ResNet18_Weights, ResNet50_Weights
 import torchvision.transforms as transforms
 from agents.resnet_models import resnet_conv3_compressed, resnet_conv4_compressed, resnet_conv5
 from agents.moco_models import moco_conv5, moco_conv3_compressed, moco_conv4_compressed
+from agents.feature_extractor_utils import FeatureExtractorFactory
 import re
 import os
 
@@ -66,181 +67,25 @@ class Encoder(nn.Module):
         self.range = None
         assert total_channels % self.channels == 0, f"Total channels {total_channels} not divisible by {self.channels}"
         
-        # Parse pretrained_path to determine model configuration
-        self.resnet, self.normalize, self.resize = self._create_resnet(pretrained_path)
-        self.resnet = self.resnet
+        # Create feature extractor with transforms using factory
+        factory = FeatureExtractorFactory(self.height, self.width)
+        self.feature_extractor, self.normalize, self.resize = factory.create_feature_extractor(pretrained_path)
         
-        # Move resnet to device before calculating dimensions
-        self.resnet = self.resnet.to(device)
+        # Move feature_extractor to device before calculating dimensions
+        self.feature_extractor = self.feature_extractor.to(device)
         
         # Calculate representation dimension based on the model architecture
         self.repr_dim = self._calculate_repr_dim(device) * self.num_stack
     
-    def _create_resnet(self, pretrained_path):
-        """Create ResNet model based on pretrained_path configuration"""
-        normalize = None
-        resize = None
-        
-        print(os.path.exists(pretrained_path), 'moco' in pretrained_path, "aoaooa")
-        if pretrained_path is None or pretrained_path.lower() == 'none':
-            # Default: ResNet18 without pretrained weights
-            resnet = models.resnet18(weights=None)
-            resnet = self._modify_resnet_for_input_size(resnet)
-            resnet = nn.Sequential(*list(resnet.children())[:-1])  # Remove fc layer
-            
-        elif os.path.exists(pretrained_path) and 'moco' in pretrained_path:
-            print(f"Loading MoCo model from {pretrained_path}")
-            if 'l3' in pretrained_path:
-                resnet = moco_conv3_compressed(pretrained_path)
-            elif 'l4' in pretrained_path:
-                resnet = moco_conv4_compressed(pretrained_path)
-            else:
-                resnet = moco_conv5(pretrained_path)
-             # Apply standard ResNet transforms for pretrained checkpoints
-            normalize = transforms.Normalize(
-                mean=[0.485, 0.456, 0.406],
-                std=[0.229, 0.224, 0.225]
-            )
-            # Apply resize and center crop as per ResNet standard
-            resize = transforms.Compose([
-                transforms.Resize(224),
-            ])
-            print(f"MoCo model loaded") 
-        elif 'mvp' in pretrained_path:
-            resnet = mvp.load("vits-mae-hoi")
-             # Apply standard ResNet transforms for pretrained checkpoints
-            normalize = transforms.Normalize(
-                mean=[0.485, 0.456, 0.406],
-                std=[0.229, 0.224, 0.225]
-            )
-            # Apply resize and center crop as per ResNet standard
-            resize = transforms.Compose([
-                transforms.Resize(224),
-            ])
-        elif 'r3m' in pretrained_path:
-            resnet = load_r3m("resnet50")
-             # Apply standard ResNet transforms for pretrained checkpoints
-            normalize = transforms.Normalize(
-                mean=[0.485, 0.456, 0.406],
-                std=[0.229, 0.224, 0.225]
-            )
-            # Apply resize and center crop as per ResNet standard
-            resize = transforms.Compose([
-                transforms.Resize(224),
-            ])
-
-        elif os.path.exists(pretrained_path) or  'resnet50_l5' in pretrained_path:
-            print(f"Loading ResNet model from {pretrained_path}")
-            # Load from checkpoint file - these are pretrained models that need standard transforms
-            if 'resnet50_l3' in pretrained_path:
-                resnet = resnet_conv3_compressed(pretrained_path)
-            elif 'resnet50_l4' in pretrained_path:
-                resnet = resnet_conv4_compressed(pretrained_path)
-            elif 'resnet50_l5' in pretrained_path:
-                resnet = resnet_conv5(pretrained_path)
-            else:
-                raise ValueError(f"Unknown checkpoint format: {pretrained_path}")
-            print(f"ResNet model loaded: {resnet}")
-            # Apply standard ResNet transforms for pretrained checkpoints
-            normalize = transforms.Normalize(
-                mean=[0.485, 0.456, 0.406],
-                std=[0.229, 0.224, 0.225]
-            )
-            # Apply resize and center crop as per ResNet standard
-            resize = transforms.Compose([
-                transforms.Resize(224),
-            ])
-                
-        else:
-            print(f"Instantiating ResNet based on pretrained_path: {pretrained_path}")
-            # Parse format: resnet<k>_l<n>_<initialization>
-            match = re.match(r'resnet(\d+)_l(\d+)_(\w+)', pretrained_path)
-            if not match:
-                raise ValueError(f"Invalid pretrained_path format: {pretrained_path}. Expected format: resnet<k>_l<n>_<initialization>")
-            
-            k, n, initialization = match.groups()
-            k, n = int(k), int(n)
-            
-            # Create base ResNet
-            if k == 18:
-                if initialization == 'pretrained':
-                    resnet = models.resnet18(weights=ResNet18_Weights.DEFAULT)
-                    # Setup ImageNet normalization and resize
-                    normalize = transforms.Normalize(
-                        mean=[0.485, 0.456, 0.406],
-                        std=[0.229, 0.224, 0.225]
-                    )
-                    resize = transforms.Compose([
-                        transforms.Resize(224), # USE DIRECTLY 224
-                        # transforms.CenterCrop(224)
-                    ])
-                else:
-                    resnet = models.resnet18(weights=None)
-                    resnet = self._modify_resnet_for_input_size(resnet)
-            elif k == 50:
-                if initialization == 'pretrained':
-                    resnet = models.resnet50(weights=ResNet50_Weights.DEFAULT)
-                    # Setup ImageNet normalization and resize
-                    normalize = transforms.Normalize(
-                        mean=[0.485, 0.456, 0.406],
-                        std=[0.229, 0.224, 0.225]
-                    )
-                    resize = transforms.Compose([
-                        transforms.Resize(224),
-                        # transforms.CenterCrop(224)
-                    ])
-                else:
-                    resnet = models.resnet50(weights=None)
-                    resnet = self._modify_resnet_for_input_size(resnet)
-            else:
-                raise ValueError(f"Unsupported ResNet variant: ResNet{k}")
-            
-            # Apply layer cutting based on n
-            resnet = self._cut_resnet_at_layer(resnet, n)
-            print(f"ResNet model created: {resnet} with layer cut at l{n} and initialization {initialization}")
-        
-        self.normalize = normalize
-        self.resize = resize
-        
-        return resnet, normalize, resize
-    
-    def _modify_resnet_for_input_size(self, resnet):
-        """Modify ResNet for non-224x224 input sizes"""
-        if self.height != 224 or self.width != 224:
-            kernel_size = min(7, self.height // 4, self.width // 4)
-            stride = max(1, min(2, self.height // 112, self.width // 112))
-            
-            resnet.conv1 = nn.Conv2d(
-                3, 64, kernel_size=kernel_size, stride=stride, 
-                padding=kernel_size//2, bias=False
-            )
-        return resnet
-    
-    def _cut_resnet_at_layer(self, resnet, layer_num):
-        """Cut ResNet at specified layer"""
-        children = list(resnet.children())
-        
-        if layer_num == 5:
-            # Remove only fc layer
-            return nn.Sequential(*children[:-1])
-        elif layer_num == 4:
-            # Remove fc and avgpool
-            return nn.Sequential(*children[:-2])
-        elif layer_num == 3:
-            # Remove fc, avgpool, and layer4
-            return nn.Sequential(*children[:-3])
-        else:
-            raise ValueError(f"Unsupported layer cut: l{layer_num}")
-    
     def _calculate_repr_dim(self, device="cuda"):
         """Calculate representation dimension based on model architecture"""
         # Determine the actual device of the model
-        if hasattr(self.resnet, 'module'):
+        if hasattr(self.feature_extractor, 'module'):
             # For DataParallel models (like r3m)
-            model_device = next(self.resnet.module.parameters()).device
+            model_device = next(self.feature_extractor.module.parameters()).device
         else:
             # For regular models
-            model_device = next(self.resnet.parameters()).device
+            model_device = next(self.feature_extractor.parameters()).device
         
         # Test with a dummy input to get output dimensions
         dummy_input = torch.randn(1, 3, self.height, self.width, device=model_device)
@@ -252,7 +97,7 @@ class Encoder(nn.Module):
             dummy_input = self.normalize(dummy_input)
             
         with torch.no_grad():
-            output = self.resnet(dummy_input)
+            output = self.feature_extractor(dummy_input)
             return output.view(output.size(0), -1).size(1)
     
     def forward(self, obs):
@@ -280,8 +125,8 @@ class Encoder(nn.Module):
         else:
             obs_normalized = obs_flat
         
-        # Extract features using ResNet
-        features = self.resnet(obs_normalized)
+        # Extract features using feature extractor
+        features = self.feature_extractor(obs_normalized)
         
         # Flatten features
         features = features.view(batch_size * self.num_stack, -1)
@@ -290,8 +135,8 @@ class Encoder(nn.Module):
         features_per_frame = features.view(batch_size, self.num_stack, -1)
         
         # Concatenate features from all stacked images
-        features_concat = features_per_frame.view(batch_size, -1)
-        
+        features_concat = features_per_frame.contiguous().view(batch_size, -1)
+
         return features_concat
     
 class TACO(nn.Module):
@@ -464,9 +309,9 @@ class TACOAgent:
             
             # Freeze encoder and TACO parameters
             if 'mvp' in pretrained_path:
-                self.encoder.resnet.freeze()
+                self.encoder.feature_extractor.freeze()
             elif 'r3m' in pretrained_path:
-                self.encoder.resnet.eval()
+                self.encoder.feature_extractor.eval()
             else:
                 for param in self.encoder.parameters():
                     param.requires_grad = False
@@ -498,7 +343,7 @@ class TACOAgent:
         self.aug = RandomShiftsAug(pad=4)
 
         if pretrained_path is not None:
-            print(f"Using ResNet configuration: {pretrained_path}")
+            print(f"Using feature extractor configuration: {pretrained_path}")
         else:
             print("Using default ResNet18 without pretrained weights")
         
@@ -571,6 +416,179 @@ class TACOAgent:
         metrics = dict()
 
         stddev = utils.schedule(self.stddev_schedule, step)
+        dist = self.actor(obs, stddev)
+        action = dist.sample(clip=self.stddev_clip)
+        log_prob = dist.log_prob(action).sum(-1, keepdim=True)
+        Q1, Q2 = self.critic(obs, action, self.act_tok)
+        Q = torch.min(Q1, Q2)
+
+        actor_loss = -Q.mean()
+
+        # optimize actor
+        self.actor_opt.zero_grad(set_to_none=True)
+        actor_loss.backward()
+        self.actor_opt.step()
+
+        if self.use_tb:
+            metrics['actor_loss'] = actor_loss.item()
+            metrics['actor_logprob'] = log_prob.mean().item()
+            metrics['actor_ent'] = dist.entropy().sum(dim=-1).mean().item()
+
+        return metrics
+    
+    def update_taco(self, obs, action, action_seq, next_obs, reward):
+        metrics = dict()
+        
+        obs_anchor = self.aug(obs.float())
+        obs_pos = self.aug(obs.float())
+        z_a = self.TACO.encode(obs_anchor)
+        z_pos = self.TACO.encode(obs_pos, ema=True)
+        ### Compute CURL loss
+        if self.curl:
+            logits = self.TACO.compute_logits(z_a, z_pos)
+            labels = torch.arange(logits.shape[0]).long().to(self.device)
+            curl_loss = self.cross_entropy_loss(logits, labels)
+        else:
+            curl_loss = torch.tensor(0.)
+        
+        ### Compute action encodings
+        if isinstance(self.TACO.act_tok, nn.Identity):
+            # When using Identity, pass actions directly
+            action_en = action
+            action_seq_en = action_seq.view(action_seq.size(0), -1)  # Flatten multistep actions
+        else:
+            action_en = self.TACO.act_tok(action, seq=False) 
+            action_seq_en = self.TACO.act_tok(action_seq, seq=True)
+        
+        ### Compute reward prediction loss
+        if self.reward:
+            reward_pred = self.TACO.reward(torch.concat([z_a, action_seq_en], dim=-1))
+            reward_loss = F.mse_loss(reward_pred, reward)
+        else:
+            reward_loss = torch.tensor(0.)
+        
+        ### Compute TACO loss
+        next_z = self.TACO.encode(self.aug(next_obs.float()), ema=True)
+        curr_za = self.TACO.project_sa(z_a, action_seq_en) 
+        logits = self.TACO.compute_logits(curr_za, next_z)
+        labels = torch.arange(logits.shape[0]).long().to(self.device)
+        taco_loss = self.cross_entropy_loss(logits, labels)
+        
+        # Only update if not frozen and optimizer exists
+        if not self.freeze_encoder and self.taco_opt is not None:
+            self.taco_opt.zero_grad()
+            (taco_loss + curl_loss + reward_loss).backward()
+            self.taco_opt.step()
+        
+        if self.use_tb:
+            metrics['reward_loss']  = reward_loss.item()
+            metrics['curl_loss'] = curl_loss.item()
+            metrics['taco_loss']  = taco_loss.item()
+        
+        return metrics
+        
+    def update(self, replay_iter, step):
+        metrics = dict()
+        if step % self.update_every_steps != 0:
+            return metrics
+        
+        batch = next(replay_iter)
+        obs, action, action_seq, reward, discount, next_obs, r_next_obs = utils.to_torch(
+            batch, self.device)
+
+        # augment
+        obs_en = self.aug(obs.float())
+        next_obs_en = self.aug(next_obs.float())
+        # encode
+        obs_en = self.encoder(obs_en)
+        with torch.no_grad():
+            next_obs_en = self.encoder(next_obs_en)
+        
+        if self.use_tb:
+            metrics['batch_reward'] = reward.mean().item()
+
+        # update critic
+        metrics.update(
+            self.update_critic(obs_en, action, reward, discount, next_obs_en, step))
+
+        # update actor
+        metrics.update(self.update_actor(obs_en.detach(), step))
+
+        # update critic target
+        utils.soft_update_params(self.critic, self.critic_target,
+                                 self.critic_target_tau)
+        
+
+        if self.no_taco:
+            metrics['reward_loss']  = torch.tensor(0.)
+            metrics['curl_loss'] = torch.tensor(0.)
+            metrics['taco_loss']  = torch.tensor(0.)
+            return metrics
+        
+        metrics.update(self.update_taco(obs, action, action_seq, r_next_obs, reward))       
+
+        return metrics
+    
+    def evaluate_taco(self, obs, action, action_seq, next_obs, reward):
+        with torch.no_grad():
+            metrics = dict()
+            metrics['batch_reward'] = reward.mean().item()
+
+            obs_anchor = self.aug(obs.float())
+            obs_pos = self.aug(obs.float())
+            z_a = self.TACO.encode(obs_anchor)
+            z_pos = self.TACO.encode(obs_pos, ema=True)
+            ### Compute CURL loss
+            if self.curl:
+                logits = self.TACO.compute_logits(z_a, z_pos)
+                labels = torch.arange(logits.shape[0]).long().to(self.device)
+                curl_loss = self.cross_entropy_loss(logits, labels)
+                print(f"curl_loss: {curl_loss.item()}")
+            else:
+                curl_loss = torch.tensor(0.)
+            
+            ### Compute action encodings
+            if isinstance(self.TACO.act_tok, nn.Identity):
+                # When using Identity, pass actions directly
+                action_en = action
+                action_seq_en = action_seq.view(action_seq.size(0), -1)  # Flatten multistep actions
+            else:
+                action_en = self.TACO.act_tok(action, seq=False) 
+                action_seq_en = self.TACO.act_tok(action_seq, seq=True)
+            
+            ### Compute reward prediction loss
+            if self.reward:
+                reward_pred = self.TACO.reward(torch.concat([z_a, action_seq_en], dim=-1))
+                reward_loss = F.mse_loss(reward_pred, reward)
+
+                # Average percentage of reward prediction error
+                metrics['avg_rew_pred_error_percentage'] = torch.mean(torch.abs(reward_pred - reward) / (reward + 1e-6)).item() 
+                error = reward_pred - reward
+                metrics['log_cosh'] = torch.mean(torch.log(torch.cosh(error + 1e-12))).item()
+                threshold = 1e-3  # puoi settarlo in base al tuo dominio
+                mask = reward.abs() > threshold
+                metrics['rel_error_filtered'] = torch.mean(
+                    torch.abs(reward_pred[mask] - reward[mask]) / (reward[mask] + 1e-6)
+                ).item()
+                numerator = torch.abs(reward_pred - reward)
+                denominator = torch.abs(reward_pred) + torch.abs(reward) + 1e-6
+                metrics['smape'] = torch.mean(2.0 * numerator / denominator).item()
+
+            else:
+                reward_loss = torch.tensor(0.)
+            
+            ### Compute TACO loss
+            next_z = self.TACO.encode(self.aug(next_obs.float()), ema=True)
+            curr_za = self.TACO.project_sa(z_a, action_seq_en) 
+            logits = self.TACO.compute_logits(curr_za, next_z)
+            labels = torch.arange(logits.shape[0]).long().to(self.device)
+            taco_loss = self.cross_entropy_loss(logits, labels)
+            
+            if self.use_tb:
+                metrics['reward_loss']  = reward_loss.item()
+                metrics['curl_loss'] = curl_loss.item()
+                metrics['taco_loss']  = taco_loss.item()
+            return metrics
         dist = self.actor(obs, stddev)
         action = dist.sample(clip=self.stddev_clip)
         log_prob = dist.log_prob(action).sum(-1, keepdim=True)

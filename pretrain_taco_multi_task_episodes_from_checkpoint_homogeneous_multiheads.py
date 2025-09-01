@@ -13,7 +13,6 @@ import wandb
 import argparse
 import json
 from pathlib import Path
-from agents.taco_multiheads import TACOAgent
 from pretraining_utils_multiheads import load_unified_dataset
 
 
@@ -33,6 +32,24 @@ def extract_task_name_from_path(dataset_path):
     
     # Fallback to using the full folder name if parsing fails
     return folder_name
+
+
+def format_pretrained_path(feature_extractor):
+    """Format pretrained_path based on feature extractor type"""
+    if feature_extractor == "conv":
+        return None
+    
+    # Map feature extractor names to formatted paths
+    extractor_map = {
+        "vit_b": "vit_b_scratch",
+        "vit_l": "vit_l_scratch", 
+        "resnet18": "resnet18_l5_scratch",
+        "resnet50": "resnet50_l5_scratch",
+        "r3m": "r3m",
+        "mvp": "mvp"
+    }
+    
+    return extractor_map.get(feature_extractor, f"{feature_extractor}_scratch")
 
 
 # Main function
@@ -76,6 +93,10 @@ if __name__ == "__main__":
                         help='Ratio of pretraining data to use for training when using validation_source=split')
     parser.add_argument('--test_eval_frequency', type=int, default=200, 
                         help='Frequency of test evaluation when using validation_source=split (0 to disable)')
+    # Feature extractor argument
+    parser.add_argument('--feature_extractor', '-fe', type=str, default='conv', 
+                        choices=['conv', 'vit_b', 'vit_l', 'resnet18', 'resnet50', 'r3m', 'mvp'],
+                        help='Type of feature extractor to use (default: conv)')
     args = parser.parse_args()
 
     assert args.multistep == args.nstep, f"Don't know the difference between nstep and multistep, set them to the same value"
@@ -83,6 +104,16 @@ if __name__ == "__main__":
     # Parse checkpoint steps from string to list of integers
     checkpoint_steps = [int(step) for step in args.checkpoint.split(',') if step.strip()]
     print(f"Will save checkpoints at steps: {checkpoint_steps}")
+
+    # Format pretrained_path based on feature extractor
+    pretrained_path = format_pretrained_path(args.feature_extractor)
+    print(f"Using feature extractor: {args.feature_extractor}, pretrained_path: {pretrained_path}")
+
+    # Import the appropriate TACOAgent based on feature extractor
+    if args.feature_extractor == "conv":
+        from agents.taco_multiheads import TACOAgent
+    else:
+        from agents.taco_resnet import TACOAgent
 
     # Handle dataset config paths based on type (JSON vs folder)
     config_path = Path(args.dataset_config)
@@ -267,7 +298,9 @@ if __name__ == "__main__":
             "homogeneous": args.homogeneous,
             "validation_source": args.validation_source,
             "validation_split_ratio": args.validation_split_ratio if args.validation_source == 'split' else None,
-            "test_eval_frequency": args.test_eval_frequency if args.validation_source == 'split' else None
+            "test_eval_frequency": args.test_eval_frequency if args.validation_source == 'split' else None,
+            "feature_extractor": args.feature_extractor,
+            "pretrained_path": pretrained_path
         }
 
         # Resume wandb run if ID is provided
@@ -306,28 +339,53 @@ if __name__ == "__main__":
     dataset_length = len(train_dataloader.dataset) if hasattr(train_dataloader, 'dataset') else len(train_dataloader)
     print(f"Training dataset length: {dataset_length}")
 
-    taco_agent = TACOAgent(
-        obs_shape=obs_shape,
-        action_shape=action_shape,
-        device=args.device,
-        lr=args.lr,
-        encoder_lr=args.lr,
-        feature_dim=args.feature_dim,
-        hidden_dim=args.hidden_dim,
-        critic_target_tau=None,
-        num_expl_steps=None,
-        update_every_steps=1,
-        stddev_schedule=None,
-        stddev_clip=None,
-        use_tb=True,
-        reward=not args.no_reward,
-        multistep=args.multistep,
-        latent_a_dim='none',
-        curl=not args.no_curl,
-        pretrained_path=args.resume_checkpoint,
-        optimizer_type=args.optimizer,
-        num_tasks=num_tasks
-    )
+    # Initialize agent with appropriate parameters based on feature extractor
+    if args.feature_extractor == "conv":
+        taco_agent = TACOAgent(
+            obs_shape=obs_shape,
+            action_shape=action_shape,
+            device=args.device,
+            lr=args.lr,
+            encoder_lr=args.lr,
+            feature_dim=args.feature_dim,
+            hidden_dim=args.hidden_dim,
+            critic_target_tau=None,
+            num_expl_steps=None,
+            update_every_steps=1,
+            stddev_schedule=None,
+            stddev_clip=None,
+            use_tb=True,
+            reward=not args.no_reward,
+            multistep=args.multistep,
+            latent_a_dim='none',
+            curl=not args.no_curl,
+            pretrained_path=args.resume_checkpoint,
+            optimizer_type=args.optimizer,
+            num_tasks=num_tasks
+        )
+    else:
+        taco_agent = TACOAgent(
+            obs_shape=obs_shape,
+            action_shape=action_shape,
+            device=args.device,
+            lr=args.lr,
+            encoder_lr=args.lr,
+            feature_dim=args.feature_dim,
+            hidden_dim=args.hidden_dim,
+            critic_target_tau=None,
+            num_expl_steps=None,
+            update_every_steps=1,
+            stddev_schedule=None,
+            stddev_clip=None,
+            use_tb=True,
+            reward=not args.no_reward,
+            multistep=args.multistep,
+            latent_a_dim='none',
+            curl=not args.no_curl,
+            pretrained_path=pretrained_path,
+            freeze_encoder=False,
+            no_taco=False
+        )
 
     # Now that the agent is initialized with the loaded checkpoint, we're ready to continue training
     valid_iterator = iter(valid_dataloader)
@@ -406,7 +464,8 @@ if __name__ == "__main__":
                     curl_str = "curl" if not args.no_curl else "nocurl"
                     reward_str = "rew" if not args.no_reward else "norew"
                     optimizer_str = f"_{args.optimizer}" if args.optimizer != "adam" else ""
-                    best_model_path = f"{args.save_path}/taco_MT_{'_'.join(args.dataset_config.split('/')[1:])}_lr={args.lr}{optimizer_str}_ts={steps}_len={dataset_length}_{curl_str}_{reward_str}_best.pt"
+                    extractor_str = f"_{args.feature_extractor}" if args.feature_extractor != "conv" else ""
+                    best_model_path = f"{args.save_path}/taco_MT_{'_'.join(args.dataset_config.split('/')[1:])}_lr={args.lr}{optimizer_str}{extractor_str}_ts={steps}_len={dataset_length}_{curl_str}_{reward_str}_best.pt"
                     print(f"Saving new best model to {best_model_path} at step {steps} (based on validation loss)")
                     os.makedirs(args.save_path, exist_ok=True)
                     torch.save({
@@ -417,6 +476,8 @@ if __name__ == "__main__":
                         'steps': steps,
                         'epoch': epoch,
                         'best_eval_loss': best_eval_loss,
+                        'feature_extractor': args.feature_extractor,
+                        'pretrained_path': pretrained_path,
                     }, best_model_path)
                 
                 print(f"Validation metrics: {eval_metrics_sum}")
@@ -523,7 +584,8 @@ if __name__ == "__main__":
                 curl_str = "curl" if not args.no_curl else "nocurl"
                 reward_str = "rew" if not args.no_reward else "norew"
                 optimizer_str = f"_{args.optimizer}" if args.optimizer != "adam" else ""
-                checkpoint_path = f"{args.save_path}/taco_MT_{'_'.join(args.dataset_config.split('/')[1:])}_lr={args.lr}{optimizer_str}_ts={steps}_len={dataset_length}_{curl_str}_{reward_str}.pt"
+                extractor_str = f"_{args.feature_extractor}" if args.feature_extractor != "conv" else ""
+                checkpoint_path = f"{args.save_path}/taco_MT_{'_'.join(args.dataset_config.split('/')[1:])}_lr={args.lr}{optimizer_str}{extractor_str}_ts={steps}_len={dataset_length}_{curl_str}_{reward_str}.pt"
                 print(f"Saving checkpoint at step {steps} to {checkpoint_path}")
                 os.makedirs(args.save_path, exist_ok=True)
                 torch.save({
@@ -533,6 +595,8 @@ if __name__ == "__main__":
                     'args': vars(args),  # Save configuration for easier loading
                     'steps': steps,
                     'epoch': epoch,
+                    'feature_extractor': args.feature_extractor,
+                    'pretrained_path': pretrained_path,
                 }, checkpoint_path)
             
             if steps >= args.total_steps:
@@ -544,6 +608,7 @@ if __name__ == "__main__":
     curl_str = "curl" if not args.no_curl else "nocurl"
     reward_str = "rew" if not args.no_reward else "norew"
     optimizer_str = f"_{args.optimizer}" if args.optimizer != "adam" else ""
+    extractor_str = f"_{args.feature_extractor}" if args.feature_extractor != "conv" else ""
     torch.save({
         'encoder': taco_agent.encoder.state_dict(),
         'taco': taco_agent.TACO.state_dict(),
@@ -551,7 +616,9 @@ if __name__ == "__main__":
         'args': vars(args),  # Save configuration for easier loading
         'steps': steps,
         'epoch': epoch,
-    }, f"{args.save_path}/taco_MT_{'_'.join(args.dataset_config.split('/')[1:])}_lr={args.lr}{optimizer_str}_ts={args.total_steps}_len={dataset_length}_{curl_str}_{reward_str}.pt")
+        'feature_extractor': args.feature_extractor,
+        'pretrained_path': pretrained_path,
+    }, f"{args.save_path}/taco_MT_{'_'.join(args.dataset_config.split('/')[1:])}_lr={args.lr}{optimizer_str}{extractor_str}_ts={args.total_steps}_len={dataset_length}_{curl_str}_{reward_str}.pt")
     
     print(f"Training completed after {steps} steps and {epoch} epochs")
     if args.use_wandb:

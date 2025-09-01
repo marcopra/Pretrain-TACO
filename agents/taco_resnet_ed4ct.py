@@ -12,6 +12,7 @@ from torchvision.models import ResNet18_Weights, ResNet50_Weights
 import torchvision.transforms as transforms
 from agents.resnet_models import resnet_conv3_compressed, resnet_conv4_compressed, resnet_conv5
 from agents.moco_models import moco_conv5, moco_conv3_compressed, moco_conv4_compressed
+from agents.feature_extractor_utils import FeatureExtractorFactory
 import re
 import os
 import torch.distributed as dist
@@ -54,7 +55,7 @@ class RandomShiftsAug(nn.Module):
         
 
 class Encoder(nn.Module):
-    def __init__(self, obs_shape, feature_dim, pretrained_path=None):
+    def __init__(self, obs_shape, feature_dim, pretrained_path=None, device="cuda"):
         super().__init__()
         assert len(obs_shape) == 3
         # obs_shape is (N*C, H, W) where N is number of stacked frames, C=3 for RGB
@@ -69,171 +70,28 @@ class Encoder(nn.Module):
         self.range = None
         assert total_channels % self.channels == 0, f"Total channels {total_channels} not divisible by {self.channels}"
         
-        # Parse pretrained_path to determine model configuration
-        self.resnet, self.normalize, self.resize = self._create_resnet(pretrained_path)
+        # Create feature extractor with transforms using factory
+        factory = FeatureExtractorFactory(self.height, self.width)
+        self.feature_extractor, self.normalize, self.resize = factory.create_feature_extractor(pretrained_path)
+        
+        # Move feature_extractor to device before calculating dimensions
+        self.feature_extractor = self.feature_extractor.to(device)
         
         # Calculate representation dimension based on the model architecture
-        self.repr_dim = self._calculate_repr_dim() * self.num_stack
+        self.repr_dim = self._calculate_repr_dim(device) * self.num_stack
     
-    def _create_resnet(self, pretrained_path):
-        """Create ResNet model based on pretrained_path configuration"""
-        normalize = None
-        resize = None
-        
-        if pretrained_path is None or pretrained_path.lower() == 'none':
-            # Default: ResNet18 without pretrained weights
-            resnet = models.resnet18(weights=None)
-            resnet = self._modify_resnet_for_input_size(resnet)
-            resnet = nn.Sequential(*list(resnet.children())[:-1])  # Remove fc layer
-            
-        elif os.path.exists(pretrained_path) and 'moco' in pretrained_path:
-            print(f"Loading MoCo model from {pretrained_path}")
-            if 'l3' in pretrained_path:
-                resnet = moco_conv3_compressed(pretrained_path)
-            elif 'l4' in pretrained_path:
-                resnet = moco_conv4_compressed(pretrained_path)
-            else:
-                resnet = moco_conv5(pretrained_path)
-             # Apply standard ResNet transforms for pretrained checkpoints
-            normalize = transforms.Normalize(
-                mean=[0.485, 0.456, 0.406],
-                std=[0.229, 0.224, 0.225]
-            )
-            # Apply resize and center crop as per ResNet standard
-            resize = transforms.Compose([
-                transforms.Resize(224),
-            ])
-            print(f"MoCo model loaded")    
-        elif 'mvp' in pretrained_path:
-            resnet = mvp.load("vits-mae-hoi")
-             # Apply standard ResNet transforms for pretrained checkpoints
-            normalize = transforms.Normalize(
-                mean=[0.485, 0.456, 0.406],
-                std=[0.229, 0.224, 0.225]
-            )
-            # Apply resize and center crop as per ResNet standard
-            resize = transforms.Compose([
-                transforms.Resize(224),
-            ])
-        elif 'r3m' in pretrained_path:
-            resnet = load_r3m("resnet50")
-             # Apply standard ResNet transforms for pretrained checkpoints
-            normalize = transforms.Normalize(
-                mean=[0.485, 0.456, 0.406],
-                std=[0.229, 0.224, 0.225]
-            )
-            # Apply resize and center crop as per ResNet standard
-            resize = transforms.Compose([
-                transforms.Resize(224),
-            ])
-
-        elif os.path.exists(pretrained_path) or  'resnet50_l5' in pretrained_path:
-            print(f"Loading ResNet model from {pretrained_path}")
-            # Load from checkpoint file - these are pretrained models that need standard transforms
-            if 'resnet50_l3' in pretrained_path:
-                resnet = resnet_conv3_compressed(pretrained_path)
-            elif 'resnet50_l4' in pretrained_path:
-                resnet = resnet_conv4_compressed(pretrained_path)
-            elif 'resnet50_l5' in pretrained_path:
-                resnet = resnet_conv5(pretrained_path)
-            else:
-                raise ValueError(f"Unknown checkpoint format: {pretrained_path}")
-            print(f"ResNet model loaded")
-            # Apply standard ResNet transforms for pretrained checkpoints
-            normalize = transforms.Normalize(
-                mean=[0.485, 0.456, 0.406],
-                std=[0.229, 0.224, 0.225]
-            )
-            # Apply resize and center crop as per ResNet standard
-            resize = transforms.Compose([
-                transforms.Resize(224),
-            ])
-                
-        else:
-            print(f"Instantiating ResNet based on pretrained_path: {pretrained_path}")
-            # Parse format: resnet<k>_l<n>_<initialization>
-            match = re.match(r'resnet(\d+)_l(\d+)_(\w+)', pretrained_path)
-            if not match:
-                raise ValueError(f"Invalid pretrained_path format: {pretrained_path}. Expected format: resnet<k>_l<n>_<initialization>")
-            
-            k, n, initialization = match.groups()
-            k, n = int(k), int(n)
-            
-            # Create base ResNet
-            if k == 18:
-                if initialization == 'pretrained':
-                    resnet = models.resnet18(weights=ResNet18_Weights.DEFAULT)
-                    # Setup ImageNet normalization and resize
-                    normalize = transforms.Normalize(
-                        mean=[0.485, 0.456, 0.406],
-                        std=[0.229, 0.224, 0.225]
-                    )
-                    resize = transforms.Compose([
-                        transforms.Resize(224), # USE DIRECTLY 224
-                        # transforms.CenterCrop(224)
-                    ])
-                else:
-                    resnet = models.resnet18(weights=None)
-                    resnet = self._modify_resnet_for_input_size(resnet)
-            elif k == 50:
-                if initialization == 'pretrained':
-                    resnet = models.resnet50(weights=ResNet50_Weights.DEFAULT)
-                    # Setup ImageNet normalization and resize
-                    normalize = transforms.Normalize(
-                        mean=[0.485, 0.456, 0.406],
-                        std=[0.229, 0.224, 0.225]
-                    )
-                    resize = transforms.Compose([
-                        transforms.Resize(224),
-                        # transforms.CenterCrop(224)
-                    ])
-                else:
-                    resnet = models.resnet50(weights=None)
-                    resnet = self._modify_resnet_for_input_size(resnet)
-            else:
-                raise ValueError(f"Unsupported ResNet variant: ResNet{k}")
-            
-            # Apply layer cutting based on n
-            resnet = self._cut_resnet_at_layer(resnet, n)
-            print(f"ResNet model created with layer cut at l{n} and initialization {initialization}")
-        
-        self.normalize = normalize
-        self.resize = resize
-        
-        return resnet, normalize, resize
-    
-    def _modify_resnet_for_input_size(self, resnet):
-        """Modify ResNet for non-224x224 input sizes"""
-        if self.height != 224 or self.width != 224:
-            kernel_size = min(7, self.height // 4, self.width // 4)
-            stride = max(1, min(2, self.height // 112, self.width // 112))
-            
-            resnet.conv1 = nn.Conv2d(
-                3, 64, kernel_size=kernel_size, stride=stride, 
-                padding=kernel_size//2, bias=False
-            )
-        return resnet
-    
-    def _cut_resnet_at_layer(self, resnet, layer_num):
-        """Cut ResNet at specified layer"""
-        children = list(resnet.children())
-        
-        if layer_num == 5:
-            # Remove only fc layer
-            return nn.Sequential(*children[:-1])
-        elif layer_num == 4:
-            # Remove fc and avgpool
-            return nn.Sequential(*children[:-2])
-        elif layer_num == 3:
-            # Remove fc, avgpool, and layer4
-            return nn.Sequential(*children[:-3])
-        else:
-            raise ValueError(f"Unsupported layer cut: l{layer_num}")
-    
-    def _calculate_repr_dim(self):
+    def _calculate_repr_dim(self, device="cuda"):
         """Calculate representation dimension based on model architecture"""
+        # Determine the actual device of the model
+        if hasattr(self.feature_extractor, 'module'):
+            # For DataParallel models (like r3m)
+            model_device = next(self.feature_extractor.module.parameters()).device
+        else:
+            # For regular models
+            model_device = next(self.feature_extractor.parameters()).device
+        
         # Test with a dummy input to get output dimensions
-        dummy_input = torch.randn(1, 3, self.height, self.width)
+        dummy_input = torch.randn(1, 3, self.height, self.width, device=model_device)
         
         # Apply transforms in the same order as forward pass
         if self.resize is not None:
@@ -242,7 +100,7 @@ class Encoder(nn.Module):
             dummy_input = self.normalize(dummy_input)
             
         with torch.no_grad():
-            output = self.resnet(dummy_input)
+            output = self.feature_extractor(dummy_input)
             return output.view(output.size(0), -1).size(1)
     
     def forward(self, obs):
@@ -270,8 +128,8 @@ class Encoder(nn.Module):
         else:
             obs_normalized = obs_flat
         
-        # Extract features using ResNet
-        features = self.resnet(obs_normalized)
+        # Extract features using feature extractor
+        features = self.feature_extractor(obs_normalized)
         
         # Flatten features
         features = features.view(batch_size * self.num_stack, -1)
@@ -280,8 +138,8 @@ class Encoder(nn.Module):
         features_per_frame = features.view(batch_size, self.num_stack, -1)
         
         # Concatenate features from all stacked images
-        features_concat = features_per_frame.view(batch_size, -1)
-        
+        features_concat = features_per_frame.contiguous().view(batch_size, -1)
+
         return features_concat
     
 class TACO(nn.Module):
@@ -471,7 +329,7 @@ class TACOAgent:
         else:
             self.act_tok = utils.ActionEncoding(action_shape[0], latent_a_dim, multistep)
         
-        self.encoder = Encoder(obs_shape, feature_dim, pretrained_path).to(device)
+        self.encoder = Encoder(obs_shape, feature_dim, pretrained_path, device).to(device)
         
         self.actor = Actor(self.encoder.repr_dim, action_shape, feature_dim,
                            hidden_dim).to(device)
@@ -488,9 +346,9 @@ class TACOAgent:
         if freeze_encoder:
             # Freeze encoder and TACO parameters
             if 'mvp' in pretrained_path:
-                self.encoder.resnet.freeze()
+                self.encoder.feature_extractor.freeze()
             elif 'r3m' in pretrained_path:
-                self.encoder.resnet.eval()
+                self.encoder.feature_extractor.eval()
             else:
                 for param in self.encoder.parameters():
                     param.requires_grad = False
@@ -523,7 +381,7 @@ class TACOAgent:
         self.aug = RandomShiftsAug(pad=4)
 
         if pretrained_path is not None:
-            print(f"Using ResNet configuration: {pretrained_path}")
+            print(f"Using feature extractor configuration: {pretrained_path}")
         else:
             print("Using default ResNet18 without pretrained weights")
         

@@ -6,6 +6,7 @@ import numpy as np
 import tempfile
 import os
 import threading
+import psutil
 
 class ColorPrint:
     @staticmethod
@@ -267,6 +268,10 @@ def load_unified_dataset(config_or_path, batch_size=32, num_workers=4,
         use_training_split: Whether to use training split (True) or validation split (False)
         **kwargs: Additional arguments
     """
+    # Monitor memory usage
+    process = psutil.Process(os.getpid())
+    memory_before = process.memory_info().rss / 1024 / 1024  # MB
+    
     config_path = Path(config_or_path)
     
     # Determine if it's a config file or folder
@@ -439,5 +444,11 @@ def load_unified_dataset(config_or_path, batch_size=32, num_workers=4,
     loader.task_to_id = task_to_id
     loader.id_to_task = id_to_task
     loader.num_tasks = len(task_to_id)
+    
+    # Monitor memory usage after loading
+    memory_after = process.memory_info().rss / 1024 / 1024  # MB
+    memory_used = memory_after - memory_before
+    
+    ColorPrint.blue(f"Memory usage - Before: {memory_before:.2f} MB, After: {memory_after:.2f} MB, Used: {memory_used:.2f} MB")
     
     return loader
