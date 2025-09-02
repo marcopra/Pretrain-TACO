@@ -20,6 +20,82 @@ class ColorPrint:
     @staticmethod
     def yellow(text):
         print(f"\033[93m{text}\033[0m")
+    
+    @staticmethod
+    def red(text):
+        print(f"\033[91m{text}\033[0m")
+
+def load_transition_cache(dataset_base_path):
+    """Load transition counts from cache file if it exists"""
+    cache_file = Path(dataset_base_path) / "transition_counts.txt"
+    if cache_file.exists():
+        ColorPrint.blue(f"Loading transition counts from cache: {cache_file}")
+        transition_counts = {}
+        episode_lengths = {}  # New: cache individual episode lengths
+        try:
+            with open(cache_file, 'r') as f:
+                current_dataset = None
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#'):
+                        if ':' in line and not line.startswith('  '):
+                            # Dataset line: "dataset_name: total_count"
+                            dataset_name, count = line.split(':', 1)
+                            transition_counts[dataset_name.strip()] = int(count.strip())
+                            current_dataset = dataset_name.strip()
+                            episode_lengths[current_dataset] = {}
+                        elif line.startswith('  ') and current_dataset:
+                            # Episode line: "  episode_file: length"
+                            episode_line = line.strip()
+                            if ':' in episode_line:
+                                episode_name, length = episode_line.split(':', 1)
+                                episode_lengths[current_dataset][episode_name.strip()] = int(length.strip())
+            return transition_counts, episode_lengths
+        except Exception as e:
+            ColorPrint.red(f"Error reading transition cache: {e}")
+            return None, None
+    else:
+        ColorPrint.red(f"No transition cache file found at: {cache_file}")
+        return None, None
+
+def save_transition_cache(dataset_base_path, transition_counts, episode_lengths=None):
+    """Save transition counts and episode lengths to cache file"""
+    cache_file = Path(dataset_base_path) / "transition_counts.txt"
+    try:
+        with open(cache_file, 'w') as f:
+            f.write("# Dataset transition counts cache\n")
+            f.write("# Format: dataset_name: total_transitions\n")
+            f.write("#   episode_file: episode_length\n")
+            f.write("#\n")
+            
+            total_transitions = 0
+            for dataset_name in sorted(transition_counts.keys()):
+                count = transition_counts[dataset_name]
+                f.write(f"{dataset_name}: {count}\n")
+                
+                # Write individual episode lengths if available
+                if episode_lengths and dataset_name in episode_lengths:
+                    for episode_name, length in sorted(episode_lengths[dataset_name].items()):
+                        f.write(f"  {episode_name}: {length}\n")
+                
+                total_transitions += count
+            
+            f.write(f"#\n")
+            f.write(f"# Total transitions across all datasets: {total_transitions}\n")
+        
+        ColorPrint.green(f"Saved transition counts cache to: {cache_file}")
+    except Exception as e:
+        ColorPrint.red(f"Error saving transition cache: {e}")
+
+def get_dataset_base_path(dataset_paths):
+    """Extract base dataset path from list of dataset paths"""
+    if not dataset_paths:
+        return None
+    
+    # For paths like "data_episodes/FullDataset/0.0/task-name_...", 
+    # we want "data_episodes/FullDataset/0.0"
+    first_path = Path(dataset_paths[0])
+    return first_path.parent
 
 def count_transitions_in_episodes(episode_files):
     """Count total transitions in a list of episode files"""
@@ -37,69 +113,90 @@ def count_transitions_in_episodes(episode_files):
             continue
     return total_transitions
 
-def select_episodes_homogeneous(dataset_paths, max_episodes_per_dataset, max_size=None, is_test=False):
-    """Select episodes from datasets to ensure homogeneous distribution"""
-    all_episodes = []
-    dataset_info = []
+def count_transitions_with_cache(dataset_paths):
+    """Count transitions using cache if available, otherwise count and save cache"""
+    # Get base dataset path for cache file
+    dataset_base_path = get_dataset_base_path(dataset_paths)
+    transition_counts = {}
+    episode_lengths = {}
     
-    for dataset_path in dataset_paths:
-        dataset_path = Path(dataset_path)
-        episode_files = list(dataset_path.glob('*.npz'))
-        
-        if max_episodes_per_dataset is not None:
-            episode_files = episode_files[:max_episodes_per_dataset]
-        
-        transitions_count = count_transitions_in_episodes(episode_files)
-        dataset_info.append({
-            'path': dataset_path,
-            'episodes': episode_files,
-            'transitions': transitions_count
-        })
-        all_episodes.extend(episode_files)
-    
-    total_transitions = sum(info['transitions'] for info in dataset_info)
-    if max_size is None:
-        max_size = total_transitions
-    if not is_test:
-        if total_transitions > max_size:       
-            ColorPrint.yellow(f"Warning: Total transitions ({total_transitions}) exceed max_size ({max_size})")
-        transitions_per_dataset = max_size // len(dataset_paths)
-        ColorPrint.green(f"Homogeneous loading: {transitions_per_dataset} transitions per dataset")
-        
-        selected_episodes = []
-        actual_transitions_loaded = 0
-        
-        for info in dataset_info:
-            dataset_episodes = info['episodes'].copy()
-            random.shuffle(dataset_episodes)
+    if dataset_base_path:
+        # Try to load from cache
+        cached_counts, cached_episode_lengths = load_transition_cache(dataset_base_path)
+        if cached_counts:
+            need_update = False
             
-            current_transitions = 0
-            dataset_selected = []
-            
-            for episode_file in dataset_episodes:
-                episode_transitions = count_transitions_in_episodes([episode_file])
-                
-                if current_transitions + episode_transitions <= transitions_per_dataset:
-                    dataset_selected.append(episode_file)
-                    current_transitions += episode_transitions
-                elif len(dataset_selected) == 0:
-                    dataset_selected.append(episode_file)
-                    current_transitions += episode_transitions
-                    ColorPrint.yellow(f"Added episode with {episode_transitions} transitions (exceeds per-dataset limit of {transitions_per_dataset})")
-                    break
+            # Use cached data for available datasets
+            for dataset_path in dataset_paths:
+                dataset_name = Path(dataset_path).name
+                if dataset_name in cached_counts:
+                    transition_counts[dataset_name] = cached_counts[dataset_name]
+                    if cached_episode_lengths and dataset_name in cached_episode_lengths:
+                        episode_lengths[dataset_name] = cached_episode_lengths[dataset_name]
                 else:
-                    break
+                    ColorPrint.yellow(f"Dataset {dataset_name} not found in cache, counting manually")
+                    dataset_path_obj = Path(dataset_path)
+                    episode_files = list(dataset_path_obj.glob('*.npz'))
+                    
+                    # Count transitions and collect episode lengths
+                    count, dataset_episode_lengths = count_transitions_and_lengths_in_episodes(episode_files)
+                    transition_counts[dataset_name] = count
+                    episode_lengths[dataset_name] = dataset_episode_lengths
+                    need_update = True
             
-            selected_episodes.extend(dataset_selected)
-            actual_transitions_loaded += current_transitions
-            print(f"Dataset {info['path'].name}: selected {len(dataset_selected)} episodes with {current_transitions} transitions")
+            # If we had to count some datasets manually, update the cache
+            if need_update:
+                ColorPrint.yellow("Updating transition cache with new datasets")
+                # Merge with existing cache
+                if cached_counts:
+                    for dataset_name, count in cached_counts.items():
+                        if dataset_name not in transition_counts:
+                            transition_counts[dataset_name] = count
+                if cached_episode_lengths:
+                    for dataset_name, episodes in cached_episode_lengths.items():
+                        if dataset_name not in episode_lengths:
+                            episode_lengths[dataset_name] = episodes
+                
+                save_transition_cache(dataset_base_path, transition_counts, episode_lengths)
+            
+            return transition_counts, episode_lengths
+    
+    # No cache available, count all datasets manually
+    ColorPrint.yellow("No cache available, counting transitions for all datasets")
+    for dataset_path in dataset_paths:
+        dataset_path_obj = Path(dataset_path)
+        dataset_name = dataset_path_obj.name
+        episode_files = list(dataset_path_obj.glob('*.npz'))
         
-        print(f"Total selected: {len(selected_episodes)} episodes with {actual_transitions_loaded} transitions")
-        return selected_episodes
-    else:
-        if not is_test:
-            ColorPrint.green(f"Using all {total_transitions} transitions from {len(dataset_paths)} datasets")
-        return all_episodes
+        count, dataset_episode_lengths = count_transitions_and_lengths_in_episodes(episode_files)
+        transition_counts[dataset_name] = count
+        episode_lengths[dataset_name] = dataset_episode_lengths
+    
+    # Save cache for future use
+    if dataset_base_path:
+        save_transition_cache(dataset_base_path, transition_counts, episode_lengths)
+    
+    return transition_counts, episode_lengths
+
+def count_transitions_and_lengths_in_episodes(episode_files):
+    """Count total transitions and get individual episode lengths"""
+    total_transitions = 0
+    episode_lengths = {}
+    
+    for episode_file in episode_files:
+        try:
+            episode_file = Path(episode_file)
+            with episode_file.open('rb') as f:
+                episode = np.load(f)
+                obs_key = next(iter(episode.keys()))
+                episode_len = episode[obs_key].shape[0] - 1
+                total_transitions += episode_len
+                episode_lengths[episode_file.name] = episode_len
+        except Exception as e:
+            print(f"Warning: Could not count transitions in {episode_file}: {e}")
+            continue
+    
+    return total_transitions, episode_lengths
 
 def extract_task_name_from_path(dataset_path):
     """Extract task name from dataset path"""
@@ -132,28 +229,58 @@ def create_task_mapping(dataset_paths):
     ColorPrint.blue(f"Created task mapping: {task_to_id}")
     return task_to_id, id_to_task
 
-def create_symlink_with_proper_naming(episode_file, dest_dir, counter, task_id=None):
-    """Create symlink to episode file with proper naming format for replay_buffer"""
+def create_symlink_with_proper_naming(episode_file, dest_dir, counter, task_id=None, episode_len=None):
+    """Create symlink to episode file with proper naming format for replay_buffer
+    
+    Args:
+        episode_file: Path to episode file
+        dest_dir: Destination directory
+        counter: Counter for naming
+        task_id: Task ID to add if needed
+        episode_len: Pre-computed episode length (if None, will be computed)
+    """
     episode_file = Path(episode_file)
     
-    # Load episode data first to get episode length and check for task_id
-    try:
-        with episode_file.open('rb') as f:
-            episode = np.load(f)
-            obs_key = next(iter(episode.keys()))
-            episode_len = episode[obs_key].shape[0] - 1
-            has_task_id = 'task_id' in episode
-            
-            # If task_id is provided and episode doesn't have task_id, convert to dict and save with task_id
-            if task_id is not None and not has_task_id:
-                # Convert episode to regular dict while file is still open
-                episode_dict = {k: episode[k] for k in episode.keys()}
-    except Exception as e:
-        print(f"Warning: Could not process episode {episode_file}: {e}")
-        return None
+    # If episode_len is not provided, we need to load the file to get it
+    if episode_len is None:
+        try:
+            with episode_file.open('rb') as f:
+                episode = np.load(f)
+                obs_key = next(iter(episode.keys()))
+                episode_len = episode[obs_key].shape[0] - 1
+                has_task_id = 'task_id' in episode
+                
+                # If task_id is provided and episode doesn't have task_id, convert to dict and save with task_id
+                if task_id is not None and not has_task_id:
+                    # Convert episode to regular dict while file is still open
+                    episode_dict = {k: episode[k] for k in episode.keys()}
+        except Exception as e:
+            print(f"Warning: Could not process episode {episode_file}: {e}")
+            return None
+    else:
+        # We have pre-computed episode_len, but still need to check if we need to add task_id
+        has_task_id = None
+        episode_dict = None
+        
+        if task_id is not None:
+            # Only load the file if we need to check/add task_id
+            try:
+                with episode_file.open('rb') as f:
+                    episode = np.load(f)
+                    has_task_id = 'task_id' in episode
+                    
+                    if not has_task_id:
+                        # Convert episode to regular dict while file is still open
+                        episode_dict = {k: episode[k] for k in episode.keys()}
+            except Exception as e:
+                print(f"Warning: Could not process episode {episode_file}: {e}")
+                return None
+        else:
+            # No task_id needed, we can skip loading the file entirely
+            has_task_id = True  # Assume it's fine to create symlink
     
     # If task_id is provided and episode doesn't have task_id, we need to create a new file
-    if task_id is not None and not has_task_id:
+    if task_id is not None and has_task_id is False:
         # Create a temporary file with task_id added
         from replay_buffer_multi_task import save_episode_with_task_id
         
@@ -181,26 +308,121 @@ def create_symlink_with_proper_naming(episode_file, dest_dir, counter, task_id=N
         os.symlink(episode_file.absolute(), dest_path)
         return dest_path
 
-def can_use_direct_loading(dataset_paths, selected_episodes, max_episodes_per_dataset, homogeneous):
-    """Check if we can use direct loading without temp directory"""
-    # If we're using all episodes from all datasets without filtering, we can load directly
-    if not homogeneous and max_episodes_per_dataset is None:
-        return True, dataset_paths[0] if len(dataset_paths) == 1 else None
+def get_episode_length_from_cache_or_file(episode_file, transition_counts, episode_lengths=None):
+    """Get episode length from cache or by loading the file"""
+    episode_file = Path(episode_file)
+    dataset_name = episode_file.parent.name
+    episode_name = episode_file.name
     
-    # If all selected episodes are from a single dataset and we're not filtering
-    if len(dataset_paths) == 1 and not homogeneous:
-        dataset_path = Path(dataset_paths[0])
-        all_episodes_in_dataset = list(dataset_path.glob('*.npz'))
-        if len(selected_episodes) == len(all_episodes_in_dataset):
-            return True, dataset_path
+    # Check if we have cached episode length
+    if (episode_lengths and dataset_name in episode_lengths and 
+        episode_name in episode_lengths[dataset_name]):
+        return episode_lengths[dataset_name][episode_name]
     
-    return False, None
+    # Check if we have cached count for this dataset (fallback to file loading)
+    if dataset_name in transition_counts:
+        ColorPrint.yellow(f"Episode length not in cache, loading file: {episode_name}")
+        try:
+            with episode_file.open('rb') as f:
+                episode = np.load(f)
+                obs_key = next(iter(episode.keys()))
+                episode_len = episode[obs_key].shape[0] - 1
+                return episode_len
+        except Exception as e:
+            print(f"Warning: Could not get episode length from {episode_file}: {e}")
+            return None
+    else:
+        # Fallback to loading the file
+        return count_transitions_in_episodes([episode_file])
+
+def select_episodes_homogeneous(dataset_paths, max_episodes_per_dataset, max_size=None, is_test=False):
+    """Select episodes from datasets to ensure homogeneous distribution"""
+    all_episodes = []
+    dataset_info = []
+    
+    # Get transition counts (with caching)
+    transition_counts, episode_lengths = count_transitions_with_cache(dataset_paths)
+    
+    for dataset_path in dataset_paths:
+        dataset_path = Path(dataset_path)
+        dataset_name = dataset_path.name
+        episode_files = list(dataset_path.glob('*.npz'))
+        
+        if max_episodes_per_dataset is not None:
+            episode_files = episode_files[:max_episodes_per_dataset]
+        
+        # Use cached count if available, otherwise count manually
+        if dataset_name in transition_counts:
+            transitions_count = transition_counts[dataset_name]
+            # Adjust count if we're limiting episodes
+            if max_episodes_per_dataset is not None and len(episode_files) < len(list(dataset_path.glob('*.npz'))):
+                transitions_count = count_transitions_in_episodes(episode_files)
+        else:
+            transitions_count = count_transitions_in_episodes(episode_files)
+        
+        dataset_info.append({
+            'path': dataset_path,
+            'episodes': episode_files,
+            'transitions': transitions_count
+        })
+        all_episodes.extend(episode_files)
+    
+    total_transitions = sum(info['transitions'] for info in dataset_info)
+    if max_size is None:
+        max_size = total_transitions
+    if not is_test:
+        if total_transitions > max_size:       
+            ColorPrint.yellow(f"Warning: Total transitions ({total_transitions}) exceed max_size ({max_size})")
+        transitions_per_dataset = max_size // len(dataset_paths)
+        ColorPrint.green(f"Homogeneous loading: {transitions_per_dataset} transitions per dataset")
+        
+        selected_episodes = []
+        actual_transitions_loaded = 0
+        
+        for info in dataset_info:
+            dataset_episodes = info['episodes'].copy()
+            random.shuffle(dataset_episodes)
+            
+            current_transitions = 0
+            dataset_selected = []
+            
+            for episode_file in dataset_episodes:
+                # Use cached episode length if available
+                episode_len = get_episode_length_from_cache_or_file(
+                    episode_file, transition_counts, episode_lengths
+                )
+                if episode_len is None:
+                    continue
+                
+                if current_transitions + episode_len <= transitions_per_dataset:
+                    dataset_selected.append(episode_file)
+                    current_transitions += episode_len
+                elif len(dataset_selected) == 0:
+                    dataset_selected.append(episode_file)
+                    current_transitions += episode_len
+                    ColorPrint.yellow(f"Added episode with {episode_len} transitions (exceeds per-dataset limit of {transitions_per_dataset})")
+                    break
+                else:
+                    break
+            
+            selected_episodes.extend(dataset_selected)
+            actual_transitions_loaded += current_transitions
+            print(f"Dataset {info['path'].name}: selected {len(dataset_selected)} episodes with {current_transitions} transitions")
+        
+        print(f"Total selected: {len(selected_episodes)} episodes with {actual_transitions_loaded} transitions")
+        return selected_episodes, episode_lengths
+    else:
+        if not is_test:
+            ColorPrint.green(f"Using all {total_transitions} transitions from {len(dataset_paths)} datasets")
+        return all_episodes, episode_lengths
 
 class EpisodePool:
     """Manages a shared pool of episodes for split validation to prevent data leakage"""
-    def __init__(self, temp_dir, all_episodes, task_to_id):
+    def __init__(self, temp_dir, all_episodes, task_to_id, transition_counts=None, episode_lengths=None):
         self.temp_dir = Path(temp_dir)
         self.task_to_id = task_to_id
+        self.transition_counts = transition_counts or {}
+        self.episode_lengths = episode_lengths or {}
         self.lock = threading.Lock()
         self.used_episodes = set()
         
@@ -208,12 +430,19 @@ class EpisodePool:
         self.episode_map = {}  # Maps original episode path to symlink path
         counter = 0
         
+        ColorPrint.blue("Creating episode pool with optimized episode length computation")
+        
         for episode_file in all_episodes:
             task_name = extract_task_name_from_path(episode_file.parent)
             task_id = task_to_id[task_name]
             
+            # Get episode length efficiently using cache when possible
+            episode_len = get_episode_length_from_cache_or_file(
+                episode_file, self.transition_counts, self.episode_lengths
+            )
+            
             processed_path = create_symlink_with_proper_naming(
-                episode_file, self.temp_dir, counter, task_id
+                episode_file, self.temp_dir, counter, task_id, episode_len
             )
             if processed_path is not None:
                 self.episode_map[str(episode_file)] = processed_path
@@ -298,8 +527,15 @@ def load_unified_dataset(config_or_path, batch_size=32, num_workers=4,
     # Create task mapping
     task_to_id, id_to_task = create_task_mapping(dataset_paths)
     
-    # Check if we're doing split validation
     using_split_validation = 'validation_split_ratio' in kwargs and not is_test
+
+    # Get transition counts for optimization
+    episode_lengths = {}
+    if homogeneous or using_split_validation:
+        transition_counts, episode_lengths = count_transitions_with_cache(dataset_paths)
+    else:
+        transition_counts = {}
+    
     
     # Handle split validation case
     if using_split_validation:
@@ -320,11 +556,12 @@ def load_unified_dataset(config_or_path, batch_size=32, num_workers=4,
             temp_dir = Path(tempfile.mkdtemp())
             print(f"Temporary directory created at: {temp_dir}")
             
-            _episode_pool = EpisodePool(temp_dir, all_episodes, task_to_id)
+            # Pass transition counts to episode pool for optimization
+            _episode_pool = EpisodePool(temp_dir, all_episodes, task_to_id, transition_counts, episode_lengths)
             
             # Now select episodes for training with constraints
             if homogeneous:
-                selected_episodes = select_episodes_homogeneous(
+                selected_episodes, _ = select_episodes_homogeneous(
                     dataset_paths, max_episodes_per_dataset, max_size, is_test
                 )
             else:
@@ -393,7 +630,7 @@ def load_unified_dataset(config_or_path, batch_size=32, num_workers=4,
         # Original behavior for non-split cases
         if homogeneous:
             ColorPrint.green("Using homogeneous dataset loading")
-            selected_episodes = select_episodes_homogeneous(
+            selected_episodes, _ = select_episodes_homogeneous(
                 dataset_paths, max_episodes_per_dataset, max_size, is_test
             )
         else:
@@ -420,8 +657,13 @@ def load_unified_dataset(config_or_path, batch_size=32, num_workers=4,
             task_name = extract_task_name_from_path(episode_file.parent)
             task_id = task_to_id[task_name]
             
+            # Get episode length efficiently using cache when possible
+            episode_len = get_episode_length_from_cache_or_file(
+                episode_file, transition_counts, episode_lengths
+            )
+            
             processed_path = create_symlink_with_proper_naming(
-                episode_file, temp_dir, counter, task_id
+                episode_file, temp_dir, counter, task_id, episode_len
             )
             if processed_path is not None:
                 counter += 1

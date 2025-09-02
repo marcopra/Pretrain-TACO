@@ -178,6 +178,14 @@ if __name__ == "__main__":
             is_test=True
         )
         
+        # Print dataset lengths for test validation
+        train_dataset_len = len(train_dataloader.dataset) if hasattr(train_dataloader, 'dataset') else len(train_dataloader)
+        valid_dataset_len = len(valid_dataloader.dataset) if hasattr(valid_dataloader, 'dataset') else len(valid_dataloader)
+        print(f"=== DATASET LENGTHS (Test Validation) ===")
+        print(f"Training dataset length: {train_dataset_len}")
+        print(f"Validation dataset length: {valid_dataset_len}")
+        print(f"Total episodes: {train_dataset_len + valid_dataset_len}")
+        
         test_dataloader = None  # No separate test set
         
     else:  # validation_source == 'split'
@@ -213,9 +221,14 @@ if __name__ == "__main__":
             use_training_split=False  # Only get the validation portion
         )
 
-        # print the length of the datasets
-        print(f"Training dataset size: {len(train_dataloader)}")
-        print(f"Validation dataset size: {len(valid_dataloader)}")
+        # Print dataset lengths for split validation
+        train_dataset_len = len(train_dataloader.dataset) if hasattr(train_dataloader, 'dataset') else len(train_dataloader)
+        valid_dataset_len = len(valid_dataloader.dataset) if hasattr(valid_dataloader, 'dataset') else len(valid_dataloader)
+        print(f"=== DATASET LENGTHS (Split Validation, ratio={args.validation_split_ratio}) ===")
+        print(f"Training dataset length: {train_dataset_len}")
+        print(f"Validation dataset length: {valid_dataset_len}")
+        print(f"Total episodes: {train_dataset_len + valid_dataset_len}")
+        print(f"Actual training ratio: {train_dataset_len / (train_dataset_len + valid_dataset_len):.3f}")
         
         # Load test set separately if test evaluation is enabled
         if args.test_eval_frequency > 0:
@@ -229,6 +242,8 @@ if __name__ == "__main__":
                 homogeneous=args.homogeneous,
                 is_test=True
             )
+            test_dataset_len = len(test_dataloader.dataset) if hasattr(test_dataloader, 'dataset') else len(test_dataloader)
+            print(f"Test dataset length: {test_dataset_len}")
         else:
             test_dataloader = None
 
