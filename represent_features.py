@@ -1,11 +1,10 @@
 """
-Script per visualizzare le features estratte dall'encoder TACO usando t-SNE.
-Confronta le prime e ultime osservazioni degli episodi per vedere se stati simili
-sono rappresentati vicini nello spazio delle features.
+Script per visualizzare le features estratte dall'encoder TACO usando t-SNE o PCA.
+Supporta configurazioni JSON con dataset di pretraining e test.
 
 Usage:
-python represent_features.py --dataset_path data_episodes/repr_dataset/pretraining_datasets/ --pretrained_path /home/mprattico/Pretrain-TACO/models/taco_MT_MT50_OOD_Push_0.99_lr=0.0005_ts=50000896_curl_rew.pt --n_obs 3 --k_episodes 450 --save_plot 3obs_450eps_encoder_direct --use_encoder_direct
-python represent_features.py --dataset_path data_episodes/repr_dataset/pretraining_datasets/push-wall-v2_task0_fs3_ar2_ri1_rg0_exp=99 --pretrained_path /home/mprattico/Pretrain-TACO/models/taco_MT_MT50_OOD_Push_0.99_lr=0.0005_ts=50000896_curl_rew.pt --n_obs 10 --k_episodes 50
+python represent_features.py --config configs_data_MT/MT49OODBasketball.json --pretrained_path models/model.pt --method tsne
+python represent_features.py --config configs_data_MT/MT49OODBasketball.json --pretrained_path models/model.pt --method pca
 """
 
 import argparse
@@ -15,13 +14,15 @@ import torch.nn as nn
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
 from sklearn.manifold import TSNE
+from sklearn.decomposition import PCA
 from pathlib import Path
 import sys
 import os
+import json
 
 
 # Import existing classes from the codebase
-from agents.taco import Encoder, TACO
+from agents.taco import TACOAgent
 import utils
 
 def load_episode(episode_path):
@@ -70,6 +71,52 @@ def load_episodes_from_dataset(dataset_path, k_episodes=None):
     print(f"Successfully loaded {len(episodes)} episodes")
     return episodes
 
+def load_datasets_from_config(config_path, k_episodes_train=None, k_episodes_test=None):
+    """
+    Carica dataset di training e test dalla configurazione JSON.
+    
+    Args:
+        config_path: Path al file di configurazione JSON
+        k_episodes_train: Numero massimo di episodi per dataset di training
+        k_episodes_test: Numero massimo di episodi per dataset di test
+    
+    Returns:
+        tuple: (train_episodes, test_episodes, train_dataset_names, test_dataset_names)
+    """
+    with open(config_path, 'r') as f:
+        config = json.load(f)
+    
+    train_datasets = config.get('pretraining_datasets', [])
+    test_datasets = config.get('test_datasets', [])
+    
+    print(f"Found {len(train_datasets)} training datasets and {len(test_datasets)} test datasets")
+    
+    # Carica episodi di training
+    train_episodes = []
+    train_dataset_names = []
+    for dataset_path in train_datasets:
+        print(f"Loading training dataset: {dataset_path}")
+        episodes = load_episodes_from_dataset(dataset_path, k_episodes_train)
+        train_episodes.extend(episodes)
+        
+        # Estrai nome del task dal path
+        task_name = Path(dataset_path).name.split('_')[0].replace('-v2', '')
+        train_dataset_names.extend([task_name] * len(episodes))
+    
+    # Carica episodi di test
+    test_episodes = []
+    test_dataset_names = []
+    for dataset_path in test_datasets:
+        print(f"Loading test dataset: {dataset_path}")
+        episodes = load_episodes_from_dataset(dataset_path, k_episodes_test)
+        test_episodes.extend(episodes)
+        
+        # Estrai nome del task dal path
+        task_name = Path(dataset_path).name.split('_')[0].replace('-v2', '')
+        test_dataset_names.extend([task_name] * len(episodes))
+    
+    return train_episodes, test_episodes, train_dataset_names, test_dataset_names
+
 def extract_observations(episodes, n_obs):
     """
     Estrae le prime n e ultime n osservazioni da ogni episodio.
@@ -116,7 +163,7 @@ def extract_observations(episodes, n_obs):
 
 def load_pretrained_model(pretrained_path, obs_shape, feature_dim, hidden_dim, action_shape, multistep, device):
     """
-    Carica il modello TACO preaddestrato dal checkpoint.
+    Carica il modello TACO preaddestrato usando TACOAgent.
     
     Args:
         pretrained_path: Path al modello preaddestrato
@@ -128,43 +175,44 @@ def load_pretrained_model(pretrained_path, obs_shape, feature_dim, hidden_dim, a
         device: Device per il modello
     
     Returns:
-        Tuple (encoder, taco, act_tok) con modelli preaddestrati in modalità eval
+        TACOAgent preaddestrato in modalità eval
     """
-    # Inizializza l'encoder
-    encoder = Encoder(obs_shape, feature_dim).to(device)
-    
-    # Determina latent_a_dim come nel codice originale
-    latent_a_dim = int(action_shape[0] * 1.25) + 1
-    
-    # Inizializza action tokenizer
-    act_tok = utils.ActionEncoding(action_shape[0], latent_a_dim, multistep).to(device)
-    
-    # Inizializza TACO con l'encoder
-    taco = TACO(encoder.repr_dim, feature_dim, action_shape, latent_a_dim, 
-                hidden_dim, act_tok, encoder, multistep, device).to(device)
-    
-    # Carica il checkpoint
-    checkpoint = torch.load(pretrained_path, map_location=device)
-    
-    # Carica i pesi dei modelli
-    encoder.load_state_dict(checkpoint['encoder'])
-    taco.load_state_dict(checkpoint['taco'])
-    act_tok.load_state_dict(checkpoint['act_tok'])
+    # Inizializza TACOAgent con i parametri appropriati
+    taco_agent = TACOAgent(
+        obs_shape=obs_shape,
+        action_shape=action_shape,
+        device=device,
+        lr=1e-4,  # Non importante per l'inferenza
+        encoder_lr=1e-4,  # Non importante per l'inferenza
+        feature_dim=feature_dim,
+        hidden_dim=hidden_dim,
+        critic_target_tau=0.005,  # Non importante per l'inferenza
+        num_expl_steps=0,  # Non importante per l'inferenza
+        update_every_steps=1,  # Non importante per l'inferenza
+        stddev_schedule="linear(1.0,0.1,100000)",  # Non importante per l'inferenza
+        stddev_clip=0.3,  # Non importante per l'inferenza
+        use_tb=False,
+        reward=True,
+        multistep=multistep,
+        latent_a_dim='none',
+        curl=True,
+        pretrained_path=pretrained_path,  # Carica automaticamente il checkpoint
+        freeze_encoder=False,
+        no_taco=False
+    )
     
     # Imposta in modalità eval
-    encoder.eval()
-    taco.eval()
-    act_tok.eval()
+    taco_agent.train(False)
     
-    print(f"Loaded pretrained model from {pretrained_path}")
-    return encoder, taco, act_tok
+    print(f"Loaded pretrained TACOAgent from {pretrained_path}")
+    return taco_agent
 
-def extract_features(model, observations, device, batch_size=32, use_taco_encode=True):
+def extract_features(taco_agent, observations, device, batch_size=32, use_taco_encode=True):
     """
-    Estrae features dalle osservazioni usando l'encoder.
+    Estrae features dalle osservazioni usando TACOAgent.
     
     Args:
-        model: Tuple (encoder, taco) o solo encoder
+        taco_agent: TACOAgent preaddestrato
         observations: Array di osservazioni
         device: Device per il calcolo
         batch_size: Dimensione del batch per l'inferenza
@@ -175,12 +223,7 @@ def extract_features(model, observations, device, batch_size=32, use_taco_encode
     """
     features = []
     
-    if use_taco_encode:
-        encoder, taco, _ = model
-        taco.eval()
-    else:
-        encoder, _, _ = model
-        encoder.eval()
+    taco_agent.train(False)  # Assicurati che sia in modalità eval
     
     with torch.no_grad():
         num_batches = (len(observations) + batch_size - 1) // batch_size
@@ -196,76 +239,110 @@ def extract_features(model, observations, device, batch_size=32, use_taco_encode
             
             # Estrai features
             if use_taco_encode:
-                batch_features = taco.encode(batch_tensor)
+                batch_features = taco_agent.TACO.encode(batch_tensor)
             else:
-                batch_features = encoder(batch_tensor)
+                batch_features = taco_agent.encoder(batch_tensor)
             
             features.append(batch_features.cpu().numpy())
     
     return np.concatenate(features, axis=0)
 
-def visualize_features_tsne(first_features, last_features, 
-                           first_episode_indices, last_episode_indices,
-                           save_path=None, perplexity=30, random_state=42, 
-                           representation_type="TACO encode"):
+def apply_dimensionality_reduction(features, method='tsne', **kwargs):
     """
-    Visualizza le features usando t-SNE.
+    Applica riduzione di dimensionalità alle features.
     
     Args:
-        first_features: Features delle prime osservazioni
-        last_features: Features delle ultime osservazioni
-        first_episode_indices: Indici degli episodi per prime osservazioni
-        last_episode_indices: Indici degli episodi per ultime osservazioni
-        save_path: Path per salvare il plot (opzionale)
-        perplexity: Parametro perplexity per t-SNE
-        random_state: Seed per riproducibilità
-        representation_type: Tipo di rappresentazione utilizzata per il titolo
+        features: Array delle features
+        method: 'tsne' o 'pca'
+        **kwargs: Parametri aggiuntivi per il metodo
+    
+    Returns:
+        features_2d: Features ridotte a 2D
+        method_info: Informazioni aggiuntive sul metodo (es. autovalori per PCA)
     """
-    # Combina tutte le features
-    all_features = np.concatenate([first_features, last_features], axis=0)
+    print(f"Applying {method.upper()} to {features.shape[0]} features of dimension {features.shape[1]}")
     
-    # Crea labels: 0 per prime osservazioni, 1 per ultime
-    labels = np.concatenate([
-        np.zeros(len(first_features)), 
-        np.ones(len(last_features))
-    ])
+    if method.lower() == 'pca':
+        n_components = kwargs.get('n_components', 2)
+        pca = PCA(n_components=n_components, random_state=kwargs.get('random_state', 42))
+        features_2d = pca.fit_transform(features)
+        
+        # Stampa autovalori in ordine decrescente
+        eigenvalues = pca.explained_variance_
+        eigenvalues_ratio = pca.explained_variance_ratio_
+        
+        print("\n=== PCA Analysis ===")
+        print("Autovalori (explained variance) in ordine decrescente:")
+        for i, (eigenval, ratio) in enumerate(zip(eigenvalues, eigenvalues_ratio)):
+            print(f"  Component {i+1}: {eigenval:.6f} ({ratio:.4f} of variance)")
+        print(f"Total explained variance: {np.sum(eigenvalues_ratio):.4f}")
+        
+        method_info = {
+            'eigenvalues': eigenvalues,
+            'explained_variance_ratio': eigenvalues_ratio,
+            'total_variance': np.sum(eigenvalues_ratio)
+        }
+        
+    elif method.lower() == 'tsne':
+        perplexity = kwargs.get('perplexity', 30)
+        random_state = kwargs.get('random_state', 42)
+        n_iter = kwargs.get('n_iter', 1000)
+        
+        tsne = TSNE(n_components=2, perplexity=perplexity, random_state=random_state, 
+                    verbose=1, n_iter=n_iter)
+        features_2d = tsne.fit_transform(features)
+        
+        method_info = {
+            'perplexity': perplexity,
+            'n_iter': n_iter,
+            'kl_divergence': tsne.kl_divergence_
+        }
+        
+    else:
+        raise ValueError(f"Unsupported method: {method}. Use 'pca' or 'tsne'.")
     
-    # Crea indici episodi combinati
-    all_episode_indices = np.concatenate([first_episode_indices, last_episode_indices])
-    
-    print(f"Running t-SNE on {len(all_features)} features...")
-    print(f"Feature dimension: {all_features.shape[1]}")
-    
-    # Applica t-SNE
-    tsne = TSNE(n_components=2, perplexity=perplexity, random_state=random_state, 
-                verbose=1, n_iter=1000)
-    features_2d = tsne.fit_transform(all_features)
-    
-    # Crea il plot
+    return features_2d, method_info
+
+def visualize_features(train_features_2d, test_features_2d, method_info, 
+                      method='tsne', representation_type="TACO encode", 
+                      config_name="", model_name="", save_path=None):
+    """
+    Visualizza le features ridotte con colori diversi per training (blu) e test (rosso).
+    """
     plt.figure(figsize=(12, 8))
     
-    # Separa i punti per prime e ultime osservazioni
-    first_mask = labels == 0
-    last_mask = labels == 1
+    # Plot training data (blu)
+    plt.scatter(train_features_2d[:, 0], train_features_2d[:, 1], 
+                c='blue', alpha=0.6, s=30, label=f'Training data (n={len(train_features_2d)})')
     
-    # Plot prime osservazioni (rosso)
-    plt.scatter(features_2d[first_mask, 0], features_2d[first_mask, 1], 
-                c='red', alpha=0.6, s=30, label=f'First observations (n={len(first_features)})')
+    # Plot test data (rosso)
+    plt.scatter(test_features_2d[:, 0], test_features_2d[:, 1], 
+                c='red', alpha=0.6, s=30, label=f'Test data (n={len(test_features_2d)})')
     
-    # Plot ultime n osservazioni (blu)
-    plt.scatter(features_2d[last_mask, 0], features_2d[last_mask, 1], 
-                c='blue', alpha=0.6, s=30, label=f'Last observations (n={len(last_features)})')
+    # Titolo e labels
+    if method.lower() == 'pca':
+        title = f'PCA Visualization of {representation_type} Features'
+        xlabel = f'PC1 ({method_info["explained_variance_ratio"][0]:.3f} variance)'
+        ylabel = f'PC2 ({method_info["explained_variance_ratio"][1]:.3f} variance)'
+    else:
+        title = f't-SNE Visualization of {representation_type} Features'
+        xlabel = 't-SNE Component 1'
+        ylabel = 't-SNE Component 2'
     
-    plt.title(f't-SNE Visualization of {representation_type} Features\n(Red: First observations, Blue: Last observations)')
-    plt.xlabel('t-SNE Component 1')
-    plt.ylabel('t-SNE Component 2')
+    plt.title(f'{title}\n(Blue: Training, Red: Test)')
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
     plt.legend()
     plt.grid(True, alpha=0.3)
     
-    # Aggiungi informazioni sul plot
-    unique_episodes = len(np.unique(all_episode_indices))
-    plt.figtext(0.02, 0.02, f'Episodes: {unique_episodes}, Perplexity: {perplexity}, Representation: {representation_type}', 
-                fontsize=8, ha='left')
+    # Informazioni aggiuntive
+    info_text = f'Method: {method.upper()}, Representation: {representation_type}'
+    if method.lower() == 'pca':
+        info_text += f', Total variance: {method_info["total_variance"]:.4f}'
+    elif method.lower() == 'tsne':
+        info_text += f', Perplexity: {method_info["perplexity"]}'
+    
+    plt.figtext(0.02, 0.02, info_text, fontsize=8, ha='left')
     
     if save_path:
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
@@ -273,16 +350,35 @@ def visualize_features_tsne(first_features, last_features,
     
     plt.show()
 
+def generate_save_filename(method, config_path, pretrained_path):
+    """
+    Genera il nome del file di salvataggio nel formato:
+    <metodo>-<dataset_config>-<nome_modello>
+    """
+    # Estrai nome del config (senza estensione)
+    config_name = Path(config_path).stem
+    
+    # Estrai nome del modello (senza estensione e path)
+    model_name = Path(pretrained_path).stem
+    
+    # Formato: metodo-config-modello.png
+    filename = f"{method}-{config_name}-{model_name}.png"
+    return filename
+
 def main():
-    parser = argparse.ArgumentParser(description="Visualize encoder features using t-SNE")
-    parser.add_argument("--dataset_path", type=str, required=True,
-                        help="Path to dataset directory containing .npz files")
+    parser = argparse.ArgumentParser(description="Visualize encoder features using PCA or t-SNE")
+    parser.add_argument("--config", type=str, required=True,
+                        help="Path to JSON configuration file")
     parser.add_argument("--pretrained_path", type=str, required=True,
                         help="Path to pretrained TACO model")
+    parser.add_argument("--method", type=str, default='tsne', choices=['pca', 'tsne'],
+                        help="Dimensionality reduction method: 'pca' or 'tsne'")
     parser.add_argument("--n_obs", type=int, default=10,
                         help="Number of first and last observations to extract from each episode")
-    parser.add_argument("--k_episodes", type=int, default=50,
-                        help="Number of episodes to load (None for all)")
+    parser.add_argument("--k_episodes_train", type=int, default=5,
+                        help="Number of episodes to load per training dataset")
+    parser.add_argument("--k_episodes_test", type=int, default=5,
+                        help="Number of episodes to load per test dataset")
     parser.add_argument("--feature_dim", type=int, default=50,
                         help="Feature dimension of the encoder")
     parser.add_argument("--hidden_dim", type=int, default=1024,
@@ -293,105 +389,147 @@ def main():
                         help="Batch size for feature extraction")
     parser.add_argument("--perplexity", type=int, default=30,
                         help="Perplexity parameter for t-SNE")
-    parser.add_argument("--save_plot", type=str, default=None,
-                        help="Path to save the t-SNE plot")
+    parser.add_argument("--n_components", type=int, default=2,
+                        help="Number of components for PCA")
+    parser.add_argument("--save_dir", type=str, default="./plots/",
+                        help="Directory to save the plot")
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu",
                         help="Device to use for computation")
     parser.add_argument("--random_state", type=int, default=42,
-                        help="Random state for t-SNE reproducibility")
+                        help="Random state for reproducibility")
     parser.add_argument("--use_encoder_direct", action="store_true", default=False,
                         help="Use encoder directly instead of taco.encode() method")
     
     args = parser.parse_args()
     
     print(f"Using device: {args.device}")
-    print(f"Dataset path: {args.dataset_path}")
+    print(f"Config file: {args.config}")
     print(f"Pretrained model: {args.pretrained_path}")
-    print(f"Parameters: n_obs={args.n_obs}, k_episodes={args.k_episodes}")
+    print(f"Method: {args.method.upper()}")
+    print(f"Parameters: n_obs={args.n_obs}, k_episodes_train={args.k_episodes_train}, k_episodes_test={args.k_episodes_test}")
     
     representation_type = "Encoder direct" if args.use_encoder_direct else "TACO encode"
     print(f"Representation type: {representation_type}")
     
-    # Carica episodi dal dataset
-    episodes = load_episodes_from_dataset(args.dataset_path, args.k_episodes)
+    # Carica dataset dalla configurazione JSON
+    train_episodes, test_episodes, train_names, test_names = load_datasets_from_config(
+        args.config, args.k_episodes_train, args.k_episodes_test
+    )
     
-    if not episodes:
+    if not train_episodes and not test_episodes:
         print("No episodes loaded, exiting.")
         return
     
-    # Estrai prime e ultime osservazioni
-    first_obs, last_obs, first_ep_idx, last_ep_idx = extract_observations(episodes, args.n_obs)
+    print(f"Loaded {len(train_episodes)} training episodes and {len(test_episodes)} test episodes")
     
-    print(f"Extracted {len(first_obs)} first observations and {len(last_obs)} last observations")
+    # Estrai osservazioni
+    all_train_obs = []
+    all_test_obs = []
     
-    # Determina la shape delle osservazioni e azioni
-    obs_shape = first_obs[0].shape
+    if train_episodes:
+        train_first_obs, train_last_obs, _, _ = extract_observations(train_episodes, args.n_obs)
+        all_train_obs = np.concatenate([train_first_obs, train_last_obs], axis=0)
     
-    # Ottieni action_shape dal primo episodio
-    action_shape = episodes[0]['action'][1].shape  # Salta il dummy transition
+    if test_episodes:
+        test_first_obs, test_last_obs, _, _ = extract_observations(test_episodes, args.n_obs)
+        all_test_obs = np.concatenate([test_first_obs, test_last_obs], axis=0)
+    
+    print(f"Extracted {len(all_train_obs)} training observations and {len(all_test_obs)} test observations")
+    
+    # Determina shapes
+    if train_episodes:
+        obs_shape = all_train_obs[0].shape
+        action_shape = train_episodes[0]['action'][1].shape
+    else:
+        obs_shape = all_test_obs[0].shape
+        action_shape = test_episodes[0]['action'][1].shape
     
     print(f"Observation shape: {obs_shape}")
     print(f"Action shape: {action_shape}")
     
-    # Carica il modello preaddestrato
-    encoder, taco, act_tok = load_pretrained_model(
+    # Carica il modello preaddestrato usando TACOAgent
+    taco_agent = load_pretrained_model(
         args.pretrained_path, obs_shape, args.feature_dim, args.hidden_dim,
         action_shape, args.multistep, args.device
     )
     
     # Estrai features
-    print("Extracting features from first observations...")
-    first_features = extract_features(
-        (encoder, taco, act_tok), first_obs, args.device, 
-        args.batch_size, use_taco_encode=not args.use_encoder_direct
+    train_features = None
+    test_features = None
+    
+    if len(all_train_obs) > 0:
+        print("Extracting features from training observations...")
+        train_features = extract_features(
+            taco_agent, all_train_obs, args.device, 
+            args.batch_size, use_taco_encode=not args.use_encoder_direct
+        )
+    
+    if len(all_test_obs) > 0:
+        print("Extracting features from test observations...")
+        test_features = extract_features(
+            taco_agent, all_test_obs, args.device, 
+            args.batch_size, use_taco_encode=not args.use_encoder_direct
+        )
+    
+    # Combina features per la riduzione di dimensionalità
+    all_features = []
+    train_indices = []
+    test_indices = []
+    
+    if train_features is not None:
+        all_features.append(train_features)
+        train_indices = list(range(len(train_features)))
+    
+    if test_features is not None:
+        start_idx = len(train_features) if train_features is not None else 0
+        all_features.append(test_features)
+        test_indices = list(range(start_idx, start_idx + len(test_features)))
+    
+    if not all_features:
+        print("No features extracted, exiting.")
+        return
+    
+    combined_features = np.concatenate(all_features, axis=0)
+    
+    # Applica riduzione di dimensionalità
+    method_kwargs = {
+        'random_state': args.random_state,
+        'perplexity': args.perplexity,
+        'n_components': args.n_components
+    }
+    
+    features_2d, method_info = apply_dimensionality_reduction(
+        combined_features, method=args.method, **method_kwargs
     )
     
-    print("Extracting features from last observations...")
-    last_features = extract_features(
-        (encoder, taco, act_tok), last_obs, args.device, 
-        args.batch_size, use_taco_encode=not args.use_encoder_direct
-    )
+    # Separa features ridotte per training e test
+    train_features_2d = features_2d[train_indices] if train_indices else np.array([]).reshape(0, 2)
+    test_features_2d = features_2d[test_indices] if test_indices else np.array([]).reshape(0, 2)
     
-    print(f"Feature shapes: first={first_features.shape}, last={last_features.shape}")
+    # Genera nome file e salva plot
+    os.makedirs(args.save_dir, exist_ok=True)
+    save_filename = generate_save_filename(args.method, args.config, args.pretrained_path)
+    save_path = os.path.join(args.save_dir, save_filename)
     
-    # Visualizza con t-SNE
-    visualize_features_tsne(
-        first_features, last_features,
-        first_ep_idx, last_ep_idx,
-        save_path=args.save_plot,
-        perplexity=args.perplexity,
-        random_state=args.random_state,
-        representation_type=representation_type
+    # Visualizza
+    visualize_features(
+        train_features_2d, test_features_2d, method_info,
+        method=args.method, representation_type=representation_type,
+        config_name=Path(args.config).stem,
+        model_name=Path(args.pretrained_path).stem,
+        save_path=save_path
     )
     
     # Statistiche finali
     print("\n=== Summary ===")
-    print(f"Total episodes processed: {len(episodes)}")
-    print(f"First observations: {len(first_features)}")
-    print(f"Last observations: {len(last_features)}")
-    print(f"Feature dimension: {first_features.shape[1]}")
+    print(f"Method: {args.method.upper()}")
+    print(f"Training episodes: {len(train_episodes)}")
+    print(f"Test episodes: {len(test_episodes)}")
+    print(f"Training observations: {len(train_features_2d)}")
+    print(f"Test observations: {len(test_features_2d)}")
+    print(f"Feature dimension: {combined_features.shape[1]}")
     print(f"Representation used: {representation_type}")
-    
-    # Calcola distanze medie tra prime e ultime osservazioni dello stesso episodio
-    unique_episodes = np.unique(np.concatenate([first_ep_idx, last_ep_idx]))
-    same_episode_distances = []
-    
-    for ep_id in unique_episodes:
-        first_mask = first_ep_idx == ep_id
-        last_mask = last_ep_idx == ep_id
-        
-        if np.sum(first_mask) > 0 and np.sum(last_mask) > 0:
-            first_ep_features = first_features[first_mask]
-            last_ep_features = last_features[last_mask]
-            
-            # Calcola distanza media tra prime e ultime osservazioni dello stesso episodio
-            for first_feat in first_ep_features:
-                for last_feat in last_ep_features:
-                    dist = np.linalg.norm(first_feat - last_feat)
-                    same_episode_distances.append(dist)
-    
-    if same_episode_distances:
-        print(f"Average distance between first and last observations of same episode: {np.mean(same_episode_distances):.4f}")
+    print(f"Plot saved as: {save_path}")
 
 if __name__ == "__main__":
     main()

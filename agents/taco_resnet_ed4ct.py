@@ -72,7 +72,7 @@ class Encoder(nn.Module):
         
         # Create feature extractor with transforms using factory
         factory = FeatureExtractorFactory(self.height, self.width)
-        self.feature_extractor, self.normalize, self.resize = factory.create_feature_extractor(pretrained_path)
+        self.feature_extractor, self.preprocess = factory.create_feature_extractor(pretrained_path)
         
         # Move feature_extractor to device before calculating dimensions
         self.feature_extractor = self.feature_extractor.to(device)
@@ -94,11 +94,9 @@ class Encoder(nn.Module):
         dummy_input = torch.randn(1, 3, self.height, self.width, device=model_device)
         
         # Apply transforms in the same order as forward pass
-        if self.resize is not None:
-            dummy_input = self.resize(dummy_input)
-        if self.normalize is not None:
-            dummy_input = self.normalize(dummy_input)
-            
+        if self.preprocess is not None:
+            dummy_input = self.preprocess(dummy_input)
+
         with torch.no_grad():
             output = self.feature_extractor(dummy_input)
             return output.view(output.size(0), -1).size(1)
@@ -119,17 +117,14 @@ class Encoder(nn.Module):
         # Flatten per processare ogni immagine separatamente: (batch_size * 3, 3, 84, 84)
         obs_flat = obs_reshaped.view(batch_size * self.num_stack, self.channels, self.height, self.width)
 
-        # Apply preprocessing in the correct order: resize first, then normalize
-        if self.resize is not None:
-            obs_flat = self.resize(obs_flat)
-        
-        if self.normalize is not None:
-            obs_normalized = self.normalize(obs_flat)
+        # Apply preprocessing
+        if self.preprocess is not None:
+            obs_preprocessed = self.preprocess(obs_flat)
         else:
-            obs_normalized = obs_flat
-        
+            obs_preprocessed = obs_flat
+
         # Extract features using feature extractor
-        features = self.feature_extractor(obs_normalized)
+        features = self.feature_extractor(obs_preprocessed)
         
         # Flatten features
         features = features.view(batch_size * self.num_stack, -1)

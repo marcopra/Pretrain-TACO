@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torchvision.models as models
 from torchvision.models import ResNet18_Weights, ResNet50_Weights, ViT_B_16_Weights, ViT_L_16_Weights
-import torchvision.transforms as transforms
+import torchvision.transforms as T
 from agents.resnet_models import resnet_conv3_compressed, resnet_conv4_compressed, resnet_conv5
 from agents.moco_models import moco_conv5, moco_conv3_compressed, moco_conv4_compressed
 from agents.vit_models import vit_s16, vit_b16, vit_l16
@@ -11,7 +11,12 @@ from r3m import load_r3m
 import re
 import os
 
-
+class ToTensorIfNot(T.ToTensor):
+    def __call__(self, pic):
+        if not torch.is_tensor(pic):
+            return super().__call__(pic)
+        return pic
+    
 class FeatureExtractorFactory:
     """Factory class for creating different types of feature extractors"""
     
@@ -53,7 +58,8 @@ class FeatureExtractorFactory:
         feature_extractor = models.resnet18(weights=None)
         feature_extractor = self._adapt_resnet_for_input_size(feature_extractor)
         feature_extractor = nn.Sequential(*list(feature_extractor.children())[:-1])  # Remove fc layer
-        return feature_extractor, None, None
+        preprocess = self._get_imagenet_transform()
+        return feature_extractor, preprocess
     
     def _create_from_checkpoint(self, checkpoint_path):
         """Create model from checkpoint file"""
@@ -77,9 +83,9 @@ class FeatureExtractorFactory:
         else:
             feature_extractor = moco_conv5(checkpoint_path)
         
-        normalize, resize = self._get_imagenet_transforms()
+        preprocess = self._get_imagenet_transform()
         print("MoCo model loaded successfully")
-        return feature_extractor, normalize, resize
+        return feature_extractor, preprocess
     
     def _create_resnet_checkpoint(self, checkpoint_path):
         """Create ResNet model from custom checkpoint"""
@@ -94,36 +100,39 @@ class FeatureExtractorFactory:
         else:
             raise ValueError(f"Unknown checkpoint format: {checkpoint_path}")
         
-        normalize = None
-        resize = transforms.Compose([
-            transforms.Resize(256),
-            transforms.CenterCrop(224),
+        preprocess = T.Compose([
+            T.Resize(256),
+            T.CenterCrop(224),
+            ToTensorIfNot(),
+            T.Normalize(
+                mean=[0.485, 0.456, 0.406],
+                std=[0.229, 0.224, 0.225]
+            ),
         ])
         print(f"ResNet model loaded successfully")
-        return feature_extractor, normalize, resize
+        return feature_extractor, preprocess
     
     def _create_mvp_model(self, pretrained_path):
         """Create MVP model"""
         print("Loading MVP model")
-        raise NotImplementedError("Model not anymor available")
+        raise NotImplementedError("Model not anymore available")
         feature_extractor = mvp.load("vits-mae-hoi")
-        normalize = None
-        resize = transforms.Compose([
-            transforms.Resize(256),
-            transforms.CenterCrop(224),
-        ])
-        return feature_extractor, normalize, resize
+        # preprocess = TO IMPLEMENT
+        return feature_extractor, preprocess
     
     def _create_r3m_model(self, pretrained_path):
         """Create R3M model"""
         print("Loading R3M model")
         feature_extractor = load_r3m("resnet50")
-        normalize = None
-        resize = transforms.Compose([
-            transforms.Resize(256),
-            transforms.CenterCrop(224),
+        preprocess = T.Compose(
+        [
+            ToTensorIfNot(),  # this divides by 255
+            T.Resize(256),
+            T.CenterCrop(224),
+            T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ])
-        return feature_extractor, normalize, resize
+
+        return feature_extractor, preprocess
     
     def _create_from_config(self, config_string):
         """Create ResNet from configuration string format: resnet<k>_l<n>_<initialization>"""
@@ -139,17 +148,13 @@ class FeatureExtractorFactory:
         # Create base ResNet
         feature_extractor = self._create_base_resnet(k, initialization)
         
-        # Setup transforms for pretrained models
-        if initialization == 'pretrained':
-            normalize, resize = self._get_imagenet_transforms()
-        else:
-            normalize, resize = None, None
-        
+        preprocess = self._get_imagenet_transform()
+
         # Apply layer cutting
         feature_extractor = self._cut_resnet_at_layer(feature_extractor, n)
         
         print(f"ResNet{k} created with layer cut at l{n} and {initialization} initialization")
-        return feature_extractor, normalize, resize
+        return feature_extractor, preprocess
     
     def _create_base_resnet(self, k, initialization):
         """Create base ResNet architecture"""
@@ -170,17 +175,19 @@ class FeatureExtractorFactory:
         
         return feature_extractor
     
-    def _get_imagenet_transforms(self):
-        """Get standard ImageNet normalization and resize transforms"""
-        normalize = transforms.Normalize(
-            mean=[0.485, 0.456, 0.406],
-            std=[0.229, 0.224, 0.225]
-        )
-        resize = transforms.Compose([
-            transforms.Resize(256),
-            transforms.CenterCrop(224),
+    def _get_imagenet_transform(self):
+        """Get standard ImageNet normalization and resize transform"""
+
+        preprocess = T.Compose([
+            T.Resize(256),
+            T.CenterCrop(224),
+            ToTensorIfNot(),
+            T.Normalize(
+                mean=[0.485, 0.456, 0.406],
+                std=[0.229, 0.224, 0.225]
+            ),
         ])
-        return normalize, resize
+        return preprocess
     
     def _is_standard_config_format(self, pretrained_path):
         """Check if string matches standard config format"""
@@ -215,11 +222,18 @@ class FeatureExtractorFactory:
         
         # Create feature extractor wrapper
         feature_extractor = self._create_vit_feature_wrapper(model)
-        normalize, resize = self._get_imagenet_transforms()
+        preprocess = T.Compose(
+        [
+            T.Resize(256, interpolation=T.InterpolationMode.BICUBIC),
+            T.CenterCrop(224),
+            ToTensorIfNot(),
+            T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+        ]
+    )
         
         print(f"ViT-{size.upper()} created with {initialization} initialization (hidden_dim={hidden_dim})")
-        return feature_extractor, normalize, resize
-    
+        return feature_extractor, preprocess
+
     def _create_vit_from_local(self, checkpoint_path):
         """Load ViT model from local checkpoint"""
         print(f"Loading ViT model from local checkpoint: {checkpoint_path}")
@@ -246,11 +260,11 @@ class FeatureExtractorFactory:
         model.load_state_dict(state_dict, strict=False)
         
         feature_extractor = self._create_vit_feature_wrapper(model)
-        normalize, resize = self._get_imagenet_transforms()
+        preprocess = self._get_imagenet_transform()
         
         print(f"Loaded ViT from local checkpoint (hidden_dim={hidden_dim})")
-        return feature_extractor, normalize, resize
-    
+        return feature_extractor, preprocess
+
     def _create_vit_feature_wrapper(self, vit_model):
         """Create wrapper for ViT model to extract features"""
         class ViTFeatureExtractor(nn.Module):
