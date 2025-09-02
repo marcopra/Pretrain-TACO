@@ -1,7 +1,7 @@
 #!/bin/bash
-#PBS -l nodes=1:ppn=4:gpus=1
+#PBS -l select=1:ncpus=4:ngpus=1
 #PBS -l walltime=24:00:00
-
+#PBS -j oe
 
 cd $PBS_O_WORKDIR
 
