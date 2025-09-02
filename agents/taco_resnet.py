@@ -100,22 +100,22 @@ class Encoder(nn.Module):
     def forward(self, obs):
         # obs shape: (batch_size, N*C, H, W) = (batch_size, 9, 84, 84)
         batch_size = obs.shape[0]
-   
-        # Reshape corretto per preservare la sequenzialità
-        # Da (batch_size, 9, 84, 84) a (batch_size, 3, 3, 84, 84)
-        obs_reshaped = obs.view(batch_size, self.num_stack, self.channels, self.height, self.width)
+        actual_H = obs.shape[2]
+        actual_W = obs.shape[3]
         
+        # Reshape corretto per preservare la sequenzialità
+        # Da (batch_size, 9, height, width) a (batch_size, 3, 3, height, width)
+        obs_reshaped = obs.view(batch_size, self.num_stack, self.channels, actual_H, actual_W)
+
         # Flatten per processare ogni immagine separatamente: (batch_size * 3, 3, 84, 84)
-        obs_flat = obs_reshaped.view(batch_size * self.num_stack, self.channels, self.height, self.width)
+        obs_flat = obs_reshaped.view(batch_size * self.num_stack, self.channels, actual_H, actual_W)
 
         # Apply preprocessing
         if self.preprocess is not None:
-            obs_preprocessed = self.preprocess(obs_flat)
-        else:
-            obs_preprocessed = obs_flat
+            obs_flat = self.preprocess(obs_flat)
 
         # Extract features using feature extractor
-        features = self.feature_extractor(obs_preprocessed)
+        features = self.feature_extractor(obs_flat)
 
         # Flatten features
         features = features.view(batch_size * self.num_stack, -1)
@@ -344,7 +344,7 @@ class TACOAgent:
                 self.act_tok.train(training)
 
     def act(self, obs, step, eval_mode):
-        obs = torch.as_tensor(obs, device=self.device)
+        obs = torch.as_tensor(obs, device=self.device, dtype=torch.float32)
         obs = self.encoder(obs.unsqueeze(0))
         stddev = utils.schedule(self.stddev_schedule, step)
         dist = self.actor(obs, stddev)
