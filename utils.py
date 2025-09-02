@@ -10,6 +10,7 @@ from omegaconf import OmegaConf
 from torch import distributions as pyd
 from torch.distributions.utils import _standard_normal
 
+
 ### input shape: (batch_size, length, action_dim)
 ### output shape: (batch_size, action_dim)
 class ActionEncoding(nn.Module):
@@ -189,3 +190,15 @@ def schedule(schdl, step):
     raise NotImplementedError(schdl)
 
 
+class ColorPrint:
+    @staticmethod
+    def blue(text):
+        print(f"\033[94m{text}\033[0m")
+    
+    @staticmethod
+    def green(text):
+        print(f"\033[92m{text}\033[0m")
+    
+    @staticmethod
+    def yellow(text):
+        print(f"\033[93m{text}\033[0m")

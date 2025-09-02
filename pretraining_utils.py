@@ -5,19 +5,8 @@ import random
 import numpy as np
 import tempfile
 import os
+from utils import *
 
-class ColorPrint:
-    @staticmethod
-    def blue(text):
-        print(f"\033[94m{text}\033[0m")
-    
-    @staticmethod
-    def green(text):
-        print(f"\033[92m{text}\033[0m")
-    
-    @staticmethod
-    def yellow(text):
-        print(f"\033[93m{text}\033[0m")
 
 def count_transitions_in_episodes(episode_files):
     """Count total transitions in a list of episode files"""

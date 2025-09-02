@@ -10,6 +10,7 @@ import mvp
 from r3m import load_r3m
 import re
 import os
+from utils import *
 
 class ToTensorIfNot(T.ToTensor):
     def __call__(self, pic):
@@ -23,6 +24,10 @@ class FeatureExtractorFactory:
     def __init__(self, height, width):
         self.height = height
         self.width = width
+        if height!=224 or width!=224:
+            ColorPrint.yellow("ATTENTION low resolution")
+        assert height==width, "Currently only square inputs are supported" # if you want to change, remember to carefully change T.CenterCrop(self.height)
+
     
     def create_feature_extractor(self, pretrained_path):
         """Main dispatcher for creating feature extractors based on pretrained_path"""
@@ -30,12 +35,14 @@ class FeatureExtractorFactory:
         
         # Handle None or 'none' case
         if pretrained_path is None or pretrained_path.lower() == 'none':
-            return self._create_vanilla_resnet()
+            return self._create_vanilla_resnet18()
         
         # ViT local checkpoint
         if self._is_vit_local_checkpoint(pretrained_path):
             return self._create_vit_from_local(pretrained_path)
-        
+        elif self._is_mcr_local_checkpoint(pretrained_path):
+            return self._create_mcr_from_local(pretrained_path)
+
         # Check if it's a file path (ResNet/MoCo)
         if os.path.exists(pretrained_path):
             return self._create_from_checkpoint(pretrained_path)
@@ -52,11 +59,20 @@ class FeatureExtractorFactory:
         else:
             raise ValueError(f"Unrecognized pretrained_path format: {pretrained_path}")
     
-    def _create_vanilla_resnet(self):
+    def _create_vanilla_resnet18(self):
         """Create ResNet18 without pretrained weights"""
         print("Creating vanilla ResNet18 without pretrained weights")
         feature_extractor = models.resnet18(weights=None)
         feature_extractor = self._adapt_resnet_for_input_size(feature_extractor)
+        feature_extractor = nn.Sequential(*list(feature_extractor.children())[:-1])  # Remove fc layer
+        preprocess = self._get_imagenet_transform()
+        return feature_extractor, preprocess
+    
+    def _create_vanilla_resnet50(self):
+        """Create ResNet50 without pretrained weights"""
+        print("Creating vanilla ResNet50 without pretrained weights")
+        feature_extractor = models.resnet50(weights=None)
+        # feature_extractor = self._adapt_resnet_for_input_size(feature_extractor)
         feature_extractor = nn.Sequential(*list(feature_extractor.children())[:-1])  # Remove fc layer
         preprocess = self._get_imagenet_transform()
         return feature_extractor, preprocess
@@ -102,7 +118,7 @@ class FeatureExtractorFactory:
         
         preprocess = T.Compose([
             T.Resize(256),
-            T.CenterCrop(224),
+            T.CenterCrop(self.height),
             ToTensorIfNot(),
             T.Normalize(
                 mean=[0.485, 0.456, 0.406],
@@ -128,7 +144,7 @@ class FeatureExtractorFactory:
         [
             ToTensorIfNot(),  # this divides by 255
             T.Resize(256),
-            T.CenterCrop(224),
+            T.CenterCrop(self.height),
             T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ])
 
@@ -180,7 +196,7 @@ class FeatureExtractorFactory:
 
         preprocess = T.Compose([
             T.Resize(256),
-            T.CenterCrop(224),
+            T.CenterCrop(self.height),
             ToTensorIfNot(),
             T.Normalize(
                 mean=[0.485, 0.456, 0.406],
@@ -199,8 +215,8 @@ class FeatureExtractorFactory:
     
     def _is_vit_local_checkpoint(self, pretrained_path):
         """Check if path is a local ViT checkpoint file"""
-        return pretrained_path.lower().endswith('.pt') and ('vit_' in pretrained_path.lower())
-    
+        return (pretrained_path.lower().endswith('.pt') or pretrained_path.lower().endswith('.pth'))  and ('vit_' in pretrained_path.lower())
+
     def _create_vit_from_config(self, config_string):
         """Create Vision Transformer from config string: vit_s_scratch, vit_b_scratch, vit_l_scratch"""
         print(f"Creating ViT from config: {config_string}")
@@ -225,7 +241,7 @@ class FeatureExtractorFactory:
         preprocess = T.Compose(
         [
             T.Resize(256, interpolation=T.InterpolationMode.BICUBIC),
-            T.CenterCrop(224),
+            T.CenterCrop(self.height),
             ToTensorIfNot(),
             T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
         ]
@@ -317,4 +333,36 @@ class FeatureExtractorFactory:
                 padding=kernel_size//2, bias=False
             )
         return feature_extractor
+
+    def _is_mcr_local_checkpoint(self, pretrained_path):
+        """Check if path is a local MCR checkpoint file"""
+        return (pretrained_path.lower().endswith('.pt') or pretrained_path.lower().endswith('.pth')) and ('mcr' in pretrained_path.lower())
+
+    def _create_mcr_from_local(self, checkpoint_path):
+        """Create MCR ResNet50 model from local checkpoint"""
+        print(f"Loading MCR ResNet50 model from checkpoint: {checkpoint_path}")
+        
+        # Create base ResNet50
+        feature_extractor = models.resnet50(weights=None)
+        
+        # Load checkpoint
+        checkpoint = torch.load(checkpoint_path, map_location='cpu')
+        if 'state_dict' in checkpoint:
+            state_dict = checkpoint['state_dict']
+        elif 'model' in checkpoint:
+            state_dict = checkpoint['model']
+        else:
+            state_dict = checkpoint
+        
+        # Load state dict
+        feature_extractor.load_state_dict(state_dict, strict=False)
+        
+        # Remove fc layer to get features
+        feature_extractor = nn.Sequential(*list(feature_extractor.children())[:-1])
+        
+        # Use ImageNet preprocessing
+        preprocess = self._get_imagenet_transform()
+        
+        print("MCR ResNet50 model loaded successfully")
+        return feature_extractor, preprocess
 

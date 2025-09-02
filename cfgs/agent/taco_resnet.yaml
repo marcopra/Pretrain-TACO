@@ -16,6 +16,8 @@ agent:
   curl:   ${curl}
   reward: ${reward}
   multistep: ${multistep}
+  height: ${height}  
+  width: ${width} 
   latent_a_dim: ${latent_a_dim}
   pretrained_path: ${pretrained_path}
   freeze_encoder: ${freeze_encoder}
@@ -27,7 +29,9 @@ reward: true
 multistep: 3
 latent_a_dim: none
 batch_size: 1024
-pretrained_path: resnet18_l5_pretrained
+height: 224
+width: 224
+pretrained_path: None
 freeze_encoder: false
 wandb_project: "taco_metaworld_resnet"
 no_taco: false

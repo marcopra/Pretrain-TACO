@@ -17,6 +17,8 @@ agent:
   reward: ${reward}
   multistep: ${multistep}
   latent_a_dim: ${latent_a_dim}
+  height: ${height}  
+  width: ${width} 
   pretrained_path: ${pretrained_path}
   freeze_encoder: ${freeze_encoder}
   no_taco: ${no_taco}
@@ -28,6 +30,8 @@ reward: true
 multistep: 3
 latent_a_dim: none
 batch_size: 128  # Smaller batch size for stability
+height: 224
+width: 224
 pretrained_path: resnet50_l5_pretrained
 freeze_encoder: false
 wandb_project: "taco_metaworld_resnet_ed4ct"

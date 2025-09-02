@@ -55,19 +55,18 @@ class RandomShiftsAug(nn.Module):
         
 
 class Encoder(nn.Module):
-    def __init__(self, obs_shape, feature_dim, pretrained_path=None, device="cuda"):
+    def __init__(self, obs_shape, feature_dim, width= None, height = None, pretrained_path=None, device="cuda"):
         super().__init__()
         assert len(obs_shape) == 3
         # obs_shape is (N*C, H, W) where N is number of stacked frames, C=3 for RGB
         total_channels = obs_shape[0]  # N*C
-        self.height = obs_shape[1]     # H  
-        self.width = obs_shape[2]      # W
-        
+        self.height = obs_shape[1] if height is None else height  # H
+        self.width = obs_shape[2] if width is None else width  # W
+
         # Assuming RGB images (C=3), calculate number of stacked frames
         self.channels = 3  # RGB
         self.num_stack = total_channels // self.channels
         
-        self.range = None
         assert total_channels % self.channels == 0, f"Total channels {total_channels} not divisible by {self.channels}"
         
         # Create feature extractor with transforms using factory
@@ -104,11 +103,6 @@ class Encoder(nn.Module):
     def forward(self, obs):
         # obs shape: (batch_size, N*C, H, W) = (batch_size, 9, 84, 84)
         batch_size = obs.shape[0]
-        if self.range is None:
-            assert obs.max() > 1, "Input observations should be in [0, 255] range"
-            self.range = True
-        if self.range is True:
-            obs = obs/255.0
         
         # Reshape corretto per preservare la sequenzialità
         # Da (batch_size, 9, 84, 84) a (batch_size, 3, 3, 84, 84)
@@ -285,7 +279,7 @@ class TACOAgent:
     def __init__(self, obs_shape, action_shape, device, lr, encoder_lr, feature_dim,
                  hidden_dim, critic_target_tau, num_expl_steps,
                  update_every_steps, stddev_schedule, stddev_clip, use_tb,
-                 reward, multistep, latent_a_dim, curl, pretrained_path=None, 
+                 reward, multistep, latent_a_dim, curl, height = None, width = None, pretrained_path=None, 
                  freeze_encoder=False, no_taco=False, use_ed4ct=False):
     
         self.device = device
@@ -323,9 +317,9 @@ class TACOAgent:
             latent_a_dim = action_shape[0]
         else:
             self.act_tok = utils.ActionEncoding(action_shape[0], latent_a_dim, multistep)
-        
-        self.encoder = Encoder(obs_shape, feature_dim, pretrained_path, device).to(device)
-        
+
+        self.encoder = Encoder(obs_shape, feature_dim, width, height, pretrained_path, device).to(device)
+
         self.actor = Actor(self.encoder.repr_dim, action_shape, feature_dim,
                            hidden_dim).to(device)
         self.critic = Critic(self.encoder.repr_dim, latent_a_dim, feature_dim,
@@ -339,21 +333,8 @@ class TACOAgent:
         
         ### State & Action Encoders - exclude from optimization if frozen
         if freeze_encoder:
-            # Freeze encoder and TACO parameters
-            if 'mvp' in pretrained_path:
-                self.encoder.feature_extractor.freeze()
-            elif 'r3m' in pretrained_path:
-                self.encoder.feature_extractor.eval()
-            else:
-                for param in self.encoder.parameters():
-                    param.requires_grad = False
-                for param in self.TACO.parameters():
-                    param.requires_grad = False
-                if hasattr(self.act_tok, 'parameters'):
-                    for param in self.act_tok.parameters():
-                        param.requires_grad = False
             
-            # Only optimize non-frozen parameters
+            self.encoder.eval()  # Set to eval mode            
             parameters = []
             self.encoder_opt = None
             self.taco_opt = None
