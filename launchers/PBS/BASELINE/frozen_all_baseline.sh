@@ -1,16 +1,17 @@
 #!/bin/bash
 
-seeds="1 1 1 1 1"
+seeds="1 1"
 env_names=(
     "basketball-v2" 
-    "bin-picking-v2" 
-    "button-press-v2" 
-    "push-v2" 
-    "shelf-place-v2"
+    # "bin-picking-v2" 
+    # "button-press-v2" 
+    # "push-v2" 
+    # "shelf-place-v2"
     )
 model_paths=(
     "r3m"
     "/home/mprattico/Pretrain-TACO/models/moco_aug.pth.tar"
+    "/home/mprattico/Pretrain-TACO/models/mcr_resnet50.pt"
 
 )
    
