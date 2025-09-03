@@ -3,7 +3,7 @@
 #PBS -l walltime=24:00:00
 #PBS -j oe
 
-cd $SLURM_SUBMIT_DIR
+cd $PBS_O_WORKDIR
 
 # Use environment variables passed via sbatch
 SEED=${SEED:-0}
