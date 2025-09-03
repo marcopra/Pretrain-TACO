@@ -3,9 +3,9 @@
 #PBS -l walltime=24:00:00
 #PBS -j oe
 
-cd $PBS_O_WORKDIR
+cd $SLURM_SUBMIT_DIR
 
-# Use environment variables passed via qsub
+# Use environment variables passed via sbatch
 SEED=${SEED:-0}
 ENV_NAME=${ENV_NAME:-"basketball-v2"}
 RANDOM_HAND=${RANDOM_HAND:-0}
@@ -16,6 +16,7 @@ FREEZE=${FREEZE:-"false"}
 NO_TACO=${NO_TACO:-"false"}
 WANDB_PROJECT=${WANDB_PROJECT:-"taco_metaworld"}
 AGENT=${AGENT:-"taco"}
+batch_size=${BATCH_SIZE:-256}
 
 # Set seed argument based on SEED value
 if [ "$SEED" -eq 1 ]; then
@@ -40,23 +41,24 @@ esac
 # Create the experiment name once to ensure consistency
 EXP_NAME="${MODEL_PATH}_${SEED_ARG}"
 
-# Define cleanup function
-cleanup() {
-    echo "Performing cleanup: Removing experiment folder"
-    rm -rf exp_local/metaworld/$EXP_NAME
-    echo "exp_local/metaworld/$EXP_NAME"
-    echo "Cleanup completed"
-}
+# # Define cleanup function
+# cleanup() {
+#     echo "Performing cleanup: Removing experiment folder"
+#     rm -rf exp_local/metaworld/$EXP_NAME
+#     echo "exp_local/metaworld/$EXP_NAME"
+#     echo "Cleanup completed"
+# }
 
-# Set trap to ensure cleanup happens on job termination
-trap cleanup EXIT HUP INT TERM
+# # Set trap to ensure cleanup happens on job termination
+# trap cleanup EXIT HUP INT TERM
 
 # Load environment
 source ~/.bashrc
 conda activate metataco
 
 # Use quotes and escape model path appropriately
-python3 train_metaworld.py agent=taco_resnet agent.pretrained_path=\"${MODEL_PATH}\" exp_name=\"${EXP_NAME}\" seed=$SEED_ARG env_name=$ENV_NAME random_init=$RANDOM_HAND random_goal=$RANDOM_GOAL wandb_tag=$WANDB_TAG wandb_project=$WANDB_PROJECT num_train_frames=2002000 agent.freeze_encoder=$FREEZE agent.no_taco=$NO_TACO agent=$AGENT batch_size=256
+
+python3 train_metaworld.py agent=$AGENT  agent.pretrained_path=\"${MODEL_PATH}\" exp_name=\"${EXP_NAME}\" seed=$SEED_ARG env_name=$ENV_NAME random_init=$RANDOM_HAND random_goal=$RANDOM_GOAL wandb_tag=$WANDB_TAG wandb_project=$WANDB_PROJECT num_train_frames=2002000 num_seed_frames=8000 agent.freeze_encoder=$FREEZE agent.no_taco=$NO_TACO batch_size=$batch_size
 
 # Cleanup will be triggered automatically by the trap
-rm -rf exp_local/metaworld/$EXP_NAME*
+# rm -rf exp_local/metaworld/$EXP_NAME*
