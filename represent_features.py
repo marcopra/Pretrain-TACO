@@ -264,23 +264,71 @@ def apply_dimensionality_reduction(features, method='tsne', **kwargs):
     
     if method.lower() == 'pca':
         n_components = kwargs.get('n_components', 2)
+        print_n_eigenvalues = kwargs.get('print_n_eigenvalues', None)  # Nuovo parametro
+        
+        # Prima calcola PCA con tutti i componenti per ottenere tutti gli autovalori
+        pca_full = PCA(random_state=kwargs.get('random_state', 42))
+        pca_full.fit(features)
+        
+        # Poi calcola PCA con solo i componenti richiesti per la visualizzazione
         pca = PCA(n_components=n_components, random_state=kwargs.get('random_state', 42))
         features_2d = pca.fit_transform(features)
         
-        # Stampa autovalori in ordine decrescente
+        # Ottieni tutti gli autovalori dalla PCA completa
+        all_eigenvalues = pca_full.explained_variance_
+        all_eigenvalues_ratio = pca_full.explained_variance_ratio_
+        
+        # Autovalori per i componenti visualizzati
         eigenvalues = pca.explained_variance_
         eigenvalues_ratio = pca.explained_variance_ratio_
         
         print("\n=== PCA Analysis ===")
-        print("Autovalori (explained variance) in ordine decrescente:")
-        for i, (eigenval, ratio) in enumerate(zip(eigenvalues, eigenvalues_ratio)):
-            print(f"  Component {i+1}: {eigenval:.6f} ({ratio:.4f} of variance)")
-        print(f"Total explained variance: {np.sum(eigenvalues_ratio):.4f}")
+        
+        # Determina quanti autovalori stampare
+        if print_n_eigenvalues is None:
+            # Default: stampa tutti gli autovalori
+            eigenvalues_to_print = len(all_eigenvalues)
+            print(f"TUTTI gli autovalori (explained variance) in ordine decrescente ({len(all_eigenvalues)} componenti):")
+        else:
+            # Stampa solo i primi n autovalori
+            eigenvalues_to_print = min(print_n_eigenvalues, len(all_eigenvalues))
+            print(f"Primi {eigenvalues_to_print} autovalori (explained variance) in ordine decrescente:")
+        
+        for i in range(eigenvalues_to_print):
+            eigenval = all_eigenvalues[i]
+            ratio = all_eigenvalues_ratio[i]
+            print(f"  Component {i+1:3d}: {eigenval:10.6f} ({ratio:.6f} of variance)")
+        
+        if print_n_eigenvalues is not None and print_n_eigenvalues < len(all_eigenvalues):
+            print(f"  ... (showing only first {print_n_eigenvalues} of {len(all_eigenvalues)} components)")
+        
+        print(f"\nTotale varianza spiegata da tutti i componenti: {np.sum(all_eigenvalues_ratio):.6f}")
+        print(f"Varianza spiegata dai primi {n_components} componenti (visualizzati): {np.sum(eigenvalues_ratio):.6f}")
+        
+        # Calcola la varianza cumulativa solo per i primi n componenti se specificato
+        cumulative_variance = np.cumsum(all_eigenvalues_ratio)
+        print(f"\nVarianza cumulativa:")
+        
+        # Indici da mostrare per la varianza cumulativa
+        if print_n_eigenvalues is None:
+            # Mostra alcuni indici rappresentativi
+            indices_to_show = [0, 1, 4, 9, 19, 49, 99, len(cumulative_variance)-1]
+        else:
+            # Mostra i primi n indici più alcuni rappresentativi
+            indices_to_show = list(range(min(5, print_n_eigenvalues))) + [9, 19, 49, 99, len(cumulative_variance)-1]
+        
+        for i in sorted(set(indices_to_show)):
+            if i < len(cumulative_variance):
+                print(f"  Primi {i+1:3d} componenti: {cumulative_variance[i]:.6f}")
         
         method_info = {
             'eigenvalues': eigenvalues,
             'explained_variance_ratio': eigenvalues_ratio,
-            'total_variance': np.sum(eigenvalues_ratio)
+            'total_variance': np.sum(eigenvalues_ratio),
+            'all_eigenvalues': all_eigenvalues,
+            'all_explained_variance_ratio': all_eigenvalues_ratio,
+            'cumulative_variance': cumulative_variance,
+            'printed_n_eigenvalues': eigenvalues_to_print
         }
         
     elif method.lower() == 'tsne':
@@ -399,6 +447,8 @@ def main():
                         help="Random state for reproducibility")
     parser.add_argument("--use_encoder_direct", action="store_true", default=False,
                         help="Use encoder directly instead of taco.encode() method")
+    parser.add_argument("--print_n_eigenvalues", type=int, default=10,
+                        help="Number of eigenvalues to print for PCA (None = all)")
     
     args = parser.parse_args()
     
@@ -495,7 +545,8 @@ def main():
     method_kwargs = {
         'random_state': args.random_state,
         'perplexity': args.perplexity,
-        'n_components': args.n_components
+        'n_components': args.n_components,
+        'print_n_eigenvalues': args.print_n_eigenvalues
     }
     
     features_2d, method_info = apply_dimensionality_reduction(

@@ -14,8 +14,18 @@ cd $SLURM_SUBMIT_DIR
 # DATASET_CONFIG and EXPS should be set when submitting
 
 # Load environment
-source ~/.bashrc
-conda activate metataco
+
+hostname
+if echo "$(hostname)" | grep -q "leonardo"; then
+    source ~/.bashrc
+    module unload anaconda3/2023.09-0
+    module load anaconda3/2023.09-0
+    conda activate metataco
+    module unload anaconda3/2023.09-0
+else
+    source ~/.bashrc
+    conda activate metataco
+fi
 
 # Use environment variables passed via sbatch
 # DATASET_CONFIG, DATASET_SIZE, and EXPS should be set when submitting
