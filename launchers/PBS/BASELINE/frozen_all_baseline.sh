@@ -20,7 +20,7 @@ random_goal_inital="false"
 no_taco="false"
 freeze="true"
 agent="taco_resnet"
-batch_size="256"
+batch_size="128"
 
 for random_hand in $random_hand_inital; do
     for random_goal in $random_goal_inital; do
