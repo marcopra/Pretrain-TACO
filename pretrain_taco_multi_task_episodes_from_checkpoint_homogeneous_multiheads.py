@@ -67,6 +67,7 @@ if __name__ == "__main__":
     parser.add_argument('--device', type=str, default='cuda', help='Device to use')
     parser.add_argument('--dataset_config', type=str, default='dataset_config.json', help='Path to the dataset configuration file')
     parser.add_argument('--use_wandb', action='store_true', help='Use Weights & Biases for logging')
+    parser.add_argument('--wandb_mode', type=str, default='online', choices=['online', 'offline', 'disabled'], help='WandB mode (default: online)')
     parser.add_argument('--wandb_project', type=str, default='taco-mt-pretrain', help='WandB project name')
     parser.add_argument('--wandb_entity', type=str, default=None, help='WandB entity name')
     parser.add_argument('--wandb_run_name', type=str, default=None, help='WandB run name')
@@ -279,14 +280,16 @@ if __name__ == "__main__":
                 name=args.wandb_run_name,
                 id=args.resume_wandb_run,
                 resume="must",
-                config=wandb_config
+                config=wandb_config,
+                mode=args.wandb_mode
             )
         else:
             wandb.init(
                 project=args.wandb_project,
                 entity=args.wandb_entity,
                 name=args.wandb_run_name,
-                config=wandb_config
+                config=wandb_config,
+                mode=args.wandb_mode
             )
 
     # Get a batch from training data to initialize the agent
