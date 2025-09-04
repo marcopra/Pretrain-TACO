@@ -73,7 +73,10 @@ class ResizeRendering(gym.Wrapper):
         self.resolution = resolution
 
     def render(self):
-        img =  super().render()
+        img = super().render()
+
+        # Flip verticale per correggere l'orientamento (MuJoCo restituisce immagini capovolte)
+        img = np.flipud(img)
 
         # Convert numpy array to PIL Image
         img = Image.fromarray(img.astype(np.uint8))
@@ -328,3 +331,56 @@ def action_spec(env):
     min_action = env.action_space.low[0]
     max_action = env.action_space.high[0]
     return specs.BoundedArray(shape, np.float32, min_action, max_action, 'action')
+
+
+if __name__ == "__main__":
+    # Crea un ambiente d'esempio per testare la visualizzazione
+    print("Creando ambiente d'esempio...")
+    env = make(
+        env_name='push-v2',
+        task=0,
+        frame_stack=3,
+        action_repeat=2,
+        seed=42,
+        resolution=84,
+        camera='corner',
+        random_init=True,
+        randomize_goal_and_object_pos=True,
+        data_collection=False
+    )
+    
+    # Reset dell'ambiente
+    print("Reset dell'ambiente...")
+    time_step = env.reset()
+    
+    # Esegui alcuni step casuali
+    print("Eseguendo alcuni step casuali...")
+    for i in range(5):
+        action = env.action_space.sample()  # Azione casuale
+        time_step = env.step(action)
+        print(f"Step {i+1}: reward={time_step.reward:.3f}, success={time_step.success}")
+        
+        if time_step.last():
+            print("Episodio terminato")
+            time_step = env.reset()
+    
+    # Salva l'immagine corrente
+    print("Salvando immagine d'esempio...")
+    
+    # L'osservazione è già in formato CHW (channels first) dopo il FrameStackWrapper
+    observation = time_step.observation  # Shape: (channels*frames, height, width)
+    
+    # Prendi solo i primi 3 canali per visualizzare un singolo frame RGB
+    single_frame = observation[:3, :, :].transpose(1, 2, 0)  # Converti da CHW a HWC
+    
+    # Converti in PIL Image e salva (flip già applicato nel render)
+    img = Image.fromarray(single_frame.astype(np.uint8))
+    img.save('/home/mprattico/Pretrain-TACO/esempio_metaworld.png')
+    
+    print("Immagine salvata come 'esempio_metaworld.png'")
+    print(f"Forma dell'osservazione: {observation.shape}")
+    print(f"Forma dell'osservazione proprietà: {time_step.proprio_observation.shape}")
+    print(f"Range valori immagine: [{observation.min()}, {observation.max()}]")
+    print(f"Forma dell'osservazione: {observation.shape}")
+    print(f"Forma dell'osservazione proprietà: {time_step.proprio_observation.shape}")
+    print(f"Range valori immagine: [{observation.min()}, {observation.max()}]")
