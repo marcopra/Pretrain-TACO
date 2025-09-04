@@ -13,7 +13,8 @@ import wandb
 import argparse
 import json
 from pathlib import Path
-from pretraining_utils_multiheads import load_unified_dataset
+from pretraining_utils_multiheads import load_unified_dataset, load_train_val_datasets
+from utils import ColorPrint
 
 
 def extract_task_name_from_path(dataset_path):
@@ -58,6 +59,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--batch_size', type=int, default=1024, help='Batch size for training')
     parser.add_argument('--lr', type=float, default=1e-4, help='Learning rate')
+    parser.add_argument('--height', type=int, default=224, help='Input image height')
+    parser.add_argument('--width', type=int, default=224, help='Input image width')
     parser.add_argument('--feature_dim', type=int, default=50, help='Feature dimension')
     parser.add_argument('--hidden_dim', type=int, default=1024, help='Hidden dimension')
     parser.add_argument('--multistep', type=int, default=3, help='Multistep (set to 1)')
@@ -86,14 +89,12 @@ if __name__ == "__main__":
     parser.add_argument('--continue_steps', action='store_true', default=True, help='Continue step counter from checkpoint (instead of starting from 0)')
     parser.add_argument('--max_episodes_per_dataset', type=int, default=8, help='Maximum episodes to load per dataset')
     parser.add_argument('--max_size', type=int, default=None, help='Maximum size of replay buffer for training')
-    parser.add_argument('--homogeneous', action='store_true', help='Load transitions evenly across datasets')
+    parser.add_argument('--homogeneous', action='store_true', help='DEPRECATED - Homogeneous loading is now always enabled')
     parser.add_argument('--log_frequency', type=int, default=100, help='Log metrics every n batches')
-    parser.add_argument('--validation_source', type=str, default='test', choices=['test', 'split'], 
-                        help='Source for validation data: "test" uses test_dataset, "split" splits pretraining data')
-    parser.add_argument('--validation_split_ratio', type=float, default=0.8, 
-                        help='Ratio of pretraining data to use for training when using validation_source=split')
+    parser.add_argument('--split_ratio', type=float, default=0.8, 
+                        help='Ratio of pretraining data to use for training (remaining goes to validation)')
     parser.add_argument('--test_eval_frequency', type=int, default=200, 
-                        help='Frequency of test evaluation when using validation_source=split (0 to disable)')
+                        help='Frequency of test evaluation (0 to disable)')
     # Feature extractor argument
     parser.add_argument('--feature_extractor', '-fe', type=str, default='conv', 
                         # choices=['conv', 'vit_s', 'vit_b', 'vit_l', 'resnet18', 'resnet50', 'r3m', 'mvp'],
@@ -114,7 +115,7 @@ if __name__ == "__main__":
     if args.feature_extractor == "conv":
         from agents.taco_multiheads import TACOAgent
     else:
-        from agents.taco_resnet import TACOAgent
+        from agents.taco_resnet_multiheads import TACOAgent
 
     # Handle dataset config paths based on type (JSON vs folder)
     config_path = Path(args.dataset_config)
@@ -155,97 +156,49 @@ if __name__ == "__main__":
             dataset_names = []
             print(f"Pretraining dataset path not found: {pretraining_dataset_path}")
     
-    # Load datasets based on validation source
-    if args.validation_source == 'test':
-        # Original behavior: use test_dataset as validation
-        train_dataloader = load_unified_dataset(
-            config_or_path=pretraining_config,
-            batch_size=args.batch_size,
-            num_workers=args.num_workers,
-            max_episodes_per_dataset=args.max_episodes_per_dataset,
-            max_size=args.max_size,
-            homogeneous=args.homogeneous,
-            is_test=False
-        )
+    # Always use split validation for training data
+    print(f"=== SPLIT VALIDATION (ratio={args.split_ratio}) ===")
+    
+    # Load both training and validation data with a single call
+    print("Creating training and validation datasets...")
+    train_dataloader, valid_dataloader = load_train_val_datasets(
+        config_or_path=pretraining_config,
+        batch_size=args.batch_size,
+        num_workers=args.num_workers,
+        max_episodes_per_dataset=args.max_episodes_per_dataset,
+        max_size=args.max_size,
+        split_ratio=args.split_ratio
+    )
 
-        valid_dataloader = load_unified_dataset(
+    # Get actual dataset sizes
+    train_size = len(train_dataloader.dataset) if hasattr(train_dataloader, 'dataset') else len(train_dataloader)
+    valid_size = len(valid_dataloader.dataset) if hasattr(valid_dataloader, 'dataset') else len(valid_dataloader)
+    actual_training_ratio = train_size / (train_size + valid_size)
+    
+    print(f"Training episodes: {train_size}")
+    print(f"Validation episodes: {valid_size}")
+    if actual_training_ratio < args.split_ratio:
+        ColorPrint.yellow(f"Warning: Actual training ratio {actual_training_ratio:.3f} is less than expected {args.split_ratio}, try to increase max_size or max_episodes_per_dataset")
+    else:
+        print(f"Actual training ratio: {actual_training_ratio:.3f}")
+    print(f"Task mapping: {train_dataloader.task_to_id}")
+    
+    actual_dataset_size = train_size  # Use only train size for model naming
+    
+    # Load test set if test evaluation is enabled
+    test_dataloader = None
+    if args.test_eval_frequency > 0:
+        print("Creating test dataset...")
+        test_dataloader = load_unified_dataset(
             config_or_path=test_config,
             batch_size=args.batch_size,
             num_workers=args.num_workers,
             max_episodes_per_dataset=args.max_episodes_per_dataset,
-            max_size=None,  # Always use all test data
-            homogeneous=args.homogeneous,
+            max_size=None,
             is_test=True
         )
-        
-        # Print dataset lengths for test validation
-        train_dataset_len = len(train_dataloader.dataset) if hasattr(train_dataloader, 'dataset') else len(train_dataloader)
-        valid_dataset_len = len(valid_dataloader.dataset) if hasattr(valid_dataloader, 'dataset') else len(valid_dataloader)
-        print(f"=== DATASET LENGTHS (Test Validation) ===")
-        print(f"Training dataset length: {train_dataset_len}")
-        print(f"Validation dataset length: {valid_dataset_len}")
-        print(f"Total episodes: {train_dataset_len + valid_dataset_len}")
-        
-        test_dataloader = None  # No separate test set
-        
-    else:  # validation_source == 'split'
-        # When splitting, we need to respect max_size and max_episodes for training set
-        print(f"Using split validation with ratio {args.validation_split_ratio}")
-        print(f"Training set will respect max_episodes_per_dataset={args.max_episodes_per_dataset}, max_size={args.max_size}")
-        
-        print("Creating training dataset")
-        # Load training data with the specified constraints (this creates the episode pool)
-        train_dataloader = load_unified_dataset(
-            config_or_path=pretraining_config,
-            batch_size=args.batch_size,
-            num_workers=args.num_workers,
-            max_episodes_per_dataset=args.max_episodes_per_dataset,
-            max_size=args.max_size,
-            homogeneous=args.homogeneous,
-            is_test=False,
-            validation_split_ratio=args.validation_split_ratio,
-            use_training_split=True  # Only get the training portion
-        )
-        
-        print("Creating validation dataset")
-        # Load validation data from the remaining episodes (no size constraints)
-        valid_dataloader = load_unified_dataset(
-            config_or_path=pretraining_config,
-            batch_size=args.batch_size,
-            num_workers=args.num_workers,
-            max_episodes_per_dataset=None,  # Use all remaining episodes for validation
-            max_size=None,  # Use all remaining data for validation
-            homogeneous=False,  # Don't apply homogeneous loading to validation split
-            is_test=False,
-            validation_split_ratio=args.validation_split_ratio,
-            use_training_split=False  # Only get the validation portion
-        )
-
-        # Print dataset lengths for split validation
-        train_dataset_len = len(train_dataloader.dataset) if hasattr(train_dataloader, 'dataset') else len(train_dataloader)
-        valid_dataset_len = len(valid_dataloader.dataset) if hasattr(valid_dataloader, 'dataset') else len(valid_dataloader)
-        print(f"=== DATASET LENGTHS (Split Validation, ratio={args.validation_split_ratio}) ===")
-        print(f"Training dataset length: {train_dataset_len}")
-        print(f"Validation dataset length: {valid_dataset_len}")
-        print(f"Total episodes: {train_dataset_len + valid_dataset_len}")
-        print(f"Actual training ratio: {train_dataset_len / (train_dataset_len + valid_dataset_len):.3f}")
-        
-        # Load test set separately if test evaluation is enabled
-        if args.test_eval_frequency > 0:
-            print("Creating test dataset")
-            test_dataloader = load_unified_dataset(
-                config_or_path=test_config,
-                batch_size=args.batch_size,
-                num_workers=args.num_workers,
-                max_episodes_per_dataset=args.max_episodes_per_dataset,
-                max_size=None,
-                homogeneous=args.homogeneous,
-                is_test=True
-            )
-            test_dataset_len = len(test_dataloader.dataset) if hasattr(test_dataloader, 'dataset') else len(test_dataloader)
-            print(f"Test dataset length: {test_dataset_len}")
-        else:
-            test_dataloader = None
+        test_size = len(test_dataloader.dataset) if hasattr(test_dataloader, 'dataset') else len(test_dataloader)
+        print(f"Test episodes: {test_size}")
 
     # Initialize steps and epoch
     steps = 0
@@ -311,10 +264,8 @@ if __name__ == "__main__":
             "resumed_from_checkpoint": args.resume_checkpoint,
             "max_episodes_per_dataset": args.max_episodes_per_dataset,
             "max_size": args.max_size,
-            "homogeneous": args.homogeneous,
-            "validation_source": args.validation_source,
-            "validation_split_ratio": args.validation_split_ratio if args.validation_source == 'split' else None,
-            "test_eval_frequency": args.test_eval_frequency if args.validation_source == 'split' else None,
+            "split_ratio": args.split_ratio,
+            "test_eval_frequency": args.test_eval_frequency,
             "feature_extractor": args.feature_extractor,
             "pretrained_path": pretrained_path
         }
@@ -351,9 +302,8 @@ if __name__ == "__main__":
         num_tasks = train_dataloader.num_tasks
         print(f"Number of tasks: {num_tasks}")
 
-    # Get dataset length for file naming
-    dataset_length = len(train_dataloader.dataset) if hasattr(train_dataloader, 'dataset') else len(train_dataloader)
-    print(f"Training dataset length: {dataset_length}")
+    # Get dataset length for file naming - use actual dataset size
+    print(f"Using dataset size {actual_dataset_size} for model naming")
 
     # Initialize agent with appropriate parameters based on feature extractor
     if args.feature_extractor == "conv":
@@ -398,6 +348,8 @@ if __name__ == "__main__":
             multistep=args.multistep,
             latent_a_dim='none',
             curl=not args.no_curl,
+            height=args.height,
+            width=args.width,
             pretrained_path=pretrained_path,
             freeze_encoder=False,
             no_taco=False
@@ -442,9 +394,8 @@ if __name__ == "__main__":
                     obs, action, action_seq, reward, discount, next_obs, r_next_obs, task_id = utils.to_torch(
                         eval_batch, args.device)
                     
-                    # Determine if we're using test set as validation (use_test_mode=True) or split validation (use_test_mode=False)
-                    use_test_mode = (args.validation_source == 'test')
-                    eval_metrics = taco_agent.evaluate_taco(obs, action, action_seq, r_next_obs, reward, task_id, use_test_mode=use_test_mode)
+                    # For validation evaluation, use split validation mode (use_test_mode=False)
+                    eval_metrics = taco_agent.evaluate_taco(obs, action, action_seq, r_next_obs, reward, task_id, use_test_mode=False)
                     
                     # Add eval/ prefix to metrics
                     eval_metrics_sum['eval/reward_loss'] += eval_metrics['reward_loss']
@@ -481,7 +432,7 @@ if __name__ == "__main__":
                     reward_str = "rew" if not args.no_reward else "norew"
                     optimizer_str = f"_{args.optimizer}" if args.optimizer != "adam" else ""
                     extractor_str = f"_{args.feature_extractor}" if args.feature_extractor != "conv" else ""
-                    best_model_path = f"{args.save_path}/taco_MT_{'_'.join(args.dataset_config.split('/')[1:])}_lr={args.lr}{optimizer_str}{extractor_str}_ts={steps}_len={dataset_length}_{curl_str}_{reward_str}_best.pt"
+                    best_model_path = f"{args.save_path}/taco_MT_{'_'.join(args.dataset_config.split('/')[1:])}_lr={args.lr}{optimizer_str}{extractor_str}_ts={steps}_len={actual_dataset_size}_{curl_str}_{reward_str}_best.pt"
                     print(f"Saving new best model to {best_model_path} at step {steps} (based on validation loss)")
                     os.makedirs(args.save_path, exist_ok=True)
                     torch.save({
@@ -499,8 +450,8 @@ if __name__ == "__main__":
                 print(f"Validation metrics: {eval_metrics_sum}")
                 taco_agent.train(True)  # Set back to train mode
             
-            # *** Test evaluation step (only when using split validation) ***
-            if (args.validation_source == 'split' and test_dataloader is not None and 
+            # *** Test evaluation step ***
+            if (test_dataloader is not None and 
                 args.test_eval_frequency > 0 and (steps//args.batch_size) % args.test_eval_frequency == 0):
                 
                 taco_agent.train(False)  # Set to eval mode
@@ -555,7 +506,7 @@ if __name__ == "__main__":
                 if current_test_loss < best_test_loss:
                     print(f"New best test loss achieved: {current_test_loss:.6f} (previous best: {best_test_loss:.6f})")
                     best_test_loss = current_test_loss
-                    print("NOTE: Model is NOT saved based on test loss, only validation loss is used for best model selection.")
+                    ColorPrint.yellow("NOTE: Model is NOT saved based on test loss, only validation loss is used for best model selection.")
                 
                 # Log test metrics to wandb
                 if args.use_wandb:
@@ -581,9 +532,8 @@ if __name__ == "__main__":
                 
                 # Always log current best losses
                 metrics['best_eval_loss'] = best_eval_loss
-                if args.validation_source == 'split':
-                    metrics['best_test_loss'] = best_test_loss
-                
+                metrics['best_test_loss'] = best_test_loss
+
                 # Log validation metrics if we just computed them
                 if (steps//args.batch_size - 1) % args.eval_frequency == 0 and 'eval_metrics_sum' in locals():
                     metrics.update(eval_metrics_sum)
@@ -601,7 +551,7 @@ if __name__ == "__main__":
                 reward_str = "rew" if not args.no_reward else "norew"
                 optimizer_str = f"_{args.optimizer}" if args.optimizer != "adam" else ""
                 extractor_str = f"_{args.feature_extractor}" if args.feature_extractor != "conv" else ""
-                checkpoint_path = f"{args.save_path}/taco_MT_{'_'.join(args.dataset_config.split('/')[1:])}_lr={args.lr}{optimizer_str}{extractor_str}_ts={steps}_len={dataset_length}_{curl_str}_{reward_str}.pt"
+                checkpoint_path = f"{args.save_path}/taco_MT_{extractor_str}_{'_'.join(args.dataset_config.split('/')[1:])}_lr={args.lr}{optimizer_str}_ts={steps}_len={actual_dataset_size}_{curl_str}_{reward_str}.pt"
                 print(f"Saving checkpoint at step {steps} to {checkpoint_path}")
                 os.makedirs(args.save_path, exist_ok=True)
                 torch.save({
@@ -634,9 +584,27 @@ if __name__ == "__main__":
         'epoch': epoch,
         'feature_extractor': args.feature_extractor,
         'pretrained_path': pretrained_path,
-    }, f"{args.save_path}/taco_MT_{'_'.join(args.dataset_config.split('/')[1:])}_lr={args.lr}{optimizer_str}{extractor_str}_ts={args.total_steps}_len={dataset_length}_{curl_str}_{reward_str}.pt")
+    }, f"{args.save_path}/taco_MT_{extractor_str}_{'_'.join(args.dataset_config.split('/')[1:])}_lr={args.lr}{optimizer_str}_ts={args.total_steps}_len={actual_dataset_size}_{curl_str}_{reward_str}.pt")
     
     print(f"Training completed after {steps} steps and {epoch} epochs")
+    if args.use_wandb:
+        wandb.finish()
+    if args.use_wandb:
+        wandb.finish()
+    torch.save({
+        'encoder': taco_agent.encoder.state_dict(),
+        'taco': taco_agent.TACO.state_dict(),
+        'act_tok': taco_agent.act_tok.state_dict(),
+        'args': vars(args),  # Save configuration for easier loading
+        'steps': steps,
+        'epoch': epoch,
+        'feature_extractor': args.feature_extractor,
+        'pretrained_path': pretrained_path,
+    }, f"{args.save_path}/taco_MT_{'_'.join(args.dataset_config.split('/')[1:])}_lr={args.lr}{optimizer_str}{extractor_str}_ts={args.total_steps}_len={actual_dataset_size}_{curl_str}_{reward_str}.pt")
+    
+    print(f"Training completed after {steps} steps and {epoch} epochs")
+    if args.use_wandb:
+        wandb.finish()
     if args.use_wandb:
         wandb.finish()
 

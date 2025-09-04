@@ -129,12 +129,13 @@ class TACO(nn.Module):
     TACO Constrastive loss
     """
 
-    def __init__(self, repr_dim, feature_dim, action_shape, latent_a_dim, hidden_dim, act_tok, encoder, multistep, device):
+    def __init__(self, repr_dim, feature_dim, action_shape, latent_a_dim, hidden_dim, act_tok, encoder, multistep, device, num_tasks=1):
         super(TACO, self).__init__()
 
         self.multistep = multistep
         self.encoder = encoder
         self.device = device
+        self.num_tasks = num_tasks
         
         a_dim = action_shape[0]
 
@@ -149,11 +150,14 @@ class TACO(nn.Module):
         self.proj_s = nn.Sequential(nn.Linear(repr_dim, feature_dim),
                                    nn.LayerNorm(feature_dim), nn.Tanh())
         
-        self.reward = nn.Sequential(
-            nn.Linear(feature_dim+latent_a_dim*multistep, hidden_dim), 
-            nn.ReLU(inplace=True),
-            nn.Linear(hidden_dim, 1)
-        )
+        # Create multiple reward networks, one for each task
+        self.reward_networks = nn.ModuleList([
+            nn.Sequential(
+                nn.Linear(feature_dim+latent_a_dim*multistep, hidden_dim), 
+                nn.ReLU(inplace=True),
+                nn.Linear(hidden_dim, 1)
+            ) for _ in range(num_tasks)
+        ])
         
         self.W = nn.Parameter(torch.rand(feature_dim, feature_dim))
         self.apply(utils.weight_init)
@@ -284,9 +288,9 @@ class TACOAgent:
                  hidden_dim, critic_target_tau, num_expl_steps,
                  update_every_steps, stddev_schedule, stddev_clip, use_tb,
                  reward, multistep, latent_a_dim, curl, height = None, width = None, pretrained_path=None, 
-                 freeze_encoder=False, no_taco=False):
-    
-    
+                 freeze_encoder=False, no_taco=False, num_tasks=1):
+
+
         self.device = device
         self.critic_target_tau = critic_target_tau
         self.update_every_steps = update_every_steps
@@ -300,6 +304,7 @@ class TACOAgent:
         self.curl = curl
         self.freeze_encoder = freeze_encoder
         self.no_taco = no_taco
+        self.num_tasks = num_tasks
 
         ### A heuristics to choose the dimensionality of latent actions
         if latent_a_dim == 'none':
@@ -322,7 +327,7 @@ class TACOAgent:
         self.critic_target = Critic(self.encoder.repr_dim, latent_a_dim,
                                     feature_dim, hidden_dim).to(device)
         self.critic_target.load_state_dict(self.critic.state_dict())
-        self.TACO = TACO(self.encoder.repr_dim, feature_dim, action_shape, latent_a_dim, hidden_dim, self.act_tok, self.encoder, multistep, device).to(device)
+        self.TACO = TACO(self.encoder.repr_dim, feature_dim, action_shape, latent_a_dim, hidden_dim, self.act_tok, self.encoder, multistep, device, num_tasks).to(device)
         
         ### State & Action Encoders - exclude from optimization if frozen
         if freeze_encoder:
@@ -442,7 +447,7 @@ class TACOAgent:
 
         return metrics
     
-    def update_taco(self, obs, action, action_seq, next_obs, reward):
+    def update_taco(self, obs, action, action_seq, next_obs, reward, task_id=None):
         metrics = dict()
         
         obs_anchor = self.aug(obs.float())
@@ -466,9 +471,10 @@ class TACOAgent:
             action_en = self.TACO.act_tok(action, seq=False) 
             action_seq_en = self.TACO.act_tok(action_seq, seq=True)
         
-        ### Compute reward prediction loss
-        if self.reward:
-            reward_pred = self.TACO.reward(torch.concat([z_a, action_seq_en], dim=-1))
+        ### Compute reward prediction loss using task-specific networks
+        if self.reward and task_id is not None:
+            features = torch.concat([z_a, action_seq_en], dim=-1)
+            reward_pred = self.TACO.predict_reward(features, task_id.squeeze(), validation_mode='train')
             reward_loss = F.mse_loss(reward_pred, reward)
         else:
             reward_loss = torch.tensor(0.)
@@ -499,7 +505,7 @@ class TACOAgent:
             return metrics
         
         batch = next(replay_iter)
-        obs, action, action_seq, reward, discount, next_obs, r_next_obs = utils.to_torch(
+        obs, action, action_seq, reward, discount, next_obs, r_next_obs, task_id = utils.to_torch(
             batch, self.device)
 
         # augment
@@ -524,187 +530,13 @@ class TACOAgent:
         utils.soft_update_params(self.critic, self.critic_target,
                                  self.critic_target_tau)
         
-
         if self.no_taco:
             metrics['reward_loss']  = torch.tensor(0.)
             metrics['curl_loss'] = torch.tensor(0.)
             metrics['taco_loss']  = torch.tensor(0.)
             return metrics
-        
-        metrics.update(self.update_taco(obs, action, action_seq, r_next_obs, reward))       
-
-        return metrics
-    
-    def evaluate_taco(self, obs, action, action_seq, next_obs, reward):
-        with torch.no_grad():
-            metrics = dict()
-            metrics['batch_reward'] = reward.mean().item()
-
-            obs_anchor = self.aug(obs.float())
-            obs_pos = self.aug(obs.float())
-            z_a = self.TACO.encode(obs_anchor)
-            z_pos = self.TACO.encode(obs_pos, ema=True)
-            ### Compute CURL loss
-            if self.curl:
-                logits = self.TACO.compute_logits(z_a, z_pos)
-                labels = torch.arange(logits.shape[0]).long().to(self.device)
-                curl_loss = self.cross_entropy_loss(logits, labels)
-                print(f"curl_loss: {curl_loss.item()}")
-            else:
-                curl_loss = torch.tensor(0.)
             
-            ### Compute action encodings
-            if isinstance(self.TACO.act_tok, nn.Identity):
-                # When using Identity, pass actions directly
-                action_en = action
-                action_seq_en = action_seq.view(action_seq.size(0), -1)  # Flatten multistep actions
-            else:
-                action_en = self.TACO.act_tok(action, seq=False) 
-                action_seq_en = self.TACO.act_tok(action_seq, seq=True)
-            
-            ### Compute reward prediction loss
-            if self.reward:
-                reward_pred = self.TACO.reward(torch.concat([z_a, action_seq_en], dim=-1))
-                reward_loss = F.mse_loss(reward_pred, reward)
-
-                # Average percentage of reward prediction error
-                metrics['avg_rew_pred_error_percentage'] = torch.mean(torch.abs(reward_pred - reward) / (reward + 1e-6)).item() 
-                error = reward_pred - reward
-                metrics['log_cosh'] = torch.mean(torch.log(torch.cosh(error + 1e-12))).item()
-                threshold = 1e-3  # puoi settarlo in base al tuo dominio
-                mask = reward.abs() > threshold
-                metrics['rel_error_filtered'] = torch.mean(
-                    torch.abs(reward_pred[mask] - reward[mask]) / (reward[mask] + 1e-6)
-                ).item()
-                numerator = torch.abs(reward_pred - reward)
-                denominator = torch.abs(reward_pred) + torch.abs(reward) + 1e-6
-                metrics['smape'] = torch.mean(2.0 * numerator / denominator).item()
-
-            else:
-                reward_loss = torch.tensor(0.)
-            
-            ### Compute TACO loss
-            next_z = self.TACO.encode(self.aug(next_obs.float()), ema=True)
-            curr_za = self.TACO.project_sa(z_a, action_seq_en) 
-            logits = self.TACO.compute_logits(curr_za, next_z)
-            labels = torch.arange(logits.shape[0]).long().to(self.device)
-            taco_loss = self.cross_entropy_loss(logits, labels)
-            
-            if self.use_tb:
-                metrics['reward_loss']  = reward_loss.item()
-                metrics['curl_loss'] = curl_loss.item()
-                metrics['taco_loss']  = taco_loss.item()
-            return metrics
-        dist = self.actor(obs, stddev)
-        action = dist.sample(clip=self.stddev_clip)
-        log_prob = dist.log_prob(action).sum(-1, keepdim=True)
-        Q1, Q2 = self.critic(obs, action, self.act_tok)
-        Q = torch.min(Q1, Q2)
-
-        actor_loss = -Q.mean()
-
-        # optimize actor
-        self.actor_opt.zero_grad(set_to_none=True)
-        actor_loss.backward()
-        self.actor_opt.step()
-
-        if self.use_tb:
-            metrics['actor_loss'] = actor_loss.item()
-            metrics['actor_logprob'] = log_prob.mean().item()
-            metrics['actor_ent'] = dist.entropy().sum(dim=-1).mean().item()
-
-        return metrics
-    
-    def update_taco(self, obs, action, action_seq, next_obs, reward):
-        metrics = dict()
-        
-        obs_anchor = self.aug(obs.float())
-        obs_pos = self.aug(obs.float())
-        z_a = self.TACO.encode(obs_anchor)
-        z_pos = self.TACO.encode(obs_pos, ema=True)
-        ### Compute CURL loss
-        if self.curl:
-            logits = self.TACO.compute_logits(z_a, z_pos)
-            labels = torch.arange(logits.shape[0]).long().to(self.device)
-            curl_loss = self.cross_entropy_loss(logits, labels)
-        else:
-            curl_loss = torch.tensor(0.)
-        
-        ### Compute action encodings
-        if isinstance(self.TACO.act_tok, nn.Identity):
-            # When using Identity, pass actions directly
-            action_en = action
-            action_seq_en = action_seq.view(action_seq.size(0), -1)  # Flatten multistep actions
-        else:
-            action_en = self.TACO.act_tok(action, seq=False) 
-            action_seq_en = self.TACO.act_tok(action_seq, seq=True)
-        
-        ### Compute reward prediction loss
-        if self.reward:
-            reward_pred = self.TACO.reward(torch.concat([z_a, action_seq_en], dim=-1))
-            reward_loss = F.mse_loss(reward_pred, reward)
-        else:
-            reward_loss = torch.tensor(0.)
-        
-        ### Compute TACO loss
-        next_z = self.TACO.encode(self.aug(next_obs.float()), ema=True)
-        curr_za = self.TACO.project_sa(z_a, action_seq_en) 
-        logits = self.TACO.compute_logits(curr_za, next_z)
-        labels = torch.arange(logits.shape[0]).long().to(self.device)
-        taco_loss = self.cross_entropy_loss(logits, labels)
-        
-        # Only update if not frozen and optimizer exists
-        if not self.freeze_encoder and self.taco_opt is not None:
-            self.taco_opt.zero_grad()
-            (taco_loss + curl_loss + reward_loss).backward()
-            self.taco_opt.step()
-        
-        if self.use_tb:
-            metrics['reward_loss']  = reward_loss.item()
-            metrics['curl_loss'] = curl_loss.item()
-            metrics['taco_loss']  = taco_loss.item()
-        
-        return metrics
-        
-    def update(self, replay_iter, step):
-        metrics = dict()
-        if step % self.update_every_steps != 0:
-            return metrics
-        
-        batch = next(replay_iter)
-        obs, action, action_seq, reward, discount, next_obs, r_next_obs = utils.to_torch(
-            batch, self.device)
-
-        # augment
-        obs_en = self.aug(obs.float())
-        next_obs_en = self.aug(next_obs.float())
-        # encode
-        obs_en = self.encoder(obs_en)
-        with torch.no_grad():
-            next_obs_en = self.encoder(next_obs_en)
-        
-        if self.use_tb:
-            metrics['batch_reward'] = reward.mean().item()
-
-        # update critic
-        metrics.update(
-            self.update_critic(obs_en, action, reward, discount, next_obs_en, step))
-
-        # update actor
-        metrics.update(self.update_actor(obs_en.detach(), step))
-
-        # update critic target
-        utils.soft_update_params(self.critic, self.critic_target,
-                                 self.critic_target_tau)
-        
-
-        if self.no_taco:
-            metrics['reward_loss']  = torch.tensor(0.)
-            metrics['curl_loss'] = torch.tensor(0.)
-            metrics['taco_loss']  = torch.tensor(0.)
-            return metrics
-        
-        metrics.update(self.update_taco(obs, action, action_seq, r_next_obs, reward))       
+        metrics.update(self.update_taco(obs, action, action_seq, r_next_obs, reward, task_id))       
 
         return metrics
     
@@ -785,5 +617,6 @@ class TACOAgent:
                 metrics['taco_loss']  = taco_loss.item()
                 metrics['total_loss'] = taco_loss.item() + curl_loss.item() + reward_loss.item()
             return metrics
+
 
 

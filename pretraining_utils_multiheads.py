@@ -2,28 +2,14 @@ from replay_buffer_multi_task import make_replay_loader
 from pathlib import Path
 import json
 import random
+import datetime
 import numpy as np
 import tempfile
 import os
-import threading
-import psutil
+import tqdm
+from replay_buffer_multi_task import save_episode_with_task_id
+from utils import ColorPrint
 
-class ColorPrint:
-    @staticmethod
-    def blue(text):
-        print(f"\033[94m{text}\033[0m")
-    
-    @staticmethod
-    def green(text):
-        print(f"\033[92m{text}\033[0m")
-    
-    @staticmethod
-    def yellow(text):
-        print(f"\033[93m{text}\033[0m")
-    
-    @staticmethod
-    def red(text):
-        print(f"\033[91m{text}\033[0m")
 
 def load_transition_cache(dataset_base_path):
     """Load transition counts from cache file if it exists"""
@@ -282,14 +268,13 @@ def create_symlink_with_proper_naming(episode_file, dest_dir, counter, task_id=N
     # If task_id is provided and episode doesn't have task_id, we need to create a new file
     if task_id is not None and has_task_id is False:
         # Create a temporary file with task_id added
-        from replay_buffer_multi_task import save_episode_with_task_id
+        
         
         # Create temporary file with task_id
         temp_file = dest_dir / f"temp_{counter:06d}.npz"
         save_episode_with_task_id(episode_dict, temp_file, task_id)
         
         # Create proper filename
-        import datetime
         timestamp = datetime.datetime.now().strftime('%Y%m%dT%H%M%S')
         proper_name = f"{timestamp}_{counter:06d}_{episode_len}.npz"
         dest_path = dest_dir / proper_name
@@ -299,7 +284,6 @@ def create_symlink_with_proper_naming(episode_file, dest_dir, counter, task_id=N
         return dest_path
     else:
         # Create proper filename format that replay_buffer expects
-        import datetime
         timestamp = datetime.datetime.now().strftime('%Y%m%dT%H%M%S')
         proper_name = f"{timestamp}_{counter:06d}_{episode_len}.npz"
         dest_path = dest_dir / proper_name
@@ -319,24 +303,19 @@ def get_episode_length_from_cache_or_file(episode_file, transition_counts, episo
         episode_name in episode_lengths[dataset_name]):
         return episode_lengths[dataset_name][episode_name]
     
-    # Check if we have cached count for this dataset (fallback to file loading)
-    if dataset_name in transition_counts:
-        ColorPrint.yellow(f"Episode length not in cache, loading file: {episode_name}")
-        try:
-            with episode_file.open('rb') as f:
-                episode = np.load(f)
-                obs_key = next(iter(episode.keys()))
-                episode_len = episode[obs_key].shape[0] - 1
-                return episode_len
-        except Exception as e:
-            print(f"Warning: Could not get episode length from {episode_file}: {e}")
-            return None
-    else:
-        # Fallback to loading the file
-        return count_transitions_in_episodes([episode_file])
+    # Fallback: load the file to get episode length
+    try:
+        with episode_file.open('rb') as f:
+            episode = np.load(f)
+            obs_key = next(iter(episode.keys()))
+            episode_len = episode[obs_key].shape[0] - 1
+            return episode_len
+    except Exception as e:
+        ColorPrint.red(f"Warning: Could not get episode length from {episode_file}: {e}")
+        return None
 
 def select_episodes_homogeneous(dataset_paths, max_episodes_per_dataset, max_size=None, is_test=False):
-    """Select episodes from datasets to ensure homogeneous distribution"""
+    """Select episodes from datasets to ensure homogeneous distribution (always enabled)"""
     all_episodes = []
     dataset_info = []
     
@@ -370,11 +349,11 @@ def select_episodes_homogeneous(dataset_paths, max_episodes_per_dataset, max_siz
     total_transitions = sum(info['transitions'] for info in dataset_info)
     if max_size is None:
         max_size = total_transitions
+    
     if not is_test:
-        if total_transitions > max_size:       
-            ColorPrint.yellow(f"Warning: Total transitions ({total_transitions}) exceed max_size ({max_size})")
-        transitions_per_dataset = max_size // len(dataset_paths)
-        ColorPrint.green(f"Homogeneous loading: {transitions_per_dataset} transitions per dataset")
+        # For training data, always select at least 1 episode per dataset for homogeneous distribution
+        transitions_per_dataset = max(1, max_size // len(dataset_paths))  # At least 1 transition per dataset
+        ColorPrint.green(f"Homogeneous loading: ~{transitions_per_dataset} transitions per dataset")
         
         selected_episodes = []
         actual_transitions_loaded = 0
@@ -394,14 +373,13 @@ def select_episodes_homogeneous(dataset_paths, max_episodes_per_dataset, max_siz
                 if episode_len is None:
                     continue
                 
-                if current_transitions + episode_len <= transitions_per_dataset:
+                # Always select at least one episode per dataset
+                if len(dataset_selected) == 0:
                     dataset_selected.append(episode_file)
                     current_transitions += episode_len
-                elif len(dataset_selected) == 0:
+                elif current_transitions + episode_len <= transitions_per_dataset:
                     dataset_selected.append(episode_file)
                     current_transitions += episode_len
-                    ColorPrint.yellow(f"Added episode with {episode_len} transitions (exceeds per-dataset limit of {transitions_per_dataset})")
-                    break
                 else:
                     break
             
@@ -412,97 +390,98 @@ def select_episodes_homogeneous(dataset_paths, max_episodes_per_dataset, max_siz
         print(f"Total selected: {len(selected_episodes)} episodes with {actual_transitions_loaded} transitions")
         return selected_episodes, episode_lengths
     else:
-        if not is_test:
-            ColorPrint.green(f"Using all {total_transitions} transitions from {len(dataset_paths)} datasets")
+        ColorPrint.green(f"Using all {total_transitions} transitions from {len(dataset_paths)} datasets")
         return all_episodes, episode_lengths
 
-class EpisodePool:
-    """Manages a shared pool of episodes for split validation to prevent data leakage"""
-    def __init__(self, temp_dir, all_episodes, task_to_id, transition_counts=None, episode_lengths=None):
-        self.temp_dir = Path(temp_dir)
-        self.task_to_id = task_to_id
-        self.transition_counts = transition_counts or {}
-        self.episode_lengths = episode_lengths or {}
-        self.lock = threading.Lock()
-        self.used_episodes = set()
-        
-        # Create symlinks for all episodes
-        self.episode_map = {}  # Maps original episode path to symlink path
-        counter = 0
-        
-        ColorPrint.blue("Creating episode pool with optimized episode length computation")
-        
-        for episode_file in all_episodes:
-            task_name = extract_task_name_from_path(episode_file.parent)
-            task_id = task_to_id[task_name]
-            
-            # Get episode length efficiently using cache when possible
-            episode_len = get_episode_length_from_cache_or_file(
-                episode_file, self.transition_counts, self.episode_lengths
-            )
-            
-            processed_path = create_symlink_with_proper_naming(
-                episode_file, self.temp_dir, counter, task_id, episode_len
-            )
-            if processed_path is not None:
-                self.episode_map[str(episode_file)] = processed_path
-                counter += 1
-    
-    def mark_episode_used(self, episode_path):
-        """Mark an episode as used by removing its symlink"""
-        with self.lock:
-            episode_path_str = str(episode_path)
-            if episode_path_str in self.episode_map:
-                symlink_path = self.episode_map[episode_path_str]
-                if symlink_path.exists():
-                    symlink_path.unlink()
-                self.used_episodes.add(episode_path_str)
-    
-    def get_available_episodes(self):
-        """Get list of available (unused) episode symlinks"""
-        with self.lock:
-            available = []
-            for orig_path, symlink_path in self.episode_map.items():
-                if orig_path not in self.used_episodes and symlink_path.exists():
-                    available.append(symlink_path)
-            return available
-
-# Global episode pool for split validation
-_episode_pool = None
-
-def set_episode_pool(pool):
-    """Set the global episode pool"""
-    global _episode_pool
-    _episode_pool = pool
-
-def get_episode_pool():
-    """Get the global episode pool"""
-    return _episode_pool
-
-def load_unified_dataset(config_or_path, batch_size=32, num_workers=4,
-                         nstep=3, multistep=3, discount=0.99, 
-                         max_episodes_per_dataset=8, max_size=None,
-                         homogeneous=False, is_test=False, 
-                         validation_split_ratio=0.8, use_training_split=True, **kwargs):
-    """
-    Load episodes from datasets specified in config or folder structure
-    
-    Args:
-        config_or_path: Either path to config.json or folder with pretraining_datasets/test_dataset
-        max_episodes_per_dataset: Maximum episodes to load per dataset (for training only when splitting)
-        max_size: Maximum size of replay buffer (for training only when splitting)
-        homogeneous: Whether to load transitions evenly across datasets
-        is_test: Whether this is test dataset (affects max_size behavior)
-        validation_split_ratio: Ratio of data to use for training when splitting
-        use_training_split: Whether to use training split (True) or validation split (False)
-        **kwargs: Additional arguments
-    """
-    # Monitor memory usage
-    process = psutil.Process(os.getpid())
-    memory_before = process.memory_info().rss / 1024 / 1024  # MB
-    
+def is_preprocessed_dataset(config_or_path):
+    """Check if the dataset is already preprocessed with task IDs"""
     config_path = Path(config_or_path)
     
+    # Check if it's a preprocessed dataset directory
+    if (config_path.is_dir() and 
+        (config_path / "pretraining_datasets").exists() and
+        (config_path / "preprocessing_info.json").exists()):
+        return True
+    return False
+
+def load_preprocessed_task_mapping(dataset_dir, is_test=False):
+    """Load task mapping from preprocessed dataset"""
+    task_mapping_file = Path(dataset_dir) / "task_mapping.json"
+    if task_mapping_file.exists():
+        with open(task_mapping_file, 'r') as f:
+            data = json.load(f)
+        
+        if is_test:
+            return data['test_task_to_id'], data['test_id_to_task']
+        else:
+            return data['pretraining_task_to_id'], data['pretraining_id_to_task']
+    else:
+        raise FileNotFoundError(f"Task mapping file not found: {task_mapping_file}")
+
+def _load_from_symlink_directory(config_path, batch_size, num_workers, max_size, nstep, multistep, discount):
+    """Handle Case 3: Symlink directory"""
+    ColorPrint.green("Using pre-created symlink directory - no preprocessing needed")
+    
+    # Create loader directly
+    loader = make_replay_loader(
+        replay_dir=config_path,
+        max_size=1000000 if max_size is None else max_size,
+        batch_size=batch_size,
+        num_workers=num_workers,
+        save_snapshot=True,
+        nstep=nstep,
+        multistep=multistep,
+        discount=discount
+    )
+    
+    # Try to load task mapping if available
+    task_mapping_file = config_path / "task_mapping.json"
+    if task_mapping_file.exists():
+        with open(task_mapping_file, 'r') as f:
+            mapping_data = json.load(f)
+        loader.task_to_id = mapping_data.get('task_to_id', {})
+        loader.id_to_task = mapping_data.get('id_to_task', {})
+        loader.num_tasks = len(loader.task_to_id)
+    else:
+        # Default single task
+        loader.task_to_id = {'default': 0}
+        loader.id_to_task = {0: 'default'}
+        loader.num_tasks = 1
+    
+    ColorPrint.green(f"Loaded symlink dataset with {loader.num_tasks} tasks")
+    return loader
+
+def _load_from_preprocessed_dataset(config_path, batch_size, num_workers, nstep, multistep, discount,
+                                  max_episodes_per_dataset, max_size, is_test,
+                                  split_ratio, use_training_split, **kwargs):
+    """Handle Case 2: Preprocessed dataset"""
+    # Load task mapping from preprocessed dataset
+    task_to_id, id_to_task = load_preprocessed_task_mapping(config_path, is_test)
+    ColorPrint.blue(f"Loaded {'test' if is_test else 'pretraining'} task mapping: {task_to_id}")
+    
+    # Get dataset paths
+    if is_test:
+        datasets_dir = config_path / "test_dataset"
+    else:
+        datasets_dir = config_path / "pretraining_datasets"
+    
+    dataset_paths = [str(d) for d in datasets_dir.iterdir() if d.is_dir()]
+    ColorPrint.green(f"Found {len(dataset_paths)} dataset directories")
+    
+    # Get transition counts for homogeneous loading
+    transition_counts, episode_lengths = count_transitions_with_cache(dataset_paths)
+    
+    return _create_loader_with_split_handling(
+        dataset_paths, task_to_id, id_to_task, transition_counts, episode_lengths,
+        batch_size, num_workers, nstep, multistep, discount,
+        max_episodes_per_dataset, max_size, is_test,
+        split_ratio, use_training_split, preprocessed=True, **kwargs
+    )
+
+def _load_from_json_config(config_path, batch_size, num_workers, nstep, multistep, discount,
+                          max_episodes_per_dataset, max_size, is_test,
+                          split_ratio, use_training_split, **kwargs):
+    """Handle Case 1: JSON config or raw dataset folder"""
     # Determine if it's a config file or folder
     if config_path.suffix == '.json':
         ColorPrint.blue(f"Loading from config file: {config_path}")
@@ -522,153 +501,133 @@ def load_unified_dataset(config_or_path, batch_size=32, num_workers=4,
         
         dataset_paths = [str(d) for d in datasets_dir.iterdir() if d.is_dir()]
     
-    print(f"Found {len(dataset_paths)} dataset directories")
-    
     # Create task mapping
     task_to_id, id_to_task = create_task_mapping(dataset_paths)
+    ColorPrint.green(f"Found {len(dataset_paths)} dataset directories")
     
-    using_split_validation = 'validation_split_ratio' in kwargs and not is_test
-
-    # Get transition counts for optimization
-    episode_lengths = {}
-    if homogeneous or using_split_validation:
+    # Check for cached transition counts to optimize loading
+    dataset_base_path = get_dataset_base_path(dataset_paths)
+    transition_counts, episode_lengths = None, None
+    
+    if dataset_base_path:
+        cached_counts, cached_episode_lengths = load_transition_cache(dataset_base_path)
+        if cached_counts:
+            ColorPrint.green("Using cached transition counts for optimized homogeneous loading")
+            transition_counts, episode_lengths = cached_counts, cached_episode_lengths
+        else:
+            ColorPrint.yellow("No transition cache found - will count transitions for homogeneous loading")
+    
+    # Get transition counts for homogeneous loading (using cache if available)
+    if not transition_counts:
         transition_counts, episode_lengths = count_transitions_with_cache(dataset_paths)
-    else:
-        transition_counts = {}
     
-    
-    # Handle split validation case
+    return _create_loader_with_split_handling(
+        dataset_paths, task_to_id, id_to_task, transition_counts, episode_lengths,
+        batch_size, num_workers, nstep, multistep, discount,
+        max_episodes_per_dataset, max_size, is_test,
+        split_ratio, use_training_split, preprocessed=False, **kwargs
+    )
+
+def _create_loader_with_split_handling(dataset_paths, task_to_id, id_to_task, transition_counts, episode_lengths,
+                                     batch_size, num_workers, nstep, multistep, discount,
+                                     max_episodes_per_dataset, max_size, is_test,
+                                     split_ratio, use_training_split, preprocessed=False, **kwargs):
+    """Create loader with proper train/validation split handling"""
+    # Always use split validation for training data (not test data)
+    using_split_validation = not is_test
+
     if using_split_validation:
-        global _episode_pool
+        # Simplified approach: split episodes directly by indices
+        all_episodes = []
+        for dataset_path in dataset_paths:
+            dataset_path = Path(dataset_path)
+            episode_files = list(dataset_path.glob('*.npz'))
+            all_episodes.extend(episode_files)
+        
+        # Apply homogeneous selection first to get the episodes we want to use
+        selected_episodes, _ = select_episodes_homogeneous(
+            dataset_paths, max_episodes_per_dataset, max_size, is_test
+        )
+        
+        # Now split the selected episodes by dataset to maintain homogeneous distribution
+        train_episodes = []
+        val_episodes = []
+        train_transitions = 0
+        val_transitions = 0
+        
+        for dataset_path in dataset_paths:
+            dataset_path = Path(dataset_path)
+            dataset_name = dataset_path.name
+            
+            # Get episodes for this dataset from selected episodes
+            dataset_episodes = [ep for ep in selected_episodes if ep.parent.name == dataset_name]
+            
+            if not dataset_episodes:
+                continue
+                
+            # Calculate split for this dataset
+            num_episodes = len(dataset_episodes)
+            train_count = max(1, int(num_episodes * split_ratio))  # At least 1 episode for training
+            
+            # Ensure we have at least 1 episode for validation if possible
+            if train_count >= num_episodes and num_episodes > 1:
+                train_count = num_episodes - 1
+            
+            dataset_train = dataset_episodes[:train_count]
+            dataset_val = dataset_episodes[train_count:]
+            
+            # Count transitions for this dataset split
+            for ep in dataset_train:
+                ep_len = get_episode_length_from_cache_or_file(ep, transition_counts, episode_lengths)
+                if ep_len:
+                    train_transitions += ep_len
+            
+            for ep in dataset_val:
+                ep_len = get_episode_length_from_cache_or_file(ep, transition_counts, episode_lengths)
+                if ep_len:
+                    val_transitions += ep_len
+            
+            train_episodes.extend(dataset_train)
+            val_episodes.extend(dataset_val)
+            
+            print(f"Dataset {dataset_name}: {len(dataset_train)} train, {len(dataset_val)} val episodes")
+        
+        # Calculate actual split ratio
+        total_transitions = train_transitions + val_transitions
+        actual_split_ratio = train_transitions / total_transitions if total_transitions > 0 else 0
+        
+        print(f"Actual split: {train_transitions} train / {val_transitions} val transitions (ratio: {actual_split_ratio:.3f})")
         
         if use_training_split:
-            # First call: create episode pool and load training data
-            ColorPrint.blue("Creating episode pool for split validation")
-            
-            # Collect all episodes without any filtering first
-            all_episodes = []
-            for dataset_path in dataset_paths:
-                dataset_path = Path(dataset_path)
-                episode_files = list(dataset_path.glob('*.npz'))
-                all_episodes.extend(episode_files)
-            
-            # Create temporary directory and episode pool
+            # Create training dataset
             temp_dir = Path(tempfile.mkdtemp())
-            print(f"Temporary directory created at: {temp_dir}")
+            ColorPrint.green(f"Created temporary directory: {temp_dir}")
             
-            # Pass transition counts to episode pool for optimization
-            _episode_pool = EpisodePool(temp_dir, all_episodes, task_to_id, transition_counts, episode_lengths)
-            
-            # Now select episodes for training with constraints
-            if homogeneous:
-                selected_episodes, _ = select_episodes_homogeneous(
-                    dataset_paths, max_episodes_per_dataset, max_size, is_test
-                )
-            else:
-                selected_episodes = []
-                for dataset_path in dataset_paths:
-                    dataset_path = Path(dataset_path)
-                    episode_files = list(dataset_path.glob('*.npz'))
-                    
-                    if max_episodes_per_dataset is not None:
-                        episode_files = episode_files[:max_episodes_per_dataset]
-                    
-                    selected_episodes.extend(episode_files)
-            
-            # Mark selected episodes as used in the pool
-            for episode_file in selected_episodes:
-                _episode_pool.mark_episode_used(episode_file)
-            
-            # Get the symlink paths for training
-            training_symlinks = []
-            for episode_file in selected_episodes:
-                episode_path_str = str(episode_file)
-                if episode_path_str in _episode_pool.episode_map:
-                    symlink_path = _episode_pool.episode_map[episode_path_str]
-                    if symlink_path.exists():  # Double check it wasn't removed
-                        training_symlinks.append(symlink_path)
-            
-            print(f"Selected {len(training_symlinks)} episodes for training")
-            
-            # Create a temporary directory with only training symlinks
-            train_temp_dir = Path(tempfile.mkdtemp())
-            counter = 0
-            for symlink_path in training_symlinks:
-                # Create new symlink in training directory
-                new_name = f"train_{counter:06d}_{symlink_path.name.split('_')[-1]}"
-                new_path = train_temp_dir / new_name
-                os.symlink(symlink_path.readlink(), new_path)
-                counter += 1
-            
-            loader_dir = train_temp_dir
+            _create_dataset_symlinks(train_episodes, temp_dir, task_to_id, transition_counts, episode_lengths, preprocessed)
+            loader_dir = temp_dir
+            ColorPrint.green(f"Training split: {len(train_episodes)} episodes with {train_transitions} transitions")
             
         else:
-            # Second call: load validation data from remaining episodes
-            ColorPrint.blue("Loading validation split from remaining episodes")
+            # Create validation dataset
+            temp_dir = Path(tempfile.mkdtemp())
+            ColorPrint.green(f"Created temporary directory: {temp_dir}")
             
-            if _episode_pool is None:
-                raise RuntimeError("Episode pool not initialized. Training split must be loaded first.")
-            
-            # Get available (unused) episodes for validation
-            available_episodes = _episode_pool.get_available_episodes()
-            print(f"Found {len(available_episodes)} episodes available for validation")
-            
-            # Create validation temporary directory
-            val_temp_dir = Path(tempfile.mkdtemp())
-            counter = 0
-            for symlink_path in available_episodes:
-                # Create new symlink in validation directory
-                new_name = f"val_{counter:06d}_{symlink_path.name.split('_')[-1]}"
-                new_path = val_temp_dir / new_name
-                if symlink_path.exists():  # Check if symlink still exists
-                    os.symlink(symlink_path.readlink(), new_path)
-                    counter += 1
-            
-            loader_dir = val_temp_dir
+            _create_dataset_symlinks(val_episodes, temp_dir, task_to_id, transition_counts, episode_lengths, preprocessed)
+            loader_dir = temp_dir
+            ColorPrint.green(f"Validation split: {len(val_episodes)} episodes with {val_transitions} transitions")
     
     else:
-        # Original behavior for non-split cases
-        if homogeneous:
-            ColorPrint.green("Using homogeneous dataset loading")
-            selected_episodes, _ = select_episodes_homogeneous(
-                dataset_paths, max_episodes_per_dataset, max_size, is_test
-            )
-        else:
-            selected_episodes = []
-            for dataset_path in dataset_paths:
-                dataset_path = Path(dataset_path)
-                episode_files = list(dataset_path.glob('*.npz'))
-                
-                if max_episodes_per_dataset is not None:
-                    episode_files = episode_files[:max_episodes_per_dataset]
-                
-                selected_episodes.extend(episode_files)
+        # Test data - no splitting, use all episodes
+        selected_episodes, _ = select_episodes_homogeneous(
+            dataset_paths, max_episodes_per_dataset, max_size, is_test
+        )
         
-        print(f"Selected {len(selected_episodes)} episodes total")
-        
-        # Create temporary directory with task IDs
-        ColorPrint.yellow("Creating temporary directory with task IDs")
         temp_dir = Path(tempfile.mkdtemp())
-        print(f"Temporary directory created at: {temp_dir}")
+        ColorPrint.green(f"Created temporary directory: {temp_dir}")
         
-        counter = 0
-        for episode_file in selected_episodes:
-            # Get task ID for this episode
-            task_name = extract_task_name_from_path(episode_file.parent)
-            task_id = task_to_id[task_name]
-            
-            # Get episode length efficiently using cache when possible
-            episode_len = get_episode_length_from_cache_or_file(
-                episode_file, transition_counts, episode_lengths
-            )
-            
-            processed_path = create_symlink_with_proper_naming(
-                episode_file, temp_dir, counter, task_id, episode_len
-            )
-            if processed_path is not None:
-                counter += 1
-        
+        _create_dataset_symlinks(selected_episodes, temp_dir, task_to_id, transition_counts, episode_lengths, preprocessed)
         loader_dir = temp_dir
+        ColorPrint.green(f"Test dataset: {len(selected_episodes)} episodes")
     
     # Create loader
     loader = make_replay_loader(
@@ -682,15 +641,305 @@ def load_unified_dataset(config_or_path, batch_size=32, num_workers=4,
         discount=discount
     )
     
-    # Attach task mapping to loader for reference
+    # Attach task mapping
     loader.task_to_id = task_to_id
     loader.id_to_task = id_to_task
     loader.num_tasks = len(task_to_id)
     
+    return loader
+
+def _create_dataset_symlinks(selected_episodes, temp_dir, task_to_id, transition_counts, episode_lengths, preprocessed):
+    """Create symlinks for dataset episodes"""
+    counter = 0
+    for episode_file in tqdm.tqdm(selected_episodes, desc="Creating episode symlinks"):
+        if not preprocessed:
+            task_name = extract_task_name_from_path(episode_file.parent)
+            task_id = task_to_id[task_name]
+            episode_len = get_episode_length_from_cache_or_file(
+                episode_file, transition_counts, episode_lengths
+            )
+            processed_path = create_symlink_with_proper_naming(
+                episode_file, temp_dir, counter, task_id, episode_len
+            )
+        else:
+            episode_len = get_episode_length_from_cache_or_file(
+                episode_file, transition_counts, episode_lengths
+            )
+            processed_path = create_symlink_with_proper_naming(
+                episode_file, temp_dir, counter, None, episode_len
+            )
+        
+        if processed_path is not None:
+            counter += 1
+
+def is_symlink_dataset(config_or_path):
+    """Check if the dataset is a symlink directory (ready-to-use episodes)"""
+    config_path = Path(config_or_path)
+    
+    # Check if it's a directory with .npz files that are symlinks
+    if config_path.is_dir():
+        npz_files = list(config_path.glob('*.npz'))
+        if npz_files and all(f.is_symlink() for f in npz_files[:5]):  # Check first 5 files
+            return True
+    return False
+
+def load_unified_dataset(config_or_path, batch_size=32, num_workers=4,
+                         nstep=3, multistep=3, discount=0.99, 
+                         max_episodes_per_dataset=8, max_size=None,
+                         homogeneous=None, is_test=False, 
+                         split_ratio=0.8, use_training_split=True, **kwargs):
+    """
+    Load episodes from datasets specified in config or folder structure
+    
+    Args:
+        config_or_path: JSON config, preprocessed dataset directory, or symlink directory
+        homogeneous: DEPRECATED - now always enabled for optimal dataset distribution
+        split_ratio: Ratio of data to use for training (remaining goes to validation)
+        use_training_split: Whether to use training split (True) or validation split (False)
+        **kwargs: Additional arguments
+    """
+    # Monitor memory usage
+    import psutil
+    process = psutil.Process(os.getpid())
+    memory_before = process.memory_info().rss / 1024 / 1024  # MB
+    ColorPrint.blue(f"Memory before dataset loading: {memory_before:.2f} MB")
+    
+    # Deprecation warning for homogeneous parameter
+    if homogeneous is not None:
+        ColorPrint.yellow("WARNING: 'homogeneous' parameter is deprecated and will be ignored. Homogeneous loading is now always enabled for optimal performance.")
+    
+    config_path = Path(config_or_path)
+    
+    # Determine dataset type and handle accordingly
+    if is_symlink_dataset(config_path):
+        # Case 3: Symlink directory - ready to use
+        ColorPrint.green(f"Loading from symlink directory: {config_path}")
+        loader = _load_from_symlink_directory(config_path, batch_size, num_workers, max_size, nstep, multistep, discount)
+    
+    elif is_preprocessed_dataset(config_path):
+        # Case 2: Preprocessed dataset
+        ColorPrint.green(f"Loading from preprocessed dataset: {config_path}")
+        loader = _load_from_preprocessed_dataset(
+            config_path, batch_size, num_workers, nstep, multistep, discount,
+            max_episodes_per_dataset, max_size, is_test, 
+            split_ratio, use_training_split, **kwargs
+        )
+    
+    else:
+        # Case 1: JSON config or raw dataset folder
+        ColorPrint.blue(f"Loading from JSON config or raw dataset: {config_path}")
+        loader = _load_from_json_config(
+            config_path, batch_size, num_workers, nstep, multistep, discount,
+            max_episodes_per_dataset, max_size, is_test,
+            split_ratio, use_training_split, **kwargs
+        )
+    
     # Monitor memory usage after loading
     memory_after = process.memory_info().rss / 1024 / 1024  # MB
     memory_used = memory_after - memory_before
-    
-    ColorPrint.blue(f"Memory usage - Before: {memory_before:.2f} MB, After: {memory_after:.2f} MB, Used: {memory_used:.2f} MB")
+    ColorPrint.green(f"Memory after dataset loading: {memory_after:.2f} MB")
+    ColorPrint.green(f"Memory used by dataset loading: {memory_used:.2f} MB")
     
     return loader
+
+def load_train_val_datasets(config_or_path, batch_size=32, num_workers=4,
+                           nstep=3, multistep=3, discount=0.99, 
+                           max_episodes_per_dataset=8, max_size=None,
+                           split_ratio=0.8, **kwargs):
+    """
+    Load both training and validation datasets with a single call
+    
+    Args:
+        config_or_path: JSON config, preprocessed dataset directory, or symlink directory
+        split_ratio: Ratio of data to use for training (remaining goes to validation)
+        **kwargs: Additional arguments
+        
+    Returns:
+        tuple: (train_dataloader, valid_dataloader)
+    """
+    ColorPrint.blue(f"=== LOADING TRAIN/VAL DATASETS (split_ratio={split_ratio}) ===")
+    
+    # Monitor memory usage
+    import psutil
+    process = psutil.Process(os.getpid())
+    memory_before = process.memory_info().rss / 1024 / 1024  # MB
+    
+    config_path = Path(config_or_path)
+    
+    # Determine dataset type and handle accordingly
+    if is_symlink_dataset(config_path):
+        raise NotImplementedError("Split validation not supported for symlink datasets")
+    
+    elif is_preprocessed_dataset(config_path):
+        # Case 2: Preprocessed dataset
+        ColorPrint.green(f"Loading from preprocessed dataset: {config_path}")
+        train_loader, val_loader = _load_train_val_from_preprocessed_dataset(
+            config_path, batch_size, num_workers, nstep, multistep, discount,
+            max_episodes_per_dataset, max_size, split_ratio, **kwargs
+        )
+    
+    else:
+        # Case 1: JSON config or raw dataset folder
+        ColorPrint.blue(f"Loading from JSON config or raw dataset: {config_path}")
+        train_loader, val_loader = _load_train_val_from_json_config(
+            config_path, batch_size, num_workers, nstep, multistep, discount,
+            max_episodes_per_dataset, max_size, split_ratio, **kwargs
+        )
+    
+    # Monitor memory usage after loading
+    memory_after = process.memory_info().rss / 1024 / 1024  # MB
+    memory_used = memory_after - memory_before
+    ColorPrint.green(f"Memory used for train/val datasets: {memory_used:.2f} MB")
+    
+    return train_loader, val_loader
+
+def _load_train_val_from_preprocessed_dataset(config_path, batch_size, num_workers, nstep, multistep, discount,
+                                            max_episodes_per_dataset, max_size, split_ratio, **kwargs):
+    """Handle Case 2: Preprocessed dataset - return both train and val loaders"""
+    # Load task mapping from preprocessed dataset
+    task_to_id, id_to_task = load_preprocessed_task_mapping(config_path, is_test=False)
+    ColorPrint.blue(f"Loaded pretraining task mapping: {task_to_id}")
+    
+    # Get dataset paths
+    datasets_dir = config_path / "pretraining_datasets"
+    dataset_paths = [str(d) for d in datasets_dir.iterdir() if d.is_dir()]
+    ColorPrint.green(f"Found {len(dataset_paths)} dataset directories")
+    
+    # Get transition counts for homogeneous loading
+    transition_counts, episode_lengths = count_transitions_with_cache(dataset_paths)
+    
+    return _create_train_val_loaders(
+        dataset_paths, task_to_id, id_to_task, transition_counts, episode_lengths,
+        batch_size, num_workers, nstep, multistep, discount,
+        max_episodes_per_dataset, max_size, split_ratio, preprocessed=True, **kwargs
+    )
+
+def _load_train_val_from_json_config(config_path, batch_size, num_workers, nstep, multistep, discount,
+                                    max_episodes_per_dataset, max_size, split_ratio, **kwargs):
+    """Handle Case 1: JSON config or raw dataset folder - return both train and val loaders"""
+    # Determine if it's a config file or folder
+    if config_path.suffix == '.json':
+        ColorPrint.blue(f"Loading from config file: {config_path}")
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+        dataset_paths = config.get('pretraining_datasets', [])
+    else:
+        ColorPrint.blue(f"Loading from folder structure: {config_path}")
+        datasets_dir = config_path / "pretraining_datasets"
+        dataset_paths = [str(d) for d in datasets_dir.iterdir() if d.is_dir()]
+    
+    # Create task mapping
+    task_to_id, id_to_task = create_task_mapping(dataset_paths)
+    ColorPrint.green(f"Found {len(dataset_paths)} dataset directories")
+    
+    # Get transition counts for homogeneous loading (with caching)
+    transition_counts, episode_lengths = count_transitions_with_cache(dataset_paths)
+    
+    return _create_train_val_loaders(
+        dataset_paths, task_to_id, id_to_task, transition_counts, episode_lengths,
+        batch_size, num_workers, nstep, multistep, discount,
+        max_episodes_per_dataset, max_size, split_ratio, preprocessed=False, **kwargs
+    )
+
+def _create_train_val_loaders(dataset_paths, task_to_id, id_to_task, transition_counts, episode_lengths,
+                             batch_size, num_workers, nstep, multistep, discount,
+                             max_episodes_per_dataset, max_size, split_ratio, preprocessed=False, **kwargs):
+    """Create both train and validation loaders from the same episode pool"""
+    
+    # Apply homogeneous selection first to get the episodes we want to use
+    selected_episodes, _ = select_episodes_homogeneous(
+        dataset_paths, max_episodes_per_dataset, max_size, is_test=False
+    )
+    
+    # Split the selected episodes by dataset to maintain homogeneous distribution
+    train_episodes = []
+    val_episodes = []
+    train_transitions = 0
+    val_transitions = 0
+    
+    for dataset_path in dataset_paths:
+        dataset_path = Path(dataset_path)
+        dataset_name = dataset_path.name
+        
+        # Get episodes for this dataset from selected episodes
+        dataset_episodes = [ep for ep in selected_episodes if ep.parent.name == dataset_name]
+        
+        if not dataset_episodes:
+            continue
+            
+        # Calculate split for this dataset
+        num_episodes = len(dataset_episodes)
+        train_count = max(1, int(num_episodes * split_ratio))  # At least 1 episode for training
+        
+        # Ensure we have at least 1 episode for validation if possible
+        if train_count >= num_episodes and num_episodes > 1:
+            train_count = num_episodes - 1
+        
+        dataset_train = dataset_episodes[:train_count]
+        dataset_val = dataset_episodes[train_count:]
+        
+        # Count transitions for this dataset split
+        for ep in dataset_train:
+            ep_len = get_episode_length_from_cache_or_file(ep, transition_counts, episode_lengths)
+            if ep_len:
+                train_transitions += ep_len
+        
+        for ep in dataset_val:
+            ep_len = get_episode_length_from_cache_or_file(ep, transition_counts, episode_lengths)
+            if ep_len:
+                val_transitions += ep_len
+        
+        train_episodes.extend(dataset_train)
+        val_episodes.extend(dataset_val)
+        
+        print(f"Dataset {dataset_name}: {len(dataset_train)} train, {len(dataset_val)} val episodes")
+    
+    # Calculate actual split ratio
+    total_transitions = train_transitions + val_transitions
+    actual_split_ratio = train_transitions / total_transitions if total_transitions > 0 else 0
+    
+    print(f"Actual split: {train_transitions} train / {val_transitions} val transitions (ratio: {actual_split_ratio:.3f})")
+    
+    # Create training dataset
+    train_temp_dir = Path(tempfile.mkdtemp())
+    ColorPrint.green(f"Created training temp directory: {train_temp_dir}")
+    _create_dataset_symlinks(train_episodes, train_temp_dir, task_to_id, transition_counts, episode_lengths, preprocessed)
+    
+    # Create validation dataset
+    val_temp_dir = Path(tempfile.mkdtemp())
+    ColorPrint.green(f"Created validation temp directory: {val_temp_dir}")
+    _create_dataset_symlinks(val_episodes, val_temp_dir, task_to_id, transition_counts, episode_lengths, preprocessed)
+    
+    # Create both loaders
+    train_loader = make_replay_loader(
+        replay_dir=train_temp_dir,
+        max_size=1000000 if max_size is None else max_size,
+        batch_size=batch_size,
+        num_workers=num_workers,
+        save_snapshot=True,
+        nstep=nstep,
+        multistep=multistep,
+        discount=discount
+    )
+    
+    val_loader = make_replay_loader(
+        replay_dir=val_temp_dir,
+        max_size=1000000,  # No size limit for validation
+        batch_size=batch_size,
+        num_workers=num_workers,
+        save_snapshot=True,
+        nstep=nstep,
+        multistep=multistep,
+        discount=discount
+    )
+    
+    # Attach task mapping to both loaders
+    for loader in [train_loader, val_loader]:
+        loader.task_to_id = task_to_id
+        loader.id_to_task = id_to_task
+        loader.num_tasks = len(task_to_id)
+    
+    ColorPrint.green(f"Training split: {len(train_episodes)} episodes with {train_transitions} transitions")
+    ColorPrint.green(f"Validation split: {len(val_episodes)} episodes with {val_transitions} transitions")
+    
+    return train_loader, val_loader
