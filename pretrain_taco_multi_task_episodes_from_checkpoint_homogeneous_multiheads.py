@@ -79,7 +79,7 @@ if __name__ == "__main__":
     parser.add_argument('--num_workers', type=int, default=0, help='Number of dataloader workers')
     parser.add_argument('--save_path', type=str, default='models/', help='Path to save the trained model')
     parser.add_argument('--eval_frequency', type=int, default=50, help='Frequency of evaluation steps')
-    parser.add_argument('--train_ratio', type=float, default=0.8, help='Ratio of data to use for training')
+    parser.add_argument('--train_ratio', type=float, default=0.9, help='Ratio of data to use for training')
     parser.add_argument('--eval_batches', type=int, default=10, help='Number of batches to use for evaluation')
     parser.add_argument('--no_curl', action='store_true', help='Disable CURL loss (enabled by default)')
     parser.add_argument('--no_reward', action='store_true', help='Disable reward loss (enabled by default)')
