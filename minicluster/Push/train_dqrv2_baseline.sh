@@ -8,10 +8,10 @@ if [ $# -lt 1 ] || [ $# -gt 2 ]; then
     exit 1
 fi
 
-cuda_device=$2
+cuda_device=$1
 
 # Set freeze_encoder default value to false if not provided
-freeze_encoder=${1:-false}
+freeze_encoder=${2:-false}
 
 # Validate cuda_device value
 case $cuda_device in
