@@ -19,7 +19,7 @@ batch_size=512
 
 # Check if running on Leonardo cluster
 if echo "$(hostname)" | grep -q "leonardo"; then
-    SLURM_EXTRA_ARGS="--partition=boost_usr_prod --account=iscrc_erlo"
+    SLURM_EXTRA_ARGS="--partition=boost_usr_prod --account=iscrc_erlo --cpus-per-task=20"
 else
     SLURM_EXTRA_ARGS=""
 fi
