@@ -490,6 +490,7 @@ class TACOAgent:
             metrics['reward_loss']  = reward_loss.item()
             metrics['curl_loss'] = curl_loss.item()
             metrics['taco_loss']  = taco_loss.item()
+            metrics['total_loss'] = taco_loss.item() + curl_loss.item() + reward_loss.item()
         
         return metrics
         
@@ -663,6 +664,7 @@ class TACOAgent:
             metrics['reward_loss']  = reward_loss.item()
             metrics['curl_loss'] = curl_loss.item()
             metrics['taco_loss']  = taco_loss.item()
+            metrics['total_loss'] = taco_loss.item() + curl_loss.item() + reward_loss.item()
         
         return metrics
         

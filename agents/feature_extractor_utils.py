@@ -140,6 +140,7 @@ class FeatureExtractorFactory:
         """Create R3M model"""
         print("Loading R3M model")
         feature_extractor = load_r3m("resnet50")
+        feature_extractor.fc = nn.Identity()  # Remove final classification layer
         preprocess = T.Compose(
         [
             ToTensorIfNot(),  # this divides by 255
@@ -344,7 +345,6 @@ class FeatureExtractorFactory:
         
         # Create base ResNet50
         feature_extractor = models.resnet50(weights=None)
-        
         # Load checkpoint
         checkpoint = torch.load(checkpoint_path, map_location='cpu')
         if 'state_dict' in checkpoint:
