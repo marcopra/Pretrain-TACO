@@ -435,7 +435,7 @@ if __name__ == "__main__":
                     reward_str = "rew" if not args.no_reward else "norew"
                     optimizer_str = f"_{args.optimizer}" if args.optimizer != "adam" else ""
                     extractor_str = f"_{args.feature_extractor}" if args.feature_extractor != "conv" else ""
-                    best_model_path = f"{args.save_path}/taco_MT_{'_'.join(args.dataset_config.split('/')[1:])}_lr={args.lr}{optimizer_str}{extractor_str}_ts={steps}_len={actual_dataset_size}_{curl_str}_{reward_str}_best.pt"
+                    best_model_path = f"{args.save_path}/taco_MT{extractor_str}_ds={actual_dataset_size}_bs={args.batch_size}_ts={steps}{optimizer_str}_lr={args.lr}_{curl_str}_{reward_str}_best.pt"
                     print(f"Saving new best model to {best_model_path} at step {steps} (based on validation loss)")
                     os.makedirs(args.save_path, exist_ok=True)
                     torch.save({
@@ -554,7 +554,7 @@ if __name__ == "__main__":
                 reward_str = "rew" if not args.no_reward else "norew"
                 optimizer_str = f"_{args.optimizer}" if args.optimizer != "adam" else ""
                 extractor_str = f"_{args.feature_extractor}" if args.feature_extractor != "conv" else ""
-                checkpoint_path = f"{args.save_path}/taco_MT_{extractor_str}_{'_'.join(args.dataset_config.split('/')[1:])}_lr={args.lr}{optimizer_str}_ts={steps}_len={actual_dataset_size}_{curl_str}_{reward_str}.pt"
+                checkpoint_path = f"{args.save_path}/taco_MT{extractor_str}_ds={actual_dataset_size}_bs={args.batch_size}_ts={steps}{optimizer_str}_lr={args.lr}_{curl_str}_{reward_str}.pt"
                 print(f"Saving checkpoint at step {steps} to {checkpoint_path}")
                 os.makedirs(args.save_path, exist_ok=True)
                 torch.save({
@@ -587,27 +587,14 @@ if __name__ == "__main__":
         'epoch': epoch,
         'feature_extractor': args.feature_extractor,
         'pretrained_path': pretrained_path,
-    }, f"{args.save_path}/taco_MT_{extractor_str}_{'_'.join(args.dataset_config.split('/')[1:])}_lr={args.lr}{optimizer_str}_ts={args.total_steps}_len={actual_dataset_size}_{curl_str}_{reward_str}.pt")
+        'batch_size': args.batch_size,  # Add batch_size to saved checkpoint
+    }, f"{args.save_path}/taco_MT{extractor_str}_ds={actual_dataset_size}_bs={args.batch_size}_ts={args.total_steps}{optimizer_str}_lr={args.lr}_{curl_str}_{reward_str}.pt")
     
     print(f"Training completed after {steps} steps and {epoch} epochs")
     if args.use_wandb:
         wandb.finish()
-    if args.use_wandb:
-        wandb.finish()
-    torch.save({
-        'encoder': taco_agent.encoder.state_dict(),
-        'taco': taco_agent.TACO.state_dict(),
-        'act_tok': taco_agent.act_tok.state_dict(),
-        'args': vars(args),  # Save configuration for easier loading
-        'steps': steps,
-        'epoch': epoch,
-        'feature_extractor': args.feature_extractor,
-        'pretrained_path': pretrained_path,
-    }, f"{args.save_path}/taco_MT_{'_'.join(args.dataset_config.split('/')[1:])}_lr={args.lr}{optimizer_str}{extractor_str}_ts={args.total_steps}_len={actual_dataset_size}_{curl_str}_{reward_str}.pt")
+
     
-    print(f"Training completed after {steps} steps and {epoch} epochs")
-    if args.use_wandb:
-        wandb.finish()
-    if args.use_wandb:
-        wandb.finish()
+    
+
 

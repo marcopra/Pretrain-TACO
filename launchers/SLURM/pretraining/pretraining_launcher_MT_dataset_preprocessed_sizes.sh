@@ -11,9 +11,18 @@ feature_extractors=(
     # "conv"
 )
 # Define dataset sizes to experiment with
-dataset_sizes=(1200000)
+dataset_sizes=(1200000 510000)
 
 exps_values=("0.0")
+
+batch_size=512
+
+# Check if running on Leonardo cluster
+if echo "$(hostname)" | grep -q "leonardo"; then
+    SLURM_EXTRA_ARGS="--partition=boost_usr_prod --account=iscrc_erlo"
+else
+    SLURM_EXTRA_ARGS=""
+fi
 
 # Submit jobs for all combinations
 for dataset_config in "${dataset_configs[@]}"; do
@@ -21,7 +30,7 @@ for dataset_config in "${dataset_configs[@]}"; do
         for exps in "${exps_values[@]}"; do
             for fe in "${feature_extractors[@]}"; do
                 echo "Submitting SLURM job: DATASET_CONFIG=${dataset_config}, DATASET_SIZE=${dataset_size}, EXPS=${exps}, FEATURE_EXTRACTOR=${fe}"
-                sbatch --export=DATASET_CONFIG="${dataset_config}",DATASET_SIZE="${dataset_size}",EXPS="${exps}",FEATURE_EXTRACTOR="${fe}" launchers/SLURM/pretraining/pretraining_MT_configs.sh
+                sbatch ${SLURM_EXTRA_ARGS} --export=DATASET_CONFIG="${dataset_config}",DATASET_SIZE="${dataset_size}",EXPS="${exps}",FEATURE_EXTRACTOR="${fe}",BATCH_SIZE="${batch_size}" launchers/SLURM/pretraining/pretraining_MT_configs.sh
             done
         done
     done
