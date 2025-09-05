@@ -35,17 +35,19 @@ case $no_taco in
 esac
 
 # Number of runs
-num_runs=35
+num_runs=3
 
 # Run experiments in a loop
 for i in $(seq 1 $num_runs); do
     echo "Running experiment $i of $num_runs"
     
+    SEED=$(($RANDOM % 10000)) 
+    
     # Run the Python command with the appropriate arguments
-    python3 train_metaworld.py exp_name=baseline${cuda_device} seed=1 env_name=push-v2 random_init=true random_goal=false wandb_tag=baseline num_train_frames=220000 device=cuda:${cuda_device} agent.no_taco=${no_taco} wandb_project="taco_MT"
+    python3 train_metaworld.py exp_name=baseline${cuda_device}${SEED} seed=${SEED} env_name=push-v2 random_init=true random_goal=false wandb_tag=baseline num_train_frames=220000 device=cuda:${cuda_device} agent.no_taco=${no_taco}  wandb_project="drqv2vstaco"
 
     # Cleanup command
-    rm -rf baseline${cuda_device}*
+    rm -rf baseline${cuda_device}${SEED}*
 done
 
 
