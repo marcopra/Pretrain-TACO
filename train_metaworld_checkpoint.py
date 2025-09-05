@@ -293,12 +293,14 @@ class Workspace:
         self.train_video_recorder.init(time_step.observation)
         metrics = None
         
+        print('Start training...')
         # Save initial encoder checkpoint (0% threshold)
         if not self.encoder_saved_flags[0.0]:
+            print('Saving initial encoder checkpoint...')
             self.encoder_saved_flags[0.0] = True
             self.save_encoder_checkpoint(0.0, 0.0)
+        print('Initial encoder checkpoint saved.')
         
-        # self.save_policy('random')
         
         while train_until_step(self.global_step):
             if time_step.last():
@@ -332,12 +334,6 @@ class Workspace:
                         })
                         
                     
-                    # Save medium policy if we reach a certain reward threshold
-                    if hasattr(self.cfg, 'medium_reward_threshold') and \
-                       episode_reward >= self.cfg.medium_reward_threshold and \
-                       self.saved_medium_policy == False:
-                        self.save_policy('medium')
-                        self.saved_medium_policy = True
 
                 # reset env
                 time_step = self.train_env.reset()
@@ -407,7 +403,7 @@ def main(cfg):
     from pathlib import Path
     if cfg.use_wandb:
         wandb.tensorboard.patch(root_logdir=str(Path.cwd()))
-    from train_metaworld import Workspace as W
+    from train_metaworld_checkpoint import Workspace as W
     root_dir = Path.cwd()
     workspace = W(cfg)
     snapshot = root_dir / 'snapshot.pt'
