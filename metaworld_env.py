@@ -75,8 +75,8 @@ class ResizeRendering(gym.Wrapper):
     def render(self):
         img = super().render()
 
-        # Flip verticale per correggere l'orientamento (MuJoCo restituisce immagini capovolte)
-        img = np.flipud(img)
+        # # Flip verticale per correggere l'orientamento (MuJoCo restituisce immagini capovolte)
+        # img = np.flipud(img)
 
         # Convert numpy array to PIL Image
         img = Image.fromarray(img.astype(np.uint8))

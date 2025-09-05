@@ -103,7 +103,7 @@ class Encoder(nn.Module):
         # Da (batch_size, 9, height, width) a (batch_size, 3, 3, height, width)
         obs_reshaped = obs.view(batch_size, self.num_stack, self.channels, actual_H, actual_W)
 
-        # Flatten per processare ogni immagine separatamente: (batch_size * 3, 3, 84, 84)
+        # Flatten per processare ogni immagine separatamente: (batch_size * 3, 3, height, width)
         obs_flat = obs_reshaped.view(batch_size * self.num_stack, self.channels, actual_H, actual_W)
 
         # Apply preprocessing
