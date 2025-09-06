@@ -290,7 +290,7 @@ class TACOAgent:
         if map_location is None:
             map_location = self.device
             
-        checkpoint = torch.load(model_path, map_location=map_location)
+        checkpoint = torch.load(model_path, map_location=map_location, weights_only=False)
         
         self.encoder.load_state_dict(checkpoint['encoder'])
         self.act_tok.load_state_dict(checkpoint['act_tok'])
