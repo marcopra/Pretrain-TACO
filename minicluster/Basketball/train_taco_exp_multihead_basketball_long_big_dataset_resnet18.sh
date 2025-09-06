@@ -65,9 +65,10 @@ fi
 for i in $(seq 1 $num_runs); do
     echo "Running experiment $i of $num_runs"
     
+    SEED=$(($RANDOM % 10000)) 
     # Run the Python command with the appropriate arguments
-    python3 train_metaworld.py agent.pretrained_path="/home/mprattico/Pretrain-TACO/${model_path}" exp_name="/home/mprattico/Pretrain-TACO/${model_path}" seed=1 env_name=basketball-v2 random_init=true random_goal=false wandb_tag=${wandb_tag} wandb_project="taco_multihead_long" num_train_frames=1100000 device=cuda:${cuda_device} agent.freeze_encoder=${freeze_encoder} batch_size=512
+    python3 train_metaworld.py agent.pretrained_path="/home/mprattico/Pretrain-TACO/${model_path}${SEED}" exp_name="/home/mprattico/Pretrain-TACO/${model_path}" seed=${SEED} env_name=basketball-v2 random_init=true random_goal=false wandb_tag=${wandb_tag} wandb_project="taco_multihead_long" num_train_frames=1100000 device=cuda:${cuda_device} agent.freeze_encoder=${freeze_encoder} batch_size=512
 
     # Cleanup command
-    rm -rf exp_local/metaworld/home/mprattico/Pretrain-TACO/${model_path}
+    rm -rf exp_local/metaworld/home/mprattico/Pretrain-TACO/${model_path}${SEED}*
 done
