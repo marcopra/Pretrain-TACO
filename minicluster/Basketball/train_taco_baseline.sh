@@ -36,14 +36,14 @@ case $no_taco in
         ;;
 esac
 
-# Validate batch_size value
-if ! [[ "$batch_size" =~ ^[0-9]+$ ]] || [ "$batch_size" -le 0 ]; then
-    echo "Error: Invalid batch_size value. Must be a positive integer."
-    exit 1
-fi
+# # Validate batch_size value
+# if ! [[ "$batch_size" =~ ^[0-9]+$ ]] || [ "$batch_size" -le 0 ]; then
+#     echo "Error: Invalid batch_size value. Must be a positive integer."
+#     exit 1
+# fi
 
 # Number of runs
-num_runs=35
+num_runs=3
 
 # Run experiments in a loop
 for i in $(seq 1 $num_runs); do
