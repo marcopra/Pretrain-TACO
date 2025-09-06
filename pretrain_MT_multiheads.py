@@ -54,6 +54,17 @@ def format_pretrained_path(feature_extractor):
     return extractor_map.get(feature_extractor, f"{feature_extractor}_scratch")
 
 
+def extract_dataset_config_name(dataset_config):
+    """Extract final folder name from dataset config path"""
+    config_path = Path(dataset_config)
+    
+    # If it's a JSON file, remove the .json extension and return the stem
+    if config_path.suffix == '.json':
+        return config_path.stem
+    
+    # For folder paths, return the final folder name
+    return config_path.name
+
 # Main function
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -117,6 +128,10 @@ if __name__ == "__main__":
         from agents.taco_multiheads import TACOAgent
     else:
         from agents.taco_resnet_multiheads import TACOAgent
+
+    # Extract dataset config name for file naming
+    dataset_config_name = extract_dataset_config_name(args.dataset_config)
+    print(f"Dataset config name for file naming: {dataset_config_name}")
 
     # Handle dataset config paths based on type (JSON vs folder)
     config_path = Path(args.dataset_config)
@@ -435,7 +450,7 @@ if __name__ == "__main__":
                     reward_str = "rew" if not args.no_reward else "norew"
                     optimizer_str = f"_{args.optimizer}" if args.optimizer != "adam" else ""
                     extractor_str = f"_{args.feature_extractor}" if args.feature_extractor != "conv" else ""
-                    best_model_path = f"{args.save_path}/taco_MT{extractor_str}_ds={actual_dataset_size}_bs={args.batch_size}_ts={steps}{optimizer_str}_lr={args.lr}_{curl_str}_{reward_str}_best.pt"
+                    best_model_path = f"{args.save_path}/taco_MT{extractor_str}_{dataset_config_name}_ds={actual_dataset_size}_bs={args.batch_size}_ts={steps}{optimizer_str}_lr={args.lr}_{curl_str}_{reward_str}_best.pt"
                     print(f"Saving new best model to {best_model_path} at step {steps} (based on validation loss)")
                     os.makedirs(args.save_path, exist_ok=True)
                     torch.save({
@@ -554,7 +569,7 @@ if __name__ == "__main__":
                 reward_str = "rew" if not args.no_reward else "norew"
                 optimizer_str = f"_{args.optimizer}" if args.optimizer != "adam" else ""
                 extractor_str = f"_{args.feature_extractor}" if args.feature_extractor != "conv" else ""
-                checkpoint_path = f"{args.save_path}/taco_MT{extractor_str}_ds={actual_dataset_size}_bs={args.batch_size}_ts={steps}{optimizer_str}_lr={args.lr}_{curl_str}_{reward_str}.pt"
+                checkpoint_path = f"{args.save_path}/taco_MT{extractor_str}_{dataset_config_name}_ds={actual_dataset_size}_bs={args.batch_size}_ts={steps}{optimizer_str}_lr={args.lr}_{curl_str}_{reward_str}.pt"
                 print(f"Saving checkpoint at step {steps} to {checkpoint_path}")
                 os.makedirs(args.save_path, exist_ok=True)
                 torch.save({
@@ -588,13 +603,13 @@ if __name__ == "__main__":
         'feature_extractor': args.feature_extractor,
         'pretrained_path': pretrained_path,
         'batch_size': args.batch_size,  # Add batch_size to saved checkpoint
-    }, f"{args.save_path}/taco_MT{extractor_str}_ds={actual_dataset_size}_bs={args.batch_size}_ts={args.total_steps}{optimizer_str}_lr={args.lr}_{curl_str}_{reward_str}.pt")
+    }, f"{args.save_path}/taco_MT{extractor_str}_{dataset_config_name}_ds={actual_dataset_size}_bs={args.batch_size}_ts={args.total_steps}{optimizer_str}_lr={args.lr}_{curl_str}_{reward_str}.pt")
     
     print(f"Training completed after {steps} steps and {epoch} epochs")
     if args.use_wandb:
         wandb.finish()
 
-    
-    
+
+
 
 
