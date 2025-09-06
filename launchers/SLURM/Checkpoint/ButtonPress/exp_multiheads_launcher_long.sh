@@ -3,7 +3,6 @@
 seeds="1"
 env_names=("button-press-v2")
 model_paths=(
-"/home/mprattico/Pretrain-TACO/models_checkpoint/ButtonPress/encoder_button-press-v2_0_0pct_rew0_step0_ep0.pt"
 "/home/mprattico/Pretrain-TACO/models_checkpoint/ButtonPress/encoder_button-press-v2_0_20pct_rew890_step195000_ep780.pt"
 "/home/mprattico/Pretrain-TACO/models_checkpoint/ButtonPress/encoder_button-press-v2_0_40pct_rew3632_step220000_ep880.pt"
 "/home/mprattico/Pretrain-TACO/models_checkpoint/ButtonPress/encoder_button-press-v2_0_60pct_rew3632_step220000_ep880.pt"
@@ -11,7 +10,7 @@ model_paths=(
    
 random_hand_inital="true"
 random_goal_inital="false"
-wandb_tags=("0_BUTTON_PRESS" "20_BUTTON_PRESS" "40_BUTTON_PRESS" "60_BUTTON_PRESS")
+wandb_tags=("20_BUTTON_PRESS" "40_BUTTON_PRESS" "60_BUTTON_PRESS")
 no_taco="false"
 num_steps=2100000
 

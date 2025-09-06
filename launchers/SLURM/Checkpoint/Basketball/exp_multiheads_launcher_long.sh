@@ -3,7 +3,6 @@
 seeds="1"
 env_names=("basketball-v2")
 model_paths=(
-"/home/mprattico/Pretrain-TACO/models_checkpoint/Basketball/encoder_basketball-v2_0_0pct_rew0_step0_ep0.pt"
 "/home/mprattico/Pretrain-TACO/models_checkpoint/Basketball/encoder_basketball-v2_0_20pct_rew2237_step30000_ep120.pt"
 "/home/mprattico/Pretrain-TACO/models_checkpoint/Basketball/encoder_basketball-v2_0_40pct_rew2237_step30000_ep120.pt"
 "/home/mprattico/Pretrain-TACO/models_checkpoint/Basketball/encoder_basketball-v2_0_60pct_rew2864_step50000_ep200.pt"
@@ -12,7 +11,7 @@ model_paths=(
    
 random_hand_inital="true"
 random_goal_inital="false"
-wandb_tags=("0_BASKETBALL" "20_BASKETBALL" "40_BASKETBALL" "60_BASKETBALL" "100_BASKETBALL")
+wandb_tags=( "20_BASKETBALL" "40_BASKETBALL" "60_BASKETBALL" "100_BASKETBALL")
 no_taco="false"
 num_steps=2100000
 
