@@ -54,7 +54,7 @@ class FeatureExtractorFactory:
             return self._create_r3m_model(pretrained_path)
         elif self._is_vit_config_format(pretrained_path):
             return self._create_vit_from_config(pretrained_path)
-        elif self._is_standard_config_format(pretrained_path):
+        elif self._is_resnet_config_format(pretrained_path):
             return self._create_from_config(pretrained_path)
         else:
             raise ValueError(f"Unrecognized pretrained_path format: {pretrained_path}")
@@ -206,9 +206,17 @@ class FeatureExtractorFactory:
         ])
         return preprocess
     
-    def _is_standard_config_format(self, pretrained_path):
-        """Check if string matches standard config format"""
-        return bool(re.match(r'resnet\d+_l\d+_\w+', pretrained_path))
+    def _is_resnet_config_format(self, pretrained_path):
+        """Check if string matches resnet config format or is a resnet checkpoint file"""
+        # Check for standard config format: resnet18_l5_pretrained
+        if bool(re.match(r'resnet\d+_l\d+_\w+', pretrained_path)):
+            return True
+        
+        # Check for file paths containing resnet (e.g., resnet18_l5.pt, resnet50_l5.tar)
+        if os.path.isfile(pretrained_path) and 'resnet' in os.path.basename(pretrained_path).lower():
+            return True
+            
+        return False
     
     def _is_vit_config_format(self, pretrained_path):
         """Check if string matches ViT config format: vit_s_scratch, vit_b_scratch, vit_l_scratch"""
