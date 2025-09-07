@@ -52,6 +52,10 @@ class Workspace:
         self._global_episode = 0
         self.saved_medium_policy = False
 
+        # Initialize encoder saving flags and step thresholds
+        self.encoder_step_thresholds = getattr(cfg, 'encoder_checkpoint_steps', [15000, 30000, 50000, 100000])
+        self.encoder_saved_flags = {step: False for step in self.encoder_step_thresholds}
+
         # Initialize encoder saving flags and thresholds
         self.encoder_save_thresholds = [0.0, 0.2, 0.4, 0.6, 1.0]  # 0%, 20%, 40%, 60%, 100% of MAX_REWARD
         self.encoder_saved_flags = {threshold: False for threshold in self.encoder_save_thresholds}
@@ -162,7 +166,7 @@ class Workspace:
         print(f'Policy checkpoint "{policy_type}" saved: {checkpoint_path}')
 
 
-    def save_encoder_checkpoint(self, reward_percentage, reward_value):
+    def save_encoder_checkpoint(self, step_threshold, current_reward=None):
         """Save encoder checkpoint with informative naming"""
         # Create encoder state dict similar to pretrain_MT_multiheads.py
         encoder_state = {
@@ -175,33 +179,31 @@ class Workspace:
                 'seed': self.cfg.seed,
                 'global_step': self.global_step,
                 'global_episode': self.global_episode,
-                'reward_percentage': reward_percentage,
-                'reward_value': reward_value,
-                'max_reward_threshold': MAX_REWARD
+                'step_threshold': step_threshold,
+                'current_reward': current_reward
             },
             'global_step': self.global_step,
             'global_episode': self.global_episode,
-            'reward_percentage': reward_percentage,
-            'reward_value': reward_value
+            'step_threshold': step_threshold,
+            'current_reward': current_reward
         }
         
         # Create informative filename
-        percentage_str = f"{int(reward_percentage * 100)}pct"
-        reward_str = f"rew{reward_value:.0f}"
-        step_str = f"step{self.global_step}"
+        step_str = f"step{step_threshold}"
         episode_str = f"ep{self.global_episode}"
+        reward_str = f"rew{current_reward:.0f}" if current_reward is not None else "rewN/A"
         
-        filename = f"encoder_{self.cfg.env_name}_{self.cfg.task}_{percentage_str}_{reward_str}_{step_str}_{episode_str}.pt"
+        filename = f"encoder_{self.cfg.env_name}_{self.cfg.task}_{step_str}_{episode_str}_{reward_str}.pt"
         checkpoint_path = self.work_dir / filename
         
         torch.save(encoder_state, checkpoint_path)
-        print(f'Encoder checkpoint saved: {checkpoint_path} (Reward: {reward_value:.2f}, {percentage_str} of MAX_REWARD)')
+        print(f'Encoder checkpoint saved: {checkpoint_path} (Step: {step_threshold}, Reward: {current_reward:.2f if current_reward else "N/A"})')
         
         if self.cfg.use_wandb:
             wandb.log({
-                f'encoder_checkpoint_saved_{percentage_str}': 1,
-                f'encoder_checkpoint_reward_{percentage_str}': reward_value,
-                f'encoder_checkpoint_step_{percentage_str}': self.global_step,
+                f'encoder_checkpoint_saved_step_{step_threshold}': 1,
+                f'encoder_checkpoint_step': step_threshold,
+                f'encoder_checkpoint_reward': current_reward if current_reward else 0,
                 'global_frame': self.global_frame
             })
 
@@ -265,18 +267,15 @@ class Workspace:
                 'global_frame': self.global_frame
             })
 
-        # Check if we need to save encoder based on reward thresholds
-        self.max_eval_reward = max(self.max_eval_reward, avg_episode_reward)
-        
-        for threshold in self.encoder_save_thresholds:
-            threshold_reward = threshold * MAX_REWARD
-            
-            # Check if we've reached this threshold and haven't saved yet
-            if (avg_episode_reward >= threshold_reward and 
-                not self.encoder_saved_flags[threshold]):
+    def check_and_save_step_checkpoints(self, current_reward=None):
+        """Check if we need to save encoder checkpoints based on step thresholds"""
+        for step_threshold in self.encoder_step_thresholds:
+            # Check if we've reached this step threshold and haven't saved yet
+            if (self.global_step >= step_threshold and 
+                not self.encoder_saved_flags[step_threshold]):
                 
-                self.encoder_saved_flags[threshold] = True
-                self.save_encoder_checkpoint(threshold, avg_episode_reward)
+                self.encoder_saved_flags[step_threshold] = True
+                self.save_encoder_checkpoint(step_threshold, current_reward)
 
     def train(self):
         # predicates
@@ -294,13 +293,6 @@ class Workspace:
         metrics = None
         
         print('Start training...')
-        # Save initial encoder checkpoint (0% threshold)
-        if not self.encoder_saved_flags[0.0]:
-            print('Saving initial encoder checkpoint...')
-            self.encoder_saved_flags[0.0] = True
-            self.save_encoder_checkpoint(0.0, 0.0)
-        print('Initial encoder checkpoint saved.')
-        
         
         while train_until_step(self.global_step):
             if time_step.last():
@@ -332,8 +324,6 @@ class Workspace:
                             'global_frame': self.global_frame,
                             'step': self.global_step
                         })
-                        
-                    
 
                 # reset env
                 time_step = self.train_env.reset()
@@ -350,6 +340,9 @@ class Workspace:
                 self.logger.log('eval_total_time', self.timer.total_time(),
                                 self.global_frame)
                 self.eval()
+
+            # Check and save step-based checkpoints
+            self.check_and_save_step_checkpoints(episode_reward)
 
             # sample action
             with torch.no_grad(), utils.eval_mode(self.agent):
@@ -411,8 +404,4 @@ def main(cfg):
         print(f'resuming: {snapshot}')
         workspace.load_snapshot()
     workspace.train()
-
-
-if __name__ == '__main__':
-    main()
 

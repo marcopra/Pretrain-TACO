@@ -3,7 +3,7 @@ import torch.nn as nn
 import torchvision.models as models
 from torchvision.models import ResNet18_Weights, ResNet50_Weights, ViT_B_16_Weights, ViT_L_16_Weights
 import torchvision.transforms as T
-from agents.resnet_models import resnet_conv3_compressed, resnet_conv4_compressed, resnet_conv5
+from agents.resnet_models import resnet_conv3_compressed, resnet_conv4_compressed, resnet_conv5, resnet18_conv5
 from agents.moco_models import moco_conv5, moco_conv3_compressed, moco_conv4_compressed
 from agents.vit_models import vit_s16, vit_b16, vit_l16
 import mvp
@@ -37,14 +37,12 @@ class FeatureExtractorFactory:
         if pretrained_path is None or pretrained_path.lower() == 'none':
             return self._create_vanilla_resnet18()
         
-        # ViT local checkpoint
+        print(os.path.exists(pretrained_path), "Path model exists or not?")
         if self._is_vit_local_checkpoint(pretrained_path):
             return self._create_vit_from_local(pretrained_path)
         elif self._is_mcr_local_checkpoint(pretrained_path):
             return self._create_mcr_from_local(pretrained_path)
-
-        # Check if it's a file path (ResNet/MoCo)
-        if os.path.exists(pretrained_path):
+        elif os.path.exists(pretrained_path):
             return self._create_from_checkpoint(pretrained_path)
         
         # Check for special model types
@@ -83,7 +81,7 @@ class FeatureExtractorFactory:
         
         if 'moco' in checkpoint_path:
             return self._create_moco_model(checkpoint_path)
-        elif 'resnet50_l' in checkpoint_path:
+        elif 'resnet' in checkpoint_path:
             return self._create_resnet_checkpoint(checkpoint_path)
         else:
             raise ValueError(f"Unsupported checkpoint format: {checkpoint_path}")
@@ -113,6 +111,8 @@ class FeatureExtractorFactory:
             feature_extractor = resnet_conv4_compressed(checkpoint_path)
         elif 'resnet50_l5' in checkpoint_path:
             feature_extractor = resnet_conv5(checkpoint_path)
+        elif 'resnet18_l5' in checkpoint_path:
+            feature_extractor = resnet18_conv5(checkpoint_path)
         else:
             raise ValueError(f"Unknown checkpoint format: {checkpoint_path}")
         

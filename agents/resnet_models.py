@@ -87,22 +87,20 @@ def resnet_conv4_compressed(checkpoint_path):
 
 def resnet_conv5(checkpoint_path):
     # Try to load the model with pretrained weights from internet
-    try:
-        model = models.resnet.resnet50(weights=ResNet50_Weights.DEFAULT, progress=False)
-        model.fc = nn.Sequential()
-    except (urllib.error.URLError, ConnectionError, OSError) as e:
-        print(f"Network error downloading ResNet50 weights: {e}")
-        print(f"Loading weights manually from checkpoint: {checkpoint_path}")
-        
-        # Load model without pretrained weights
-        model = models.resnet.resnet50(weights=None, progress=False)
-        state_dict = torch.load(checkpoint_path, map_location=torch.device('cpu'))
-        msg = model.load_state_dict(state_dict, strict=False)
-        # Load weights from checkpoint
-        print(f"Loaded checkpoint with missing keys: {msg.missing_keys}")
-        print(f"Unexpected keys: {msg.unexpected_keys}")
-        
-        model.fc = nn.Sequential()
+
+    print(f"Loading weights manually from checkpoint: {checkpoint_path}")
+    
+    # Load model without pretrained weights
+    model = models.resnet.resnet50(weights=None, progress=False)
+    state_dict = torch.load(checkpoint_path, map_location=torch.device('cpu'))
+    if 'encoder' in state_dict:
+        state_dict = state_dict['encoder']
+    msg = model.load_state_dict(state_dict, strict=False)
+    # Load weights from checkpoint
+    print(f"Loaded checkpoint with missing keys: {msg.missing_keys}")
+    print(f"Unexpected keys: {msg.unexpected_keys}")
+    
+    model.fc = nn.Sequential()
 
     return model
         # # Rename the keys correctly
@@ -111,3 +109,22 @@ def resnet_conv5(checkpoint_path):
         #         state_dict[k[len('module.'):]] = state_dict[k]
         #     # Delete renamed or unused k
         #     del state_dict[k]
+
+def resnet18_conv5(checkpoint_path):
+    # Try to load the model with pretrained weights from internet
+    
+    print(f"Loading weights manually from checkpoint: {checkpoint_path}")
+    
+    # Load model without pretrained weights
+    model = models.resnet.resnet18(weights=None, progress=False)
+    state_dict = torch.load(checkpoint_path, map_location=torch.device('cpu'))
+    if 'encoder' in state_dict:
+        state_dict = state_dict['encoder']
+    msg = model.load_state_dict(state_dict, strict=True)
+    # Load weights from checkpoint
+    print(f"Loaded checkpoint with missing keys: {msg.missing_keys}")
+    print(f"Unexpected keys: {msg.unexpected_keys}")
+    
+    model.fc = nn.Sequential()
+
+    return model
