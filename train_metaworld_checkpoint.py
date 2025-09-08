@@ -22,7 +22,6 @@ from video import TrainVideoRecorder, VideoRecorder
 
 torch.backends.cudnn.benchmark = True
 
-MAX_REWARD = 4200
 
 def make_agent(obs_spec, action_spec, cfg):
     cfg.obs_shape = obs_spec.shape
@@ -50,16 +49,12 @@ class Workspace:
         self.timer = utils.Timer()
         self._global_step = 0
         self._global_episode = 0
-        self.saved_medium_policy = False
 
         # Initialize encoder saving flags and step thresholds
-        self.encoder_step_thresholds = getattr(cfg, 'encoder_checkpoint_steps', [15000, 30000, 50000, 100000])
+        self.encoder_step_thresholds = getattr(cfg, 'encoder_checkpoint_steps')
+        print(f"Encoder checkpoints will be saved at steps: {self.encoder_step_thresholds}")
         self.encoder_saved_flags = {step: False for step in self.encoder_step_thresholds}
 
-        # Initialize encoder saving flags and thresholds
-        self.encoder_save_thresholds = [0.0, 0.2, 0.4, 0.6, 1.0]  # 0%, 20%, 40%, 60%, 100% of MAX_REWARD
-        self.encoder_saved_flags = {threshold: False for threshold in self.encoder_save_thresholds}
-        self.max_eval_reward = 0  # Track maximum evaluation reward achieved
 
         if cfg.use_wandb:
            
@@ -152,19 +147,6 @@ class Workspace:
             self.work_dir if self.cfg.save_train_video else None,
             metaworld = True
         )
-    
-    def save_policy(self, policy_type):
-        checkpoint_path = self.work_dir / f'{policy_type}_policy.pt'
-        payload = {
-            'agent': self.agent,
-            'global_step': self.global_step,
-            'global_episode': self.global_episode,
-            'timer': self.timer,
-            'cfg': self.cfg
-        }
-        torch.save(payload, checkpoint_path)
-        print(f'Policy checkpoint "{policy_type}" saved: {checkpoint_path}')
-
 
     def save_encoder_checkpoint(self, step_threshold, current_reward=None):
         """Save encoder checkpoint with informative naming"""
@@ -197,7 +179,7 @@ class Workspace:
         checkpoint_path = self.work_dir / filename
         
         torch.save(encoder_state, checkpoint_path)
-        print(f'Encoder checkpoint saved: {checkpoint_path} (Step: {step_threshold}, Reward: {current_reward:.2f if current_reward else "N/A"})')
+        print(f'Encoder checkpoint saved: {checkpoint_path} (Step: {step_threshold}, Reward: {current_reward:.2f}')
         
         if self.cfg.use_wandb:
             wandb.log({
@@ -295,6 +277,9 @@ class Workspace:
         print('Start training...')
         
         while train_until_step(self.global_step):
+            # Check and save step-based checkpoints
+            self.check_and_save_step_checkpoints(episode_reward)
+            
             if time_step.last():
                 self._global_episode += 1
                 self.train_video_recorder.save(f'{self.global_frame}.mp4')
@@ -341,8 +326,7 @@ class Workspace:
                                 self.global_frame)
                 self.eval()
 
-            # Check and save step-based checkpoints
-            self.check_and_save_step_checkpoints(episode_reward)
+            
 
             # sample action
             with torch.no_grad(), utils.eval_mode(self.agent):
@@ -405,3 +389,5 @@ def main(cfg):
         workspace.load_snapshot()
     workspace.train()
 
+if __name__ == '__main__':
+    main()

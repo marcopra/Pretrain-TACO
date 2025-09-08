@@ -127,40 +127,77 @@ class TACO(nn.Module):
     
     def load_checkpoint(self, state_dict):
         """
-        Load TACO weights from checkpoint with safe reward network loading.
+        Load TACO weights from checkpoint with selective loading.
+        Loads: encoder, act_tok, and reward (if available).
+        Excludes: proj_s, proj_sa, W, etc.
         
         Args:
             state_dict: The state dictionary from the checkpoint
         """
-        # Prima carica tutto quello che può con strict=False
-        # Check for missing or unexpected keys 
-        missing_keys, unexpected_keys = self.load_state_dict(state_dict, strict=False)
-        if missing_keys:
-            print(f"Warning: Missing keys when loading TACO checkpoint: {missing_keys}")
-        if unexpected_keys:
-            print(f"Warning: Unexpected keys when loading TACO checkpoint: {unexpected_keys}")
-        # Chekc that only reward keys are missing
-        non_reward_missing = [k for k in missing_keys if not k.startswith('reward.')]
-        if non_reward_missing:
-            print(f"Error: Missing non-reward keys when loading TACO checkpoint: {non_reward_missing}")
-            raise ValueError("Non-reward keys are missing from the checkpoint, cannot proceed with loading.")
-        else:
-            print("All non-reward keys loaded successfully from checkpoint.")
+        loaded_components = []
+        failed_components = []
+        excluded_components = []
         
-        # Poi prova a caricare specificamente la rete reward
-        if [k for k in missing_keys if k.startswith('reward.')] is not None:
-            try:
-                reward_state_dict = {k.replace('reward.', ''): v for k, v in state_dict.items() if k.startswith('reward.')}
-                if reward_state_dict:
-                    self.reward.load_state_dict(reward_state_dict)
-                    print("Successfully loaded reward network from checkpoint")
+        # Define components to load
+        components_to_load = {
+            'encoder': self.encoder,
+            'act_tok': self.act_tok,
+            'reward': self.reward
+        }
+        
+        # Load each component
+        for component_name, component_model in components_to_load.items():
+            component_keys = [k for k in state_dict.keys() if k.startswith(f'{component_name}.')]
+            
+            if component_keys:
+                component_state_dict = {
+                    k.replace(f'{component_name}.', ''): v 
+                    for k, v in state_dict.items() 
+                    if k.startswith(f'{component_name}.')
+                }
+                
+                try:
+                    component_model.load_state_dict(component_state_dict)
+                    loaded_components.append(component_name)
+                    utils.ColorPrint.green(f"✓ Loaded {component_name} with {len(component_keys)} parameters")
+                except Exception as e:
+                    failed_components.append(component_name)
+                    utils.ColorPrint.red(f"✗ Failed to load {component_name}: {e}")
+                    
+                    # Special handling for reward network
+                    if component_name == 'reward':
+                        utils.ColorPrint.yellow("  Reinitializing reward network from scratch")
+                        self.reward.apply(utils.weight_init)
+            else:
+                if component_name == 'reward':
+                    utils.ColorPrint.yellow(f"! No {component_name} found in checkpoint, keeping initialized weights")
                 else:
-                    print("No reward network found in checkpoint, keeping initialized weights")
-            except Exception as e:
-                print(f"Failed to load reward network from checkpoint: {e}")
-                print("Reward network will be initialized from scratch")
-                # Re-inizializza la rete reward
-                self.reward.apply(utils.weight_init)
+                    utils.ColorPrint.yellow(f"! No {component_name} parameters found in checkpoint")
+        
+        # Identify excluded components (components that exist in state_dict but we don't want to load)
+        loaded_prefixes = ['encoder.', 'act_tok.', 'reward.']
+        excluded_keys = [k for k in state_dict.keys() if not any(k.startswith(prefix) for prefix in loaded_prefixes)]
+        
+        if excluded_keys:
+            # Group excluded keys by component
+            excluded_prefixes = set()
+            for key in excluded_keys:
+                if '.' in key:
+                    prefix = key.split('.')[0]
+                    excluded_prefixes.add(prefix)
+            
+            if excluded_prefixes:
+                excluded_components = list(excluded_prefixes)
+                utils.ColorPrint.yellow(f"Excluded components: {', '.join(excluded_components)} ({len(excluded_keys)} parameters)")
+        
+        # Summary
+        total_expected = len([c for c in components_to_load.keys() if c != 'reward']) + (1 if any(k.startswith('reward.') for k in state_dict.keys()) else 0)
+        utils.ColorPrint.blue(f"TACO Checkpoint Loading Summary:")
+        utils.ColorPrint.blue(f"  ✓ Loaded: {', '.join(loaded_components) if loaded_components else 'None'}")
+        if failed_components:
+            utils.ColorPrint.blue(f"  ✗ Failed: {', '.join(failed_components)}")
+        if excluded_components:
+            utils.ColorPrint.blue(f"  - Excluded: {', '.join(excluded_components)}")
 
     
 class Actor(nn.Module):
@@ -296,6 +333,7 @@ class TACOAgent:
         Args:
             model_path: Path to the saved model checkpoint
             map_location: Optional device mapping for torch.load
+            freeze_encoder: Whether to freeze the loaded components
         
         Returns:
             dict: The original training arguments
@@ -303,51 +341,31 @@ class TACOAgent:
         if map_location is None:
             map_location = self.device
             
+        utils.ColorPrint.blue(f"Loading pretrained model from: {model_path}")
         checkpoint = torch.load(model_path, map_location=map_location, weights_only=False)
         
-        self.encoder.load_state_dict(checkpoint['encoder'])
-        self.act_tok.load_state_dict(checkpoint['act_tok'])
+        # Use TACO's load_checkpoint method for selective loading
+        if 'taco' in checkpoint:
+            self.TACO.load_checkpoint(checkpoint['taco'])
+        else:
+            utils.ColorPrint.yellow("! No TACO state found in checkpoint")
         
-        # Usa il metodo della classe TACO per caricare i pesi
-        self.TACO.load_checkpoint(checkpoint['taco'])
-        
-        # Prova a caricare specificamente la rete reward
-        try:
-            # Estrai solo i parametri della rete reward dal checkpoint
-            reward_state_dict = {k.replace('reward.', ''): v for k, v in checkpoint['taco'].items() if k.startswith('reward.')}
-            if reward_state_dict:
-                self.TACO.reward.load_state_dict(reward_state_dict)
-                print("Successfully loaded reward network from checkpoint")
-            else:
-                print("No reward network found in checkpoint, keeping initialized weights")
-        except Exception as e:
-            print(f"Failed to load reward network from checkpoint: {e}")
-            print("Reward network will be initialized from scratch")
-            # Re-inizializza la rete reward
-            self.TACO.reward.apply(utils.weight_init)
-        
-        # Store model fingerprints if we're freezing the encoder
+        # Handle freezing if requested
         if freeze_encoder:
             self._frozen_fingerprints = {
                 'encoder': self._get_model_fingerprint(self.encoder),
                 'taco': self._get_model_fingerprint(self.TACO),
                 'act_tok': self._get_model_fingerprint(self.act_tok)
-            }
+            } # Used for debugging
             
+            # Set to eval mode and disable gradients
             self.encoder.eval()
             self.TACO.eval()
             self.act_tok.eval()
             
-            # Disabilita i gradienti per tutti i parametri
-            for param in self.encoder.parameters():
-                param.requires_grad = False
-            for param in self.TACO.parameters():
-                param.requires_grad = False
-            for param in self.act_tok.parameters():
-                param.requires_grad = False
+            utils.ColorPrint.blue("🔒 Encoder components frozen")
         
-        print(f"Loaded pretrained model from {model_path}")
-        
+        utils.ColorPrint.green("✓ Pretrained model loading completed")
         return checkpoint.get('args', {})  # Return the saved args for reference
     
     def _get_model_fingerprint(self, model):
@@ -545,42 +563,7 @@ class TACOAgent:
             
         metrics.update(self.update_taco(obs, action, action_seq, r_next_obs, reward))       
         
-        # # save model periodically
-        # if step % 10000 == 0:
-        #     save_path = f"/home/mprattico/Pretrain-TACO/test_model/model_step_{step}.pt"
-        #     self.save(save_path, step)
-        #     print(f"Model saved at step {step} to {save_path}")
-        # # Verify that frozen models haven't been modified
-        # if self.freeze_encoder and self.pretrained_path is not None and self.pretrained_path.lower() != 'none':
-        #     self._check_frozen_models()
-        #     #check if the model corresponds to the pretrained one reloading from the pretrained path
-        #     pretrained_checkpoint = torch.load(self.pretrained_path, map_location=self.device)
-        #     pretrained_encoder_state = pretrained_checkpoint['encoder']
-        #     pretrained_taco_state = pretrained_checkpoint['taco'] 
-        #     pretrained_act_tok_state = pretrained_checkpoint['act_tok']
-            
-        #     # Compare current model states with pretrained states
-        #     current_encoder_state = self.encoder.state_dict()
-        #     current_taco_state = self.TACO.state_dict()
-        #     current_act_tok_state = self.act_tok.state_dict()
-            
-        #     # Check encoder parameters
-        #     for key in pretrained_encoder_state:
-        #         if not torch.all(torch.eq(pretrained_encoder_state[key], current_encoder_state[key])):
-        #             raise ValueError(f"Encoder parameter {key} has changed when it should be frozen!")
-            
-        #     # Check TACO parameters
-        #     for key in pretrained_taco_state:
-        #         if not torch.all(torch.eq(pretrained_taco_state[key], current_taco_state[key])):
-        #             raise ValueError(f"TACO parameter {key} has changed when it should be frozen!")
-            
-        #     # Check act_tok parameters
-        #     for key in pretrained_act_tok_state:
-        #         if not torch.all(torch.eq(pretrained_act_tok_state[key], current_act_tok_state[key])):
-        #             raise ValueError(f"act_tok parameter {key} has changed when it should be frozen!")
-            
-        #     # print("All frozen models are unchanged from the pretrained model.")
-            
+    
 
         return metrics
     
