@@ -181,13 +181,6 @@ class Workspace:
         torch.save(encoder_state, checkpoint_path)
         print(f'Encoder checkpoint saved: {checkpoint_path} (Step: {step_threshold}, Reward: {current_reward:.2f}')
         
-        if self.cfg.use_wandb:
-            wandb.log({
-                f'encoder_checkpoint_saved_step_{step_threshold}': 1,
-                f'encoder_checkpoint_step': step_threshold,
-                f'encoder_checkpoint_reward': current_reward if current_reward else 0,
-                'global_frame': self.global_frame
-            })
 
     @property
     def global_step(self):
