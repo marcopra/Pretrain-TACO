@@ -6,7 +6,7 @@ if [ $# -lt 1 ] || [ $# -gt 3 ]; then
     echo "Usage: $0 <cuda_device> [no_taco] [batch_size]"
     echo "cuda_device: 0 to 7"
     echo "no_taco: true or false (default: false)"
-    echo "batch_size: positive integer (default: 256)"
+    echo "batch_size: positive integer (default: 1024)"
     exit 1
 fi
 
@@ -51,7 +51,7 @@ for i in $(seq 1 $num_runs); do
     
     SEED=$(($RANDOM % 10000)) 
     # Run the Python command with the appropriate arguments
-    python3 train_metaworld_checkpoint.py agent=taco_checkpoint exp_name=baseline${cuda_device}${SEED} seed=${SEED} env_name=basketball-v2 random_init=true random_goal=false wandb_tag=baseline num_train_frames=400000 device=cuda:${cuda_device} agent.no_taco=${no_taco} batch_size=${batch_size} wandb_project="checkpoint" encoder_checkpoint_steps=[15000,45000,100000,200000]
+    python3 train_metaworld_checkpoint.py agent=taco_checkpoint exp_name=baseline${cuda_device}${SEED} seed=${SEED} env_name=basketball-v2 random_init=true random_goal=false wandb_tag=baseline num_train_frames=400000 device=cuda:${cuda_device} agent.no_taco=${no_taco} batch_size=${batch_size} wandb_project="checkpoint" encoder_checkpoint_steps=[15000,45000,60000,100000]
 
 done
 
