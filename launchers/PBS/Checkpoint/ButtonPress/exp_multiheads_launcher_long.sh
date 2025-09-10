@@ -11,7 +11,7 @@ model_paths=(
    
 random_hand_inital="true"
 random_goal_inital="false"
-wandb_tags=("2k_BUTTON_PRESS" "5k_BUTTON_PRESS" "15k_BUTTON_PRESS" "30k_BUTTON_PRESS")
+wandb_tags=("8k_BUTTONPRESS" "45k_BUTTONPRESS" "100k_BUTTONPRESS")
 no_taco="false"
 num_steps=2100000
 
@@ -23,7 +23,7 @@ for random_hand in $random_hand_inital; do
                     model_path="${model_paths[$i]}"
                     wandb_tag="${wandb_tags[$i]}"
                     echo "Submitting job: ENV_NAME=${env_name}, RANDOM_HAND=${random_hand}, RANDOM_GOAL=${random_goal}, SEED=${seed}, TAG=${wandb_tag}"
-                    sbatch --export=SEED="${seed}",ENV_NAME="${env_name}",RANDOM_HAND="${random_hand}",RANDOM_GOAL="${random_goal}",MODEL_PATH="${model_path}",WANDB_TAG="${wandb_tag}",NO_TACO="${no_taco}",WANDB_PROJECT="checkpoint",NUM_STEPS="${num_steps}" launchers/SLURM/Checkpoint/ButtonPress/MT_pretrained.sh
+                    qsub -v SEED="${seed}",ENV_NAME="${env_name}",RANDOM_HAND="${random_hand}",RANDOM_GOAL="${random_goal}",MODEL_PATH="${model_path}",WANDB_TAG="${wandb_tag}",NO_TACO="${no_taco}",WANDB_PROJECT="checkpoint",NUM_STEPS="${num_steps}" launchers/PBS/Checkpoint/ButtonPress/MT_pretrained.sh
                 done
             done
         done

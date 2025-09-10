@@ -1,6 +1,6 @@
 #!/bin/bash
 
-seeds="1"
+seeds="1 1 1"
 env_names=("basketball-v2")
 model_paths=(
 "/home/mprattico/Pretrain-TACO/models_checkpoint/Basketball/encoder_basketball-v2_0_step15000_ep59_rew7.pt"
@@ -10,7 +10,7 @@ model_paths=(
    
 random_hand_inital="true"
 random_goal_inital="false"
-wandb_tags=( "15k_BASKETBALL" "45k_BASKETBALL" "100k_BASKETBALL")
+wandb_tags=("8k_BASKETBALL" "45k_BASKETBALL" "100k_BASKETBALL")
 no_taco="false"
 num_steps=2100000
 
@@ -22,7 +22,7 @@ for random_hand in $random_hand_inital; do
                     model_path="${model_paths[$i]}"
                     wandb_tag="${wandb_tags[$i]}"
                     echo "Submitting job: ENV_NAME=${env_name}, RANDOM_HAND=${random_hand}, RANDOM_GOAL=${random_goal}, SEED=${seed}, TAG=${wandb_tag}"
-                    sbatch --export=SEED="${seed}",ENV_NAME="${env_name}",RANDOM_HAND="${random_hand}",RANDOM_GOAL="${random_goal}",MODEL_PATH="${model_path}",WANDB_TAG="${wandb_tag}",NO_TACO="${no_taco}",WANDB_PROJECT="checkpoint",NUM_STEPS="${num_steps}" launchers/SLURM/Checkpoint/Basketball/MT_pretrained.sh
+                    qsub -v SEED="${seed}",ENV_NAME="${env_name}",RANDOM_HAND="${random_hand}",RANDOM_GOAL="${random_goal}",MODEL_PATH="${model_path}",WANDB_TAG="${wandb_tag}",NO_TACO="${no_taco}",WANDB_PROJECT="checkpoint",NUM_STEPS="${num_steps}" launchers/PBS/Checkpoint/Basketball/MT_pretrained.sh
                 done
             done
         done
