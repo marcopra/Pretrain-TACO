@@ -5,11 +5,13 @@ env_names=("push-v2")
 model_paths=(
 "/home/mprattico/Pretrain-TACO/models_checkpoint/Push/encoder_push-v2_0_step8000_ep31_rew38.pt"
 "/home/mprattico/Pretrain-TACO/models_checkpoint/Push/encoder_push-v2_0_step45000_ep179_rew1877.pt"
+"/home/mprattico/Pretrain-TACO/models_checkpoint/Push/encoder_push-v2_0_step60000_ep239_rew23.pt"
+"/home/mprattico/Pretrain-TACO/models_checkpoint/Push/encoder_push-v2_0_step100000_ep399_rew3704.pt"
 )
    
 random_hand_inital="true"
 random_goal_inital="false"
-wandb_tags=("8k_PUSH" "45k_PUSH")
+wandb_tags=("8k_PUSH" "45k_PUSH" "60k_PUSH" "100k_PUSH")
 no_taco="false"
 num_steps=210000
 
