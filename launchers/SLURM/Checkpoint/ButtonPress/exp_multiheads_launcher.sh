@@ -13,7 +13,7 @@ random_hand_inital="true"
 random_goal_inital="false"
 wandb_tags=("2k_BUTTON_PRESS" "5k_BUTTON_PRESS" "15k_BUTTON_PRESS" "30k_BUTTON_PRESS")
 no_taco="false"
-num_steps=2100000
+num_steps=120000
 
 for random_hand in $random_hand_inital; do
     for random_goal in $random_goal_inital; do
