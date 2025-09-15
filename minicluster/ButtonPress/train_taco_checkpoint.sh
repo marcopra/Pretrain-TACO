@@ -51,7 +51,7 @@ for i in $(seq 1 $num_runs); do
     
     SEED=$(($RANDOM % 10000)) 
     # Run the Python command with the appropriate arguments
-    python3 train_metaworld_checkpoint.py agent=taco_checkpoint exp_name=baseline${cuda_device}${SEED} seed=${SEED} env_name=button-press-v2 random_init=true random_goal=false wandb_tag=baseline num_train_frames=150000 device=cuda:${cuda_device} agent.no_taco=${no_taco} batch_size=${batch_size} wandb_project="checkpoint" encoder_checkpoint_steps=[2000,5000,15000,30000]
+    python3 train_metaworld_checkpoint.py agent=taco_checkpoint exp_name=baseline${cuda_device}${SEED} seed=${SEED} env_name=button-press-v2 random_init=true random_goal=false wandb_tag=baseline num_train_frames=310000 device=cuda:${cuda_device} agent.no_taco=${no_taco} batch_size=${batch_size} wandb_project="checkpoint" encoder_checkpoint_steps=[30000,80000,120000,150000]
 
 done
 
