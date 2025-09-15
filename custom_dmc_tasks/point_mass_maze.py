@@ -1,4 +1,4 @@
-# Copyright 2017 The dm_control Authors.
+# Copyright 2017 The dm Control Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -40,6 +40,11 @@ TASKS = [('reach_top_left', np.array([-0.15, 0.15, 0.01])),
          ('reach_top_right', np.array([0.15, 0.15, 0.01])),
          ('reach_bottom_left', np.array([-0.15, -0.15, 0.01])),
          ('reach_bottom_right', np.array([0.15, -0.15, 0.01]))]
+
+CONTINUOUS_TASKS = [('continuous_reach_top_left', np.array([-0.15, 0.15, 0.01])),
+                   ('continuous_reach_top_right', np.array([0.15, 0.15, 0.01])),
+                   ('continuous_reach_bottom_left', np.array([-0.15, -0.15, 0.01])),
+                   ('continuous_reach_bottom_right', np.array([0.15, -0.15, 0.01]))]
 
 
 def make(task,
@@ -116,6 +121,58 @@ def reach_bottom_right(time_limit=_DEFAULT_TIME_LIMIT,
                                time_limit=time_limit,
                                **environment_kwargs)
 
+@SUITE.add('benchmarking')
+def continuous_reach_top_left(time_limit=_DEFAULT_TIME_LIMIT,
+                             random=None,
+                             environment_kwargs=None):
+    """Returns the continuous reach top left task."""
+    physics = Physics.from_xml_string(*get_model_and_assets('continuous_reach_top_left'))
+    task = ContinuousPointMassMaze(target_id=0, random=random)
+    environment_kwargs = environment_kwargs or {}
+    return control.Environment(physics,
+                               task,
+                               time_limit=time_limit,
+                               **environment_kwargs)
+
+@SUITE.add('benchmarking')
+def continuous_reach_top_right(time_limit=_DEFAULT_TIME_LIMIT,
+                              random=None,
+                              environment_kwargs=None):
+    """Returns the continuous reach top right task."""
+    physics = Physics.from_xml_string(*get_model_and_assets('continuous_reach_top_right'))
+    task = ContinuousPointMassMaze(target_id=1, random=random)
+    environment_kwargs = environment_kwargs or {}
+    return control.Environment(physics,
+                               task,
+                               time_limit=time_limit,
+                               **environment_kwargs)
+
+@SUITE.add('benchmarking')
+def continuous_reach_bottom_left(time_limit=_DEFAULT_TIME_LIMIT,
+                                random=None,
+                                environment_kwargs=None):
+    """Returns the continuous reach bottom left task."""
+    physics = Physics.from_xml_string(*get_model_and_assets('continuous_reach_bottom_left'))
+    task = ContinuousPointMassMaze(target_id=2, random=random)
+    environment_kwargs = environment_kwargs or {}
+    return control.Environment(physics,
+                               task,
+                               time_limit=time_limit,
+                               **environment_kwargs)
+
+@SUITE.add('benchmarking')
+def continuous_reach_bottom_right(time_limit=_DEFAULT_TIME_LIMIT,
+                                 random=None,
+                                 environment_kwargs=None):
+    """Returns the continuous reach bottom right task."""
+    physics = Physics.from_xml_string(*get_model_and_assets('continuous_reach_bottom_right'))
+    task = ContinuousPointMassMaze(target_id=3, random=random)
+    environment_kwargs = environment_kwargs or {}
+    return control.Environment(physics,
+                               task,
+                               time_limit=time_limit,
+                               **environment_kwargs)
+
 
 class Physics(mujoco.Physics):
     """physics for the point_mass domain."""
@@ -124,6 +181,11 @@ class Physics(mujoco.Physics):
         """Returns the distance from mass to the target."""
         d = target - self.named.data.geom_xpos['pointmass']
         return np.linalg.norm(d)
+    
+    def check_collision(self):
+        """Returns True if the point mass is colliding with walls."""
+        # Check if there are any contacts
+        return self.data.ncon > 0
 
 
 class MultiTaskPointMassMaze(base.Task):
@@ -180,4 +242,70 @@ class MultiTaskPointMassMaze(base.Task):
         near_target = rewards.tolerance(physics.mass_to_target_dist(self._target),
                                 bounds=(0, target_size), margin=target_size)
         reward = near_target * small_control
+        return reward
+
+
+class ContinuousPointMassMaze(base.Task):
+    """A point_mass `Task` to reach target with continuous distance-based reward."""
+    def __init__(self, target_id, random=None):
+        """Initialize an instance of `ContinuousPointMassMaze`.
+
+        Args:
+            target_id: Index of the target position in CONTINUOUS_TASKS.
+            random: Optional, either a `numpy.random.RandomState` instance, an
+                integer seed for creating a new `RandomState`, or None to select a seed
+                automatically (default).
+        """
+        self._target = CONTINUOUS_TASKS[target_id][1]
+        self._prev_distance = None
+        super().__init__(random=random)
+
+    def initialize_episode(self, physics):
+        """Sets the state of the environment at the start of each episode."""
+        randomizers.randomize_limited_and_rotational_joints(
+            physics, self.random)
+        physics.data.qpos[0] = np.random.uniform(-0.29, -0.15)
+        physics.data.qpos[1] = np.random.uniform(0.15, 0.29)
+        physics.named.data.geom_xpos['target'][:] = self._target
+        
+        # Initialize previous distance
+        self._prev_distance = physics.mass_to_target_dist(self._target)
+        
+        super().initialize_episode(physics)
+
+    def get_observation(self, physics):
+        """Returns an observation of the state."""
+        obs = collections.OrderedDict()
+        obs['position'] = physics.position()
+        obs['velocity'] = physics.velocity()
+        return obs
+    
+    def get_reward_spec(self):
+        return specs.Array(shape=(1,), dtype=np.float32, name='reward')
+
+    def get_reward(self, physics):
+        """Returns a continuous reward based on distance to target and collisions."""
+        # Calculate current distance to target
+        current_distance = physics.mass_to_target_dist(self._target)
+        
+        # Progress reward (λ * (x_t - x_{t-1}))
+        if self._prev_distance is not None:
+            progress_reward = 0.25 * (self._prev_distance - current_distance)
+        else:
+            progress_reward = 0.0
+        
+        # Goal reward (w_g * 1_goal)
+        target_size = 0.015
+        goal_reached = current_distance < target_size
+        goal_reward = 1.0 if goal_reached else 0.0
+        
+        # Collision penalty (w_c * 1_collision)
+        collision_penalty = -1.0 if physics.check_collision() else 0.0
+        
+        # Update previous distance
+        self._prev_distance = current_distance
+        
+        # Total reward
+        reward = progress_reward + goal_reward + collision_penalty
+        
         return reward
