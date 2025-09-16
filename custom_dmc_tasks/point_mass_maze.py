@@ -257,6 +257,7 @@ class ContinuousPointMassMaze(base.Task):
                 automatically (default).
         """
         self._target = CONTINUOUS_TASKS[target_id][1]
+        self._prev_distance = None
         super().__init__(random=random)
 
     def initialize_episode(self, physics):
@@ -284,6 +285,7 @@ class ContinuousPointMassMaze(base.Task):
         # Calculate current distance to target
         current_distance = physics.mass_to_target_dist(self._target)
         
+
         # Progress reward e^(λ * (x_t - x_{t-1}))
         if self._prev_distance is not None:
             progress_reward = np.exp(0.25 * (self._prev_distance - current_distance))
@@ -297,6 +299,9 @@ class ContinuousPointMassMaze(base.Task):
         
         # Collision penalty (w_c * 1_collision)
         collision_penalty = -10.0 if physics.check_collision() else 0.0
+        
+        # Update previous distance
+        self._prev_distance = current_distance
         
         # Total reward
         reward = progress_reward + distance_reward + collision_penalty
