@@ -142,18 +142,7 @@ class Workspace:
             self.work_dir if self.cfg.save_train_video else None,
             metaworld = True
         )
-    
-    def save_policy(self, policy_type):
-        checkpoint_path = self.work_dir / f'{policy_type}_policy.pt'
-        payload = {
-            'agent': self.agent,
-            'global_step': self.global_step,
-            'global_episode': self.global_episode,
-            'timer': self.timer,
-            'cfg': self.cfg
-        }
-        torch.save(payload, checkpoint_path)
-        print(f'Policy checkpoint "{policy_type}" saved: {checkpoint_path}')
+
 
 
     @property
@@ -228,7 +217,6 @@ class Workspace:
         self.replay_storage.add(time_step)
         self.train_video_recorder.init(time_step.observation)
         metrics = None
-        # self.save_policy('random')
         
         while train_until_step(self.global_step):
             if time_step.last():
@@ -262,12 +250,6 @@ class Workspace:
                         })
                         
                     
-                    # Save medium policy if we reach a certain reward threshold
-                    if hasattr(self.cfg, 'medium_reward_threshold') and \
-                       episode_reward >= self.cfg.medium_reward_threshold and \
-                       self.saved_medium_policy == False:
-                        self.save_policy('medium')
-                        self.saved_medium_policy = True
 
                 # reset env
                 time_step = self.train_env.reset()

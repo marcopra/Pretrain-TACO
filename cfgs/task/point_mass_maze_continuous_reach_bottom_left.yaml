@@ -1,0 +1,6 @@
+defaults:
+  - hard
+  - _self_
+
+task_name: point_mass_maze_continuous_reach_bottom_left
+obs_type: pixels

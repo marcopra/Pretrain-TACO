@@ -246,7 +246,7 @@ class MultiTaskPointMassMaze(base.Task):
 
 
 class ContinuousPointMassMaze(base.Task):
-    """A point_mass `Task` to reach target with continuous distance-based reward."""
+    """A point_mass `Task` to reach target with exponential negative distance reward."""
     def __init__(self, target_id, random=None):
         """Initialize an instance of `ContinuousPointMassMaze`.
 
@@ -257,7 +257,6 @@ class ContinuousPointMassMaze(base.Task):
                 automatically (default).
         """
         self._target = CONTINUOUS_TASKS[target_id][1]
-        self._prev_distance = None
         super().__init__(random=random)
 
     def initialize_episode(self, physics):
@@ -267,9 +266,6 @@ class ContinuousPointMassMaze(base.Task):
         physics.data.qpos[0] = np.random.uniform(-0.29, -0.15)
         physics.data.qpos[1] = np.random.uniform(0.15, 0.29)
         physics.named.data.geom_xpos['target'][:] = self._target
-        
-        # Initialize previous distance
-        self._prev_distance = physics.mass_to_target_dist(self._target)
         
         super().initialize_episode(physics)
 
@@ -284,28 +280,45 @@ class ContinuousPointMassMaze(base.Task):
         return specs.Array(shape=(1,), dtype=np.float32, name='reward')
 
     def get_reward(self, physics):
-        """Returns a continuous reward based on distance to target and collisions."""
+        """Returns a reward based on exponential negative Euclidean distance and collision penalties."""
         # Calculate current distance to target
         current_distance = physics.mass_to_target_dist(self._target)
         
-        # Progress reward (λ * (x_t - x_{t-1}))
-        if self._prev_distance is not None:
-            progress_reward = 0.25 * (self._prev_distance - current_distance)
-        else:
-            progress_reward = 0.0
-        
-        # Goal reward (w_g * 1_goal)
-        target_size = 0.015
-        goal_reached = current_distance < target_size
-        goal_reward = 1.0 if goal_reached else 0.0
+        # Exponential negative Euclidean distance reward
+        # The closer to the target, the higher the reward (approaches 1.0)
+        # The farther from the target, the lower the reward (approaches 0.0)
+        distance_reward = np.exp(-current_distance)
         
         # Collision penalty (w_c * 1_collision)
-        collision_penalty = -1.0 if physics.check_collision() else 0.0
-        
-        # Update previous distance
-        self._prev_distance = current_distance
+        collision_penalty = -10.0 if physics.check_collision() else 0.0
         
         # Total reward
-        reward = progress_reward + goal_reward + collision_penalty
+        reward = distance_reward + collision_penalty
         
         return reward
+    
+    # # Calculate current distance to target
+    #     current_distance = physics.mass_to_target_dist(self._target)
+        
+    #     # Progress reward (λ * (x_t - x_{t-1}))
+    #     if self._prev_distance is not None:
+    #         progress_reward = 0.25 * (self._prev_distance - current_distance)
+    #     else:
+    #         progress_reward = 0.0
+        
+    #     # Goal reward (w_g * 1_goal)
+    #     target_size = 0.015
+    #     goal_reached = current_distance < target_size
+    #     goal_reward = 1.0 if goal_reached else 0.0
+        
+    #     # Collision penalty (w_c * 1_collision)
+    #     collision_penalty = -1.0 if physics.check_collision() else 0.0
+        
+    #     # Update previous distance
+    #     self._prev_distance = current_distance
+        
+    #     # Total reward
+    #     reward = progress_reward + goal_reward + collision_penalty
+        
+    #     return reward
+
