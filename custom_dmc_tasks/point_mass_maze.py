@@ -284,6 +284,12 @@ class ContinuousPointMassMaze(base.Task):
         # Calculate current distance to target
         current_distance = physics.mass_to_target_dist(self._target)
         
+        # Progress reward e^(λ * (x_t - x_{t-1}))
+        if self._prev_distance is not None:
+            progress_reward = np.exp(0.25 * (self._prev_distance - current_distance))
+        else:
+            progress_reward = 0.0
+            self._prev_distance = current_distance
         # Exponential negative Euclidean distance reward
         # The closer to the target, the higher the reward (approaches 1.0)
         # The farther from the target, the lower the reward (approaches 0.0)
@@ -293,8 +299,8 @@ class ContinuousPointMassMaze(base.Task):
         collision_penalty = -10.0 if physics.check_collision() else 0.0
         
         # Total reward
-        reward = distance_reward + collision_penalty
-        
+        reward = progress_reward + distance_reward + collision_penalty
+
         return reward
     
     # # Calculate current distance to target
