@@ -49,21 +49,13 @@ class Workspace:
         self.timer = utils.Timer()
         self._global_step = 0
         self._global_episode = 0
-
-        # Initialize encoder saving flags and step thresholds
-        self.encoder_step_thresholds = getattr(cfg, 'encoder_checkpoint_steps')
-        print(f"Encoder checkpoints will be saved at steps: {self.encoder_step_thresholds}")
-        self.encoder_saved_flags = {step: False for step in self.encoder_step_thresholds}
-        
+        self.saved_medium_policy = False
         # Track which snapshot steps have been saved
-      
         self.saved_snapshot_steps = set()
-        print(f"snapshot checkpoint status: {self.saved_snapshot_steps}, {self.cfg.snapshot_step if hasattr(self.cfg, 'snapshot_step') else 'No snapshot steps defined'}")
-
 
         if cfg.use_wandb:
            
-    
+            
             if cfg.wandb_id is not None and cfg.wandb_id != "none":
                
                 wandb.init(
@@ -153,39 +145,7 @@ class Workspace:
             metaworld = True
         )
 
-    def save_encoder_checkpoint(self, step_threshold, current_reward=None):
-        """Save encoder checkpoint with informative naming"""
-        # Create encoder state dict similar to pretrain_MT_multiheads.py
-        encoder_state = {
-            'encoder': self.agent.encoder.state_dict(),
-            'taco': self.agent.TACO.state_dict(),
-            'act_tok': self.agent.act_tok.state_dict(),
-            'args': {
-                'env_name': self.cfg.env_name,
-                'task': self.cfg.task,
-                'seed': self.cfg.seed,
-                'global_step': self.global_step,
-                'global_episode': self.global_episode,
-                'step_threshold': step_threshold,
-                'current_reward': current_reward
-            },
-            'global_step': self.global_step,
-            'global_episode': self.global_episode,
-            'step_threshold': step_threshold,
-            'current_reward': current_reward
-        }
-        
-        # Create informative filename
-        step_str = f"step{step_threshold}"
-        episode_str = f"ep{self.global_episode}"
-        reward_str = f"rew{current_reward:.0f}" if current_reward is not None else "rewN/A"
-        
-        filename = f"encoder_{self.cfg.env_name}_{self.cfg.task}_{step_str}_{episode_str}_{reward_str}.pt"
-        checkpoint_path = self.work_dir / filename
-        
-        torch.save(encoder_state, checkpoint_path)
-        print(f'Encoder checkpoint saved: {checkpoint_path} (Step: {step_threshold}, Reward: {current_reward:.2f}')
-        
+
 
     @property
     def global_step(self):
@@ -227,10 +187,8 @@ class Workspace:
             episode += 1
             self.video_recorder.save(f'{self.global_frame}-{episode}.mp4')
 
-        avg_episode_reward = total_reward / episode
-        
         with self.logger.log_and_dump_ctx(self.global_frame, ty='eval') as log:
-            log('episode_reward', avg_episode_reward)
+            log('episode_reward', total_reward / episode)
             log('episode_length', step * self.cfg.action_repeat / episode)
             log('episode', self.global_episode)
             log('step', self.global_step)
@@ -238,7 +196,7 @@ class Workspace:
 
         if self.cfg.use_wandb:
             wandb.log({
-                'eval/episode_reward': avg_episode_reward,
+                'eval/episode_reward': total_reward / episode,
                 'eval/episode_length': step * self.cfg.action_repeat / episode,
                 'eval/episode': self.global_episode,
                 'eval/step': self.global_step,
@@ -246,29 +204,6 @@ class Workspace:
                 'buffer_size': len(self.replay_storage),
                 'global_frame': self.global_frame
             })
-
-    def check_and_save_step_checkpoints(self, current_reward=None):
-        """Check if we need to save encoder checkpoints based on step thresholds"""
-        for step_threshold in self.encoder_step_thresholds:
-            # Check if we've reached this step threshold and haven't saved yet
-            if (self.global_step >= step_threshold and 
-                not self.encoder_saved_flags[step_threshold]):
-                
-                self.encoder_saved_flags[step_threshold] = True
-                self.save_encoder_checkpoint(step_threshold, current_reward)
-            
-
-    def check_and_save_snapshot_steps(self):
-        """Check if we need to save a snapshot when surpassing target steps"""
-        if hasattr(self.cfg, 'snapshot_step'):
-            for target_step in self.cfg.snapshot_step:
-                if target_step not in self.saved_snapshot_steps and self.global_step >= target_step:
-                    self.save_snapshot_at_step(target_step)
-                    self.saved_snapshot_steps.add(target_step)
-                    print(f'Saved snapshot at step {target_step}')
-        
-        
-                
 
     def train(self):
         # predicates
@@ -285,13 +220,7 @@ class Workspace:
         self.train_video_recorder.init(time_step.observation)
         metrics = None
         
-        print('Start training...')
-        
         while train_until_step(self.global_step):
-            # Check and save step-based checkpoints
-            self.check_and_save_step_checkpoints(episode_reward)
-            self.check_and_save_snapshot_steps()
-            
             if time_step.last():
                 self._global_episode += 1
                 self.train_video_recorder.save(f'{self.global_frame}.mp4')
@@ -321,6 +250,8 @@ class Workspace:
                             'global_frame': self.global_frame,
                             'step': self.global_step
                         })
+                        
+                    
 
                 # reset env
                 time_step = self.train_env.reset()
@@ -339,8 +270,6 @@ class Workspace:
                 self.logger.log('eval_total_time', self.timer.total_time(),
                                 self.global_frame)
                 self.eval()
-
-            
 
             # sample action
             with torch.no_grad(), utils.eval_mode(self.agent):
@@ -371,7 +300,13 @@ class Workspace:
             episode_step += 1
             self._global_step += 1
             
-
+    def check_and_save_snapshot_steps(self):
+        """Check if we need to save a snapshot when surpassing target steps"""
+        if hasattr(self.cfg.agent, 'snapshot_step'):
+            for target_step in self.cfg.agent.snapshot_step:
+                if target_step not in self.saved_snapshot_steps and self.global_step >= target_step:
+                    self.save_snapshot_at_step(target_step)
+                    self.saved_snapshot_steps.add(target_step)
 
     def save_snapshot(self):
         snapshot = self.work_dir / 'snapshot.pt'
@@ -394,7 +329,16 @@ class Workspace:
             print("loading snapshot: ", f)
             payload = torch.load(f, weights_only=False)
         for k, v in payload.items():
-            self.__dict__[k] = v
+            if k in ['agent']:
+                self.__dict__[k]=v
+            # self.__dict__[k] = v
+        #print all the methods of the agent
+        print("Agent methods:")
+        for name, method in self.agent.__class__.__dict__.items():
+            if callable(method):
+                print(f" - {name}")
+        self.agent.freeze_all_but_last_layer()
+        print(f'loaded snapshot: {snapshot}')
 
 
 @hydra.main(config_path='cfgs', config_name='config_metaworld')
@@ -402,7 +346,7 @@ def main(cfg):
     from pathlib import Path
     if cfg.use_wandb:
         wandb.tensorboard.patch(root_logdir=str(Path.cwd()))
-    from train_metaworld_checkpoint import Workspace as W
+    from train_metaworld_last_layer import Workspace as W
     root_dir = Path.cwd()
     workspace = W(cfg)
     snapshot = root_dir / 'snapshot.pt'
@@ -410,6 +354,7 @@ def main(cfg):
         print(f'resuming: {snapshot}')
         workspace.load_snapshot()
     workspace.train()
+
 
 if __name__ == '__main__':
     main()

@@ -306,7 +306,7 @@ class ContinuousPointMassMaze(base.Task):
         # Total reward
         reward = progress_reward + distance_reward + collision_penalty
 
-        return np.float32(reward)
+        return np.float64(reward)
         # --- IGNORE ---
     # # Calculate current distance to target
     #     current_distance = physics.mass_to_target_dist(self._target)
