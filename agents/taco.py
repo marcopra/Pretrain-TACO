@@ -701,4 +701,58 @@ class TACOAgent:
                 metrics['taco_loss']  = taco_loss.item()
                 metrics['total_loss'] = taco_loss.item() + curl_loss.item() + reward_loss.item()
             return metrics
+    
+    def change_device(self, new_device):
+        """
+        Move all model components to a new device.
+        
+        Args:
+            new_device: The target device (e.g., 'cuda:0', 'cpu')
+        """
+        # Update device attribute
+        self.device = new_device
+        
+        # Move all model components to new device
+        self.encoder = self.encoder.to(new_device)
+        self.actor = self.actor.to(new_device)
+        self.critic = self.critic.to(new_device)
+        self.critic_target = self.critic_target.to(new_device)
+        self.TACO = self.TACO.to(new_device)
+        self.act_tok = self.act_tok.to(new_device)
+        
+        # Update TACO's internal device reference
+        self.TACO.device = new_device
+        
+        # Move optimizers' state to new device if they exist
+        if hasattr(self, 'encoder_opt') and self.encoder_opt.state:
+            for state in self.encoder_opt.state.values():
+                for k, v in state.items():
+                    if torch.is_tensor(v):
+                        state[k] = v.to(new_device)
+        
+        if hasattr(self, 'taco_opt') and self.taco_opt.state:
+            for state in self.taco_opt.state.values():
+                for k, v in state.items():
+                    if torch.is_tensor(v):
+                        state[k] = v.to(new_device)
+        
+        if hasattr(self, 'actor_opt') and self.actor_opt.state:
+            for state in self.actor_opt.state.values():
+                for k, v in state.items():
+                    if torch.is_tensor(v):
+                        state[k] = v.to(new_device)
+        
+        if hasattr(self, 'critic_opt') and self.critic_opt.state:
+            for state in self.critic_opt.state.values():
+                for k, v in state.items():
+                    if torch.is_tensor(v):
+                        state[k] = v.to(new_device)
+        
+        # Update frozen fingerprints if they exist
+        if hasattr(self, '_frozen_fingerprints'):
+            for model_name, fingerprint in self._frozen_fingerprints.items():
+                for param_name, param_tensor in fingerprint.items():
+                    fingerprint[param_name] = param_tensor.to(new_device)
+        
+        print(f"All components moved to device: {new_device}")
 

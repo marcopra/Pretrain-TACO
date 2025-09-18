@@ -337,8 +337,10 @@ class Workspace:
         for name, method in self.agent.__class__.__dict__.items():
             if callable(method):
                 print(f" - {name}")
+        self.agent.change_device(self.cfg.device)
         self.agent.freeze_all_but_last_layer()
         print(f'loaded snapshot: {snapshot}')
+
 
 
 @hydra.main(config_path='cfgs', config_name='config_metaworld')
