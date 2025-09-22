@@ -116,6 +116,8 @@ def make_replay_loader(env, replay_dir, max_size, batch_size, num_workers,
     iterable = OfflineReplayBuffer(env, replay_dir, max_size_per_worker,
                                    num_workers, discount)
 
+    print(f"Replay buffer size: {len(iterable)}")
+    
     loader = torch.utils.data.DataLoader(iterable,
                                          batch_size=batch_size,
                                          num_workers=num_workers,

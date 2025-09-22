@@ -52,10 +52,7 @@ class Workspace:
         self.saved_medium_policy = False
 
         if cfg.use_wandb:
-           
-            
             if cfg.wandb_id is not None and cfg.wandb_id != "none":
-               
                 wandb.init(
                     id=cfg.wandb_id,
                     resume='must',
@@ -72,7 +69,6 @@ class Workspace:
                     tags=cfg.wandb_tag.split('_') if cfg.wandb_tag and cfg.wandb_tag != "none" else None,
                     sync_tensorboard=True,
                     mode='online')
-                
             wandb.run.save()
             
 

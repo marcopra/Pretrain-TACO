@@ -49,13 +49,24 @@ class Workspace:
         self.saved_medium_policy = False
 
         if cfg.use_wandb:
-           wandb.init(
-            config=OmegaConf.to_container(cfg, resolve=True),
-            project=cfg.wandb_project,
-            name=cfg.wandb_run_name,
-            sync_tensorboard=True,
-            mode='online')
-           wandb.run.save()
+            if cfg.wandb_id is not None and cfg.wandb_id != "none":
+                wandb.init(
+                    id=cfg.wandb_id,
+                    resume='must',
+                    project=cfg.wandb_project,
+                    name=cfg.wandb_run_name,
+                    tags=cfg.wandb_tag.split('_') if cfg.wandb_tag and cfg.wandb_tag != "none" else None,
+                    sync_tensorboard=True,
+                    mode='online')
+            else:
+                wandb.init(
+                    config=OmegaConf.to_container(cfg, resolve=True),
+                    project=cfg.wandb_project,
+                    name=cfg.wandb_run_name,
+                    tags=cfg.wandb_tag.split('_') if cfg.wandb_tag and cfg.wandb_tag != "none" else None,
+                    sync_tensorboard=True,
+                    mode='online')
+            wandb.run.save()
             
 
     def setup(self):
@@ -131,6 +142,17 @@ class Workspace:
             log('episode', self.global_episode)
             log('step', self.global_step)
             log('global_frame', self.global_frame)
+            
+        if self.cfg.use_wandb:
+            wandb.log({
+                'eval/episode_reward': total_reward / episode,
+                'eval/episode_length': step * self.cfg.action_repeat / episode,
+                'eval/episode': self.global_episode,
+                'eval/step': self.global_step,
+                'eval/success_rate': success / episode,
+                'buffer_size': len(self.replay_storage),
+                'global_frame': self.global_frame
+            })
 
     def train(self):
         # predicates
