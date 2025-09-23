@@ -12,7 +12,7 @@ curl="false"
 for seed in $seeds; do
     for env_name in "${task_names[@]}"; do
         echo "Submitting job: ENV_NAME=${env_name}, SEED=${seed}"
-        sbatch --export=SEED="${seed}",TASK="${env_name}",REWARD="${reward}",CURL="${curl}",WANDB_TAG="${wandb_tag}",NO_TACO="${no_taco}",WANDB_PROJECT="taco_cdmc" launchers/SLURM/CDMC/MT_pretrained.sh
+        sbatch --export=SEED="${seed}",TASK="${env_name}",REWARD="${reward}",CURL="${curl}",WANDB_TAG="${wandb_tag}",NO_TACO="${no_taco}",WANDB_PROJECT="cdmc" launchers/SLURM/CDMC/MT_pretrained.sh
     done
 done
 
