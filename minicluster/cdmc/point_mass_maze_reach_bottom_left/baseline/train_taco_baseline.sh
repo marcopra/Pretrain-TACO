@@ -73,7 +73,7 @@ for i in $(seq 1 $num_runs); do
     SEED=$(($RANDOM % 10000)) 
     
     # Run the Python command with the appropriate arguments
-    python3 train_cdmc.py exp_name=baseline_cdmc${cuda_device}${SEED} seed=${SEED} task=point_mass_maze_reach_bottom_left wandb_tag=${wandb_tag} num_train_frames=220000 device=cuda:${cuda_device} agent.no_taco=${no_taco} agent.reward=${no_reward} agent.curl=${no_curl} wandb_project="cdmc"
+    python3 train_cdmc.py exp_name=baseline_cdmc${cuda_device}${SEED} seed=${SEED} task=point_mass_maze_reach_bottom_left wandb_tag=${wandb_tag} num_train_frames=220000 device=cuda:${cuda_device} agent.no_taco=${no_taco} agent.reward=${reward} agent.curl=${curl} wandb_project="cdmc"
 
     # Cleanup command
     rm -rf baseline_cdmc${cuda_device}${SEED}*
