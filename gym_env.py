@@ -2,18 +2,19 @@ from collections import deque
 from typing import Any, NamedTuple
 import os
 
-import gym
-import gymnasium
+import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
+import mujoco
 import gymnasium_robotics
-gymnasium.register_envs(gymnasium_robotics)
+gym.register_envs(gymnasium_robotics)
 from dm_env import StepType, specs
 from PIL import Image
+from maze import MEDIUM_MAZE_RANDOM_INIT_FIXED_GOAL, MEDIUM_MAZE_FIXED_INIT_RANDOM_GOAL, MEDIUM_MAZE_FIXED_INIT_FIXED_GOAL
 
 class ResizeRendering(gym.Wrapper):
 
-    def __init__(self, env, resolution=84):
+    def __init__(self, env, resolution=224):
         super().__init__(env)
         self.resolution = resolution
 
@@ -36,6 +37,10 @@ class ResizeRendering(gym.Wrapper):
         """Set the task for the environment."""
         # Set the task in the base environment
         self.env.set_task(task)
+    
+    def __getattr__(self, name):
+        """Forward other attributes to the wrapped environment."""
+        return getattr(self.env, name)
 
 class ExtendedTimeStep(NamedTuple):
     step_type: Any
@@ -67,15 +72,24 @@ class ActionRepeatWrapper(gym.Wrapper):
         super().__init__(env)
         self._num_repeats = num_repeats
         self.data_collection = data_collection
+        self.obs_keys = None
 
     def _process_proprio_obs(self, obs):
         """Process proprioceptive observation, concatenating dict values if needed."""
+    
         if isinstance(obs, dict):
+            if self.obs_keys is None:
+                self.obs_keys = []
+                for key in obs.keys():  # Sort for consistent ordering
+                    self.obs_keys.append(key)
+                print(f"Proprio obs keys order: {self.obs_keys}") 
+
             # Concatenate all values in the dictionary
             arrays = []
-            for key in sorted(obs.keys(), reverse=True):  # Sort for consistent ordering
+            for key in self.obs_keys:
                 arrays.append(obs[key].flatten())
-            return np.concatenate(arrays)
+            assert self.obs_keys == list(obs.keys()), f"Expected keys {self.obs_keys}, but got {list(obs.keys())}"  
+            return np.concatenate(arrays, dtype=np.float32)
         else:
             return obs
 
@@ -110,11 +124,11 @@ class ActionRepeatWrapper(gym.Wrapper):
             observation=image_obs,  # Use image observations
             proprio_observation=proprio_obs,
             action=action,
-            success= terminated,
+            success=info['success'] if 'success' in info else terminated,
         )
 
-    def reset(self):
-        obs, info = self.env.reset()
+    def reset(self, **kwargs):
+        obs, info = self.env.reset(**kwargs)
         image_obs = self.env.render()
         proprio_obs = self._process_proprio_obs(obs)
         # Convert gym reset to dm_env format
@@ -127,6 +141,18 @@ class ActionRepeatWrapper(gym.Wrapper):
             action=np.zeros(self.env.action_space.shape, dtype=np.float32),
             success=False
         )
+    
+    @property
+    def physics(self):
+        """Forward physics attribute if available."""
+        if hasattr(self.env, 'physics'):
+            return self.env.physics
+        else:
+            raise AttributeError(f"{self.__class__.__name__} has no attribute 'physics'")
+    
+    def __getattr__(self, name):
+        """Forward other attributes to the wrapped environment."""
+        return getattr(self.env, name)
 
 
 class FrameStackWrapper(gym.Wrapper):
@@ -167,8 +193,8 @@ class FrameStackWrapper(gym.Wrapper):
         else:
             raise ValueError("Expected observation to be a numpy array")
 
-    def reset(self):
-        time_step = self.env.reset()
+    def reset(self, **kwargs):
+        time_step = self.env.reset(**kwargs)
         pixels = self._extract_pixels(time_step.observation)
         for _ in range(self._num_frames):
             self._frames.append(pixels)
@@ -179,6 +205,18 @@ class FrameStackWrapper(gym.Wrapper):
         pixels = self._extract_pixels(time_step.observation)
         self._frames.append(pixels)
         return self._transform_observation(time_step)
+    
+    @property
+    def physics(self):
+        """Forward physics attribute if available."""
+        if hasattr(self.env, 'physics'):
+            return self.env.physics
+        else:
+            raise AttributeError(f"{self.__class__.__name__} has no attribute 'physics'")
+    
+    def __getattr__(self, name):
+        """Forward other attributes to the wrapped environment."""
+        return getattr(self.env, name)
 
 
 class ActionDTypeWrapper(gym.Wrapper):
@@ -195,23 +233,202 @@ class ActionDTypeWrapper(gym.Wrapper):
     def step(self, action):
         action = action.astype(self.env.action_space.dtype)
         return self.env.step(action)
+    
+    def __getattr__(self, name):
+        """Forward other attributes to the wrapped environment."""
+        return getattr(self.env, name)
+
+
+class PhysicsStateWrapper(gym.Wrapper):
+    """Wrapper che simula l'interfacio physics per il relabelling come in CDMC."""
+    
+    def __init__(self, env):
+        super().__init__(env)
+        self._physics_state = None
+    
+    def _get_physics_state(self):
+        """Estrae lo stato fisico dall'ambiente Gymnasium."""
+        # Per PointMaze, usiamo la posizione e velocità come stato fisico
+        if hasattr(self.env, 'unwrapped'):
+            unwrapped = self.env.unwrapped
+            if hasattr(unwrapped, 'point_env'):
+                # PointMaze environment
+                point_env = unwrapped.point_env
+                qpos = point_env.data.qpos.copy()
+                qvel = point_env.data.qvel.copy()
+                return np.concatenate([qpos, qvel])
+        
+        # Fallback: usa l'osservazione propriocettiva se disponibile
+        return self._physics_state if self._physics_state is not None else np.zeros(4)
+    
+    def _set_physics_state(self, state):
+        """Imposta lo stato fisico nell'ambiente."""
+        if hasattr(self.env, 'unwrapped'):
+            unwrapped = self.env.unwrapped
+            if hasattr(unwrapped, 'point_env'):
+                # PointMaze environment
+                point_env = unwrapped.point_env
+                mid = len(state) // 2
+                point_env.data.qpos[:] = state[:mid]
+                point_env.data.qvel[:] = state[mid:]
+                # Forward kinematics to update dependent variables
+                mujoco.mj_forward(point_env.model, point_env.data)
+    
+    def reset(self,**kwargs):
+        time_step = self.env.reset(**kwargs)
+        self._physics_state = self._get_physics_state()
+        return time_step
+    
+    def step(self, action):
+        time_step = self.env.step(action)
+        self._physics_state = self._get_physics_state()
+        return time_step
+    
+    @property
+    def physics(self):
+        """Simula l'interfaccia physics di CDMC."""
+        class PhysicsInterface:
+            def __init__(self, wrapper):
+                self.wrapper = wrapper
+            
+            def state(self):
+                return self.wrapper._get_physics_state()
+            
+            def set_state(self, state):
+                self.wrapper._set_physics_state(state)
+            
+            class ResetContext:
+                def __init__(self, physics_interface):
+                    self.physics = physics_interface
+                    self.original_state = None
+                
+                def __enter__(self):
+                    self.original_state = self.physics.state()
+                    return self
+                
+                def __exit__(self, exc_type, exc_val, exc_tb):
+                    if self.original_state is not None:
+                        self.physics.set_state(self.original_state)
+            
+            def reset_context(self):
+                return self.ResetContext(self)
+        
+        return PhysicsInterface(self)
+
+
+class RewardSpecWrapper(gym.Wrapper):
+    """Wrapper che aggiunge le specifiche per reward e discount compatibili con CDMC."""
+    
+    def __init__(self, env):
+        super().__init__(env)
+        # Verifica che sia un PointMaze environment
+        if not hasattr(self.env, 'unwrapped') or not hasattr(self.env.unwrapped, 'compute_reward'):
+            raise NotImplementedError("RewardSpecWrapper is currently only implemented for PointMaze environments")
+    
+    def reward_spec(self):
+        """Specifica del reward per compatibilità con replay buffer CDMC."""
+        return specs.Array(shape=(1,), dtype=np.float32, name='reward')
+    
+    def discount_spec(self):
+        """Specifica del discount per compatibilità con replay buffer CDMC."""
+        return specs.Array(shape=(1,), dtype=np.float32, name='discount')
+    
+    def compute_reward_from_state_and_action(self, physics_state, action, desired_goal=None):
+        """Calcola il reward usando state e goal, senza fare uno step nell'environment."""
+        unwrapped = self.env.unwrapped
+        
+        # Salva lo stato corrente e il goal corrente
+        original_state = self.physics.state()
+        original_goal = unwrapped.goal.copy()
+        
+        try:
+            # Se desired_goal è fornito, usalo, altrimenti prendilo dagli ultimi elementi dello stato
+            if desired_goal is not None:
+                goal_to_use = desired_goal.copy()
+            else:
+                # Assumiamo che il goal sia negli ultimi 2 elementi del physics_state
+                goal_to_use = physics_state[-2:].copy()
+            
+            # Estrai achieved_goal (posizione corrente) dai primi 2 elementi dello stato
+            achieved_goal = physics_state[:2].copy()
+            
+            # Calcola il reward direttamente usando compute_reward
+            if hasattr(unwrapped, 'compute_reward'):
+                reward = unwrapped.compute_reward(achieved_goal, goal_to_use, {})
+                return np.array([reward], dtype=np.float32)
+            else:
+                raise NotImplementedError("compute_reward method not found in environment")
+            
+        finally:
+            # Ripristina lo stato originale (non necessario in questo caso ma per sicurezza)
+            self.physics.set_state(original_state)
+            # Ripristina sempre il goal originale
+            unwrapped.goal = original_goal
+            if hasattr(unwrapped, 'update_target_site_pos'):
+                unwrapped.update_target_site_pos()
+    
+    def compute_reward_from_obs_dict(self, obs_dict, action=None):
+        """Calcola il reward da un dizionario di osservazioni (formato PointMaze)."""
+        if not all(key in obs_dict for key in ['achieved_goal', 'desired_goal']):
+            raise ValueError("obs_dict must contain 'achieved_goal' and 'desired_goal' keys")
+        
+        achieved_goal = obs_dict['achieved_goal']
+        desired_goal = obs_dict['desired_goal']
+        
+        # Per PointMaze, il reward dipende solo dalla posizione, non dallo stato fisico completo
+        # quindi possiamo calcolare direttamente
+        unwrapped = self.env.unwrapped
+        if hasattr(unwrapped, 'compute_reward'):
+            reward = unwrapped.compute_reward(achieved_goal, desired_goal, {})
+            return np.array([reward], dtype=np.float32)
+        else:
+            raise NotImplementedError("compute_reward method not found in environment")
+    
+    
+    def __getattr__(self, name):
+        """Forward other attributes to the wrapped environment."""
+        return getattr(self.env, name)
 
 
 class ExtendedTimeStepWrapper(gym.Wrapper):
     def __init__(self, env):
         super().__init__(env)
 
-    def reset(self):
-        time_step = self.env.reset()
+    def reset(self, **kwargs):
+        time_step = self.env.reset(**kwargs)
         return time_step
 
     def step(self, action):
         time_step = self.env.step(action)
         return time_step
+    
+    @property
+    def physics(self):
+        """Forward physics attribute if available."""
+        if hasattr(self.env, 'physics'):
+            return self.env.physics
+        else:
+            raise AttributeError(f"{self.__class__.__name__} has no attribute 'physics'")
+    
+    def __getattr__(self, name):
+        """Forward other attributes to the wrapped environment."""
+        return getattr(self.env, name)
 
 
+def observation_spec(env):
+    """Get observation spec of the environment for agent initialization."""
+    shape = env.observation_space.shape
+    return specs.Array(shape, np.uint8, 'observation')
 
-def make(name, frame_stack=1, action_repeat=1, seed=None, resolution=224):
+
+def action_spec(env):
+    """Get action spec of the environment for agent initialization."""
+    shape = env.action_space.shape
+    min_action = env.action_space.low[0]
+    max_action = env.action_space.high[0]
+    return specs.BoundedArray(shape, np.float32, min_action, max_action, 'action')
+
+def make(name, frame_stack=1, action_repeat=1, seed=None, resolution=224, random_init=True, randomize_goal=True, enable_relabelling=False):
     """
     Create a Gymnasium environment with wrappers.
     
@@ -220,23 +437,50 @@ def make(name, frame_stack=1, action_repeat=1, seed=None, resolution=224):
         frame_stack: Number of frames to stack
         action_repeat: Number of times to repeat each action
         seed: Random seed
+        resolution: Image resolution
+        random_init: Se True, usa posizioni iniziali casuali
+        randomize_goal: Se True, usa goal casuali
+        enable_relabelling: Se True, aggiunge i wrapper per il relabelling CDMC
     
     Returns:
         Wrapped environment
     """
-    # Create the environment
-    env = gymnasium.make(name, render_mode='rgb_array')
-    
+    maze_map = None
+    # PointMaze_MediumDense must be PointMaze_Medium_Diverse_GRDense
+    if not random_init or not randomize_goal:   
+        if 'PointMaze_Medium' in name:
+            if random_init and not randomize_goal:
+                name = name.replace('PointMaze_Medium', 'PointMaze_Medium_Diverse_GR')
+                maze_map = MEDIUM_MAZE_RANDOM_INIT_FIXED_GOAL
+            elif not random_init and randomize_goal:
+                name = name.replace('PointMaze_Medium', 'PointMaze_Medium_Diverse_G')
+                maze_map = MEDIUM_MAZE_FIXED_INIT_RANDOM_GOAL
+            elif not random_init and not randomize_goal:
+                name = name.replace('PointMaze_Medium', 'PointMaze_Medium_Diverse_GR')
+                maze_map = MEDIUM_MAZE_FIXED_INIT_FIXED_GOAL
+        else:
+            raise ValueError("random_init and randomize_goal are only supported for 'PointMaze_Medium' environments")
+        env = gym.make(name, render_mode='rgb_array', maze_map=maze_map)
+ 
+    else:
+        env = gym.make(name, render_mode='rgb_array')
+
     if seed is not None:
         env.reset(seed=seed)
     
     # Add wrappers
-    # env = ResizeRendering(env, resolution=resolution)   
+    env = ResizeRendering(env, resolution=resolution)   
     env = ActionDTypeWrapper(env, np.float32)
+    
+    # Add relabelling wrappers if requested
+    if enable_relabelling:
+        assert name.startswith('PointMaze'), "Relabelling wrappers are only implemented for PointMaze environments"
+        env = PhysicsStateWrapper(env)
+        env = RewardSpecWrapper(env)
+    
     env = ActionRepeatWrapper(env, action_repeat)
     
     # Add frame stacking if requested
-  
     env = FrameStackWrapper(env, frame_stack)
     
     env = ExtendedTimeStepWrapper(env)
@@ -246,130 +490,119 @@ def make(name, frame_stack=1, action_repeat=1, seed=None, resolution=224):
 
 # Tests
 if __name__ == "__main__":
-    print("Testing gym_envs.py...")
+    import pathlib
+    from replay_buffer import ReplayBufferStorage
+    from dm_env import specs
     
-    # Test 1: Basic environment creation (continuous action space)
-    try:
-        env = make('PointMaze_Medium-v3', seed=42, frame_stack=1, action_repeat=2)
-        print("✓ PointMaze environment creation successful")
-    except Exception as e:
-        print(f"✗ PointMaze environment creation failed: {e}")
-        # Fallback to another continuous environment
-        try:
-            env = make('PointMaze_Medium-v3', seed=42)
-            print("✓ Fallback environment (MountainCarContinuous) creation successful")
-        except Exception as e2:
-            print(f"✗ Fallback environment creation failed: {e2}")
-            exit(1)
-    
-    # Test 2: Reset functionality
-    try:
-        time_step = env.reset()
-        assert hasattr(time_step, 'observation')
-        assert hasattr(time_step, 'step_type')
-        assert hasattr(time_step, 'action')
-        assert hasattr(time_step, 'reward')
-        assert hasattr(time_step, 'discount')
-        assert hasattr(time_step, 'proprio_observation')
-        assert hasattr(time_step, 'success')
-        assert time_step.first()
-        print(f"✓ Reset functionality works correctly")
-        print(f"  - Observation shape: {time_step.observation.shape}")
-        print(f"  - Proprio observation shape: {time_step.proprio_observation.shape}")
-        print(f"  - Action shape: {time_step.action.shape}")
-    except Exception as e:
-        print(f"✗ Reset functionality failed: {e}")
-    
-    # Test 3: Step functionality
-    try:
-        action = env.action_space.sample()
-        time_step = env.step(action)
-        assert hasattr(time_step, 'observation')
-        assert hasattr(time_step, 'step_type')
-        assert hasattr(time_step, 'action')
-        assert hasattr(time_step, 'reward')
-        assert hasattr(time_step, 'discount')
-        assert hasattr(time_step, 'proprio_observation')
-        assert hasattr(time_step, 'success')
-        print("✓ Step functionality works correctly")
-        print(f"  - Reward: {time_step.reward}")
-        print(f"  - Discount: {time_step.discount}")
-    except Exception as e:
-        print(f"✗ Step functionality failed: {e}")
-    
-    # Test 4: Frame stacking (only with continuous environments)
-    try:
-        env_stacked = make('PointMaze_Medium-v3', frame_stack=3, seed=42)
-        time_step = env_stacked.reset()
-        print(f"✓ Frame stacking works correctly")
-        print(f"  - Stacked observation shape: {time_step.observation.shape}")
-    except Exception as e:
-        print(f"✗ Frame stacking failed: {e}")
-    
-    # Test 5: Action repeat
-    try:
-        env_repeat = make('PointMaze_Medium-v3', action_repeat=2, seed=42)
-        time_step = env_repeat.reset()
-        action = env_repeat.action_space.sample()
-        time_step = env_repeat.step(action)
-        print("✓ Action repeat wrapper works correctly")
-    except Exception as e:
-        print(f"✗ Action repeat failed: {e}")
-    
-    # Test 6: Full episode
-    # try:
-    try:
-        env_test = make('PointMaze_Medium-v3', seed=42)
-        time_step = env_test.reset()
-        total_reward = 0
-        steps = 0
+    def test_reward_consistency():
+        """Test che il reward calcolato dai wrapper corrisponda a quello nei file npz."""
+        print("Testing reward consistency...")
         
-        while not time_step.last() and steps < 200:
-            action = env_test.action_space.sample()
-            time_step = env_test.step(action)
-            total_reward += time_step.reward
-            steps += 1
+        # Crea ambiente con relabelling abilitato
+        env = make('PointMaze_MediumDense-v3', enable_relabelling=True)
         
-        print(f"✓ Full episode completed: {steps} steps, total reward: {total_reward:.2f}")
-    except Exception as e:
-        print(f"✗ Full episode test failed: {e}")
+        # Setup specs per replay buffer (usando proprio_observation concatenato)
+        proprio_shape = (6,)  # observation + achieved_goal + desired_goal concatenati
+        data_specs = (
+            observation_spec(env),
+            action_spec(env),
+            specs.Array((1,), np.float32, 'reward'),
+            specs.Array((1,), np.float32, 'discount'),
+            specs.Array(proprio_shape, np.float32, 'proprio_observation')
+        )
+        
+        # Directory buffer (assumendo che esista)
+        buffer_dir = pathlib.Path('/home/mprattico/Pretrain-TACO/exp_local/prova2/buffer')
+        if not buffer_dir.exists():
+            print("Buffer directory './buffer' not found. Creating empty test...")
+            return
+        
+        # Carica storage
+        replay_storage = ReplayBufferStorage(data_specs, buffer_dir)
+        
+        if len(replay_storage) == 0:
+            print("No episodes found in buffer directory")
+            return
+        
+        # Carica alcuni episodi npz per test
+        npz_files = list(buffer_dir.glob('*.npz'))
+        if not npz_files:
+            print("No .npz files found in buffer directory")
+            return
+            
+        print(f"Found {len(npz_files)} episodes to test")
+        
+        # Test su primi 3 episodi
+        for i, npz_file in enumerate(npz_files[:3]):
+            print(f"\nTesting episode {i+1}: {npz_file.name}")
+            
+            # Carica episodio
+            episode_data = np.load(npz_file)
+            
+            # Verifica chiavi richieste
+            required_keys = ['reward', 'proprio_observation']
+            if not all(key in episode_data for key in required_keys):
+                print(f"Skipping episode {i+1}: missing required keys")
+                continue
+            
+            # Test su 5 transizioni casuali dell'episodio
+            episode_len = len(episode_data['reward'])
+            test_indices = np.random.choice(episode_len, min(5, episode_len), replace=False)
+            
+            for j, idx in enumerate(test_indices):
+                # Estrai dati originali
+                original_reward = episode_data['reward'][idx][0]
+                proprio_obs = episode_data['proprio_observation'][idx]
+                
+                # Decomponi proprio_observation (observation + achieved_goal + desired_goal)
+                # Formato: [observation(4), achieved_goal(2), desired_goal(2)] = 8 total
+                # Ma dovrebbe essere 6 secondo proprio_shape, quindi probabilmente diverso
+                
+                if len(proprio_obs) >= 6:
+                    # Formato: [observation(4), achieved_goal(2), desired_goal(2)] = 8 total
+                    # Ma per il calcolo dobbiamo usare physics_state con goal incluso
+                    observation = proprio_obs[:4]  # primi 4 valori (observation)  
+                    achieved_goal = proprio_obs[4:6] if len(proprio_obs) >= 8 else proprio_obs[:2]  # achieved_goal
+                    desired_goal = proprio_obs[6:8] if len(proprio_obs) >= 8 else proprio_obs[2:4]  # desired_goal
+                    
+                    # Crea physics_state con goal incluso come ultimi elementi
+                    physics_state = np.concatenate([observation, desired_goal])
+                    
+                    # Estrai action se disponibile
+                    if 'action' in episode_data:
+                        action = episode_data['action'][idx]
+                    else:
+                        action = np.zeros(2, dtype=np.float32)  # dummy action per PointMaze
+                    
+                    try:
+                        # Calcola reward usando state e action
+                        calculated_reward = env.compute_reward_from_state_and_action(proprio_obs, action)
+                        calculated_reward_value = calculated_reward[0]
+                        
+                        # Confronta rewards (aggiustiamo la tolleranza)
+                        reward_diff = abs(original_reward - calculated_reward_value)
+                        
+                        print(f"  Transition {j+1} (idx {idx}):")
+                        print(f"    Achieved goal: {achieved_goal}")
+                        print(f"    Desired goal: {desired_goal}")
+                        print(f"    Original reward: {original_reward:.6f}")
+                        print(f"    Calculated reward: {calculated_reward_value:.6f}")
+                        print(f"    Difference: {reward_diff:.6f}")
+                        
+                        if reward_diff < 1e-5:
+                            print(f"    ✓ Match!")
+                        else:
+                            print(f"    ✗ Mismatch!")
+                            
+                    except Exception as e:
+                        print(f"    Error calculating reward: {e}")
+                        import traceback
+                        traceback.print_exc()
+                        
+                else:
+                    print(f"  Unexpected proprio_observation shape: {proprio_obs.shape}")
+            
+        print("\nReward consistency test completed.")
     
-    # Test 7: Action space compatibility
-    try:
-        print(f"✓ Environment details:")
-        print(f"  - Action space: {env.action_space}")
-        print(f"  - Action space dtype: {env.action_space.dtype}")
-        print(f"  - Action space shape: {env.action_space.shape}")
-        action_sample = env.action_space.sample()
-        print(f"  - Sample action: {action_sample}")
-        print(f"  - Sample action dtype: {action_sample.dtype}")
-    except Exception as e:
-        print(f"✗ Action space test failed: {e}")
-    
-    print("All tests completed!")
-
-     # L'osservazione è già in formato CHW (channels first) dopo il FrameStackWrapper
-    observation = time_step.observation  # Shape: (channels*frames, height, width)
-    
-    # Prendi solo i primi 3 canali per visualizzare un singolo frame RGB
-    single_frame = observation[:3, :, :].transpose(1, 2, 0)  # Converti da CHW a HWC
-    
-    # Salvando immagine d'esempio...
-    # Immagine salvata come 'esempio_metaworld.png'
-    # Forma dell'osservazione: (9, 84, 84)
-    # Forma dell'osservazione proprietà: (39,)
-    # Range valori immagine: [0, 255]
-    # Forma dell'osservazione: (9, 84, 84)
-    # Forma dell'osservazione proprietà: (39,)
-    # Range valori immagine: [0, 255]
-    # Converti in PIL Image e salva (flip già applicato nel render)
-    img = Image.fromarray(single_frame.astype(np.uint8))
-    img.save('/home/mprattico/Pretrain-TACO/esempio_gym.png')
-
-    print("Immagine salvata come 'esempio_gym.png'")
-    print(f"Forma dell'osservazione: {observation.shape}")
-    print(f"Forma dell'osservazione proprietà: {time_step.proprio_observation}")
-    print(f"Range valori immagine: [{observation.min()}, {observation.max()}]")
-    print(f"Forma dell'osservazione: {observation.shape}")
-    print(f"Forma dell'osservazione proprietà: {time_step.proprio_observation.shape}")
-    print(f"Range valori immagine: [{observation.min()}, {observation.max()}]")
+    # Esegui test
+    test_reward_consistency()

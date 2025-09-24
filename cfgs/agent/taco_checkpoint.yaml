@@ -32,4 +32,4 @@ freeze_encoder: false
 no_taco: false
 
 ### Encoder checkpoint parameters
-encoder_checkpoint_steps: [15000, 30000, 50000, 100000]
+encoder_checkpoint_steps: [5000, 10000, 20000, 50000, 100000, 200000, 500000, 1000000]
