@@ -352,6 +352,8 @@ def main(cfg):
     root_dir = Path.cwd()
     workspace = W(cfg)
     snapshot = root_dir / 'snapshot.pt'
+    if cfg.checkpoint:
+        assert snapshot.exists(), f'checkpoint {snapshot} does not exist!'
     if snapshot.exists():
         print(f'resuming: {snapshot}')
         workspace.load_snapshot()
