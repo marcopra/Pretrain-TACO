@@ -358,6 +358,7 @@ class TACOAgent:
         utils.ColorPrint.blue(f"Loading pretrained model from: {model_path}")
         checkpoint = torch.load(model_path, map_location=map_location, weights_only=False)
         
+        print("Checkpoint keys:", checkpoint.keys())
         # Use TACO's load_checkpoint method for all TACO components
         if 'taco' in checkpoint:
             self.TACO.load_checkpoint(checkpoint['taco'])
