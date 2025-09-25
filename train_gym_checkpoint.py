@@ -335,7 +335,12 @@ class Workspace:
             print("loading snapshot: ", f)
             payload = torch.load(f, weights_only=False)
         for k, v in payload.items():
-            self.__dict__[k] = v
+            if self.cfg.checkpoint==True:
+                if k != '_global_step' and k != '_global_episode':
+                    self.__dict__[k] = v
+            else:   
+                self.__dict__[k] = v
+        print(f'loaded snapshot: {snapshot} in checkpoint_mode {self.cfg.checkpoint}')
 
 
 @hydra.main(config_path='cfgs', config_name='config_gym')

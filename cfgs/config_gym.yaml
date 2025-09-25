@@ -40,6 +40,7 @@ wandb_id: none # needed for resuming runs
 
 # experiment
 experiment: exp
+checkpoint: False 
 # agent
 lr: 1e-4
 encoder_lr: 1e-4

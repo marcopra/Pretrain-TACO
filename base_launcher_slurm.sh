@@ -14,6 +14,6 @@ cd $SLURM_SUBMIT_DIR
 source ~/.bashrc
 conda activate metataco
 
-python train_gym_checkpoint.py agent=taco_checkpoint save_snapshot=false seed=0 exp_name=checkpoint_10k
-# python train_gym_checkpoint.py agent=taco_checkpoint save_snapshot=false seed=0 exp_name=checkpoint_20k
-# python train_gym_checkpoint.py agent=taco_checkpoint save_snapshot=false seed=0 exp_name=checkpoint_400k
+python train_gym_checkpoint.py agent=taco_checkpoint checkpoint=true save_snapshot=false seed=0 exp_name=checkpoint_10k
+# python train_gym_checkpoint.py agent=taco_checkpoint checkpoint=true save_snapshot=false seed=0 exp_name=checkpoint_20k
+# python train_gym_checkpoint.py agent=taco_checkpoint checkpoint=true save_snapshot=false seed=0 exp_name=checkpoint_400k
