@@ -14,6 +14,9 @@ cd $SLURM_SUBMIT_DIR
 source ~/.bashrc
 conda activate metataco
 
-python train_gym_checkpoint.py agent=taco_checkpoint save_snapshot=false seed=0 freeze_encoder=true agent.pretrained_path="/home/mprattico/Pretrain-TACO/models_maze/checkpoint_10k/encoder_snapshot.pt"  exp_name=checkpoint_10k_frozen
+# python train_gym_checkpoint.py agent=taco_checkpoint save_snapshot=false seed=0 freeze_encoder=true agent.pretrained_path="/home/mprattico/Pretrain-TACO/models_maze/checkpoint_10k/encoder_snapshot.pt"  exp_name=checkpoint_10k_frozen
 # python train_gym_checkpoint.py agent=taco_checkpoint save_snapshot=false seed=0 freeze_encoder=true agent.pretrained_path="/home/mprattico/Pretrain-TACO/models_maze/checkpoint_20k/encoder_snapshot.pt"  exp_name=checkpoint_20k_frozen
 # python train_gym_checkpoint.py agent=taco_checkpoint save_snapshot=false seed=0 freeze_encoder=true agent.pretrained_path="/home/mprattico/Pretrain-TACO/models_maze/checkpoint_400k/encoder_snapshot.pt" exp_name=checkpoint_400k_frozen
+python train_gym_checkpoint.py agent=taco_checkpoint save_snapshot=false seed=0 freeze_encoder=false agent.pretrained_path="models_maze/random_dataset/taco_MT_home_mprattico_Pretrain-TACO_dataset_random_medium_lr=0.0005_ts=6246400_curl_rew_best.pt"  exp_name=random
+# python train_gym_checkpoint.py agent=taco_checkpoint save_snapshot=false seed=0 freeze_encoder=true  agent.pretrained_path="models_maze/random_dataset/taco_MT_home_mprattico_Pretrain-TACO_dataset_random_medium_lr=0.0005_ts=6246400_curl_rew_best.pt"  exp_name=random_frozen
+
