@@ -663,7 +663,6 @@ class TACOAgent:
                 logits = self.TACO.compute_logits(z_a, z_pos)
                 labels = torch.arange(logits.shape[0]).long().to(self.device)
                 curl_loss = self.cross_entropy_loss(logits, labels)
-                print("curl_loss", curl_loss)
             else:
                 curl_loss = torch.tensor(0.)
             

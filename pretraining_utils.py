@@ -236,3 +236,125 @@ def load_unified_dataset(config_or_path, batch_size=32, num_workers=4,
             print(f"Temporary directory {temp_dir} cleaned up successfully")
         except Exception as e:
             ColorPrint.yellow(f"Warning: Could not cleanup temporary directory {temp_dir}: {e}")
+
+def load_single_task_dataset(config_or_path, batch_size=32, num_workers=4,
+                             nstep=3, multistep=3, discount=0.99, 
+                             max_episodes_per_dataset=8, max_size=None,
+                             homogeneous=False, train_ratio=0.8, use_training_split=True):
+    """
+    Load single task dataset and split into train/validation
+    
+    Args:
+        config_or_path: Either path to config.json or folder with dataset
+        max_episodes_per_dataset: Maximum episodes to load per dataset
+        max_size: Maximum size of replay buffer (only applied to training split)
+        homogeneous: Whether to load transitions evenly across datasets
+        train_ratio: Ratio of data to use for training (rest for validation)
+        use_training_split: If True, return training split; if False, return validation split
+    """
+    config_path = Path(config_or_path)
+    
+    # Determine if it's a config file or folder
+    if config_path.suffix == '.json':
+        ColorPrint.blue(f"Loading single task from config file: {config_path}")
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+        
+        # For single task, check different possible config formats
+        if 'dataset_path' in config:
+            dataset_paths = [config['dataset_path']]
+        elif 'pretraining_datasets' in config:
+            dataset_paths = config.get('pretraining_datasets', [])
+        else:
+            raise ValueError("Config must contain 'dataset_path' or 'pretraining_datasets'")
+    else:
+        ColorPrint.blue(f"Loading single task from folder: {config_path}")
+        dataset_paths = [str(config_path)]
+    
+    print(f"Single task dataset paths: {dataset_paths}")
+    
+    # Collect all episodes from all datasets
+    all_episodes = []
+    for dataset_path in dataset_paths:
+        dataset_path = Path(dataset_path)
+        episode_files = list(dataset_path.glob('*.npz'))
+        
+        if max_episodes_per_dataset is not None:
+            episode_files = episode_files[:max_episodes_per_dataset]
+        
+        all_episodes.extend(episode_files)
+    
+    print(f"Found {len(all_episodes)} total episodes")
+    
+    # Shuffle episodes to ensure random distribution
+    random.shuffle(all_episodes)
+    
+    # Split episodes based on train_ratio
+    split_idx = int(len(all_episodes) * train_ratio)
+    
+    if use_training_split:
+        selected_episodes = all_episodes[:split_idx]
+        split_type = "training"
+        effective_max_size = max_size  # Apply max_size only to training
+    else:
+        selected_episodes = all_episodes[split_idx:]
+        split_type = "validation"
+        effective_max_size = None  # No size limit for validation
+    
+    print(f"Selected {len(selected_episodes)} episodes for {split_type} split")
+    
+    if len(selected_episodes) == 0:
+        raise ValueError(f"No episodes selected for {split_type} split. Check train_ratio and dataset size.")
+    
+    # For single dataset with direct loading, check if we can avoid temp directory
+    if len(dataset_paths) == 1 and len(selected_episodes) == len(all_episodes):
+        # Using all episodes from single dataset - direct loading possible
+        dataset_path = Path(dataset_paths[0])
+        ColorPrint.green(f"Using direct loading from {dataset_path} for {split_type}")
+        
+        loader = make_replay_loader(
+            replay_dir=dataset_path,
+            max_size=1000000 if effective_max_size is None else effective_max_size,
+            batch_size=batch_size,
+            num_workers=num_workers,
+            save_snapshot=True,
+            nstep=nstep,
+            multistep=multistep,
+            discount=discount
+        )
+        return loader
+    
+    # Need to create temporary directory with symlinks for split
+    ColorPrint.yellow(f"Creating temporary directory with symlinks for {split_type} split")
+    temp_dir = Path(tempfile.mkdtemp())
+    print(f"Temporary directory created at: {temp_dir}")
+    
+    try:
+        # Create symlinks to selected episodes with proper naming
+        counter = 0
+        for episode_file in selected_episodes:
+            symlink_path = create_symlink_with_proper_naming(episode_file, temp_dir, counter)
+            if symlink_path is not None:
+                counter += 1
+        
+        # Create loader
+        loader = make_replay_loader(
+            replay_dir=temp_dir,
+            max_size=1000000 if effective_max_size is None else effective_max_size,
+            batch_size=batch_size,
+            num_workers=num_workers,
+            save_snapshot=True,
+            nstep=nstep,
+            multistep=multistep,
+            discount=discount
+        )
+        
+        return loader
+    finally:
+        # Cleanup temporary directory and symlinks
+        import shutil
+        try:
+            shutil.rmtree(temp_dir)
+            print(f"Temporary directory {temp_dir} cleaned up successfully")
+        except Exception as e:
+            ColorPrint.yellow(f"Warning: Could not cleanup temporary directory {temp_dir}: {e}")
