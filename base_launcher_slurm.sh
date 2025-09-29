@@ -14,4 +14,4 @@ cd $SLURM_SUBMIT_DIR
 source ~/.bashrc
 conda activate metataco
 
-python pretrain_ST.py --dataset_config /home/mprattico/Pretrain-TACO/dataset/random_medium --save_path models/maze/random_resnet18 -fe resnet18p --total_steps 300_000_000 --checkpoint "250_000_000,300_000_000" --lr 5e-4 --use_wandb
+python pretrain_ST.py --dataset_config /home/mprattico/Pretrain-TACO/dataset/random_medium --save_path models/maze/random_resnet18 -fe resnet18p --total_steps 300_000_000 --checkpoint "250_000_000,300_000_000" --lr 5e-4 --use_wandb --height 224 --wodth 224
