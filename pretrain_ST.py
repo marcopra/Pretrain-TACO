@@ -25,7 +25,9 @@ def format_pretrained_path(feature_extractor):
         "vit_b": "vit_b_scratch",
         "vit_l": "vit_l_scratch", 
         "resnet18": "resnet18_l5_scratch",
+        "resnet18p": "resnet18_l5_pretrained",
         "resnet50": "resnet50_l5_scratch",
+        "resnet50p": "resnet50_l5_pretrained",
         "r3m": "r3m",
         "mvp": "mvp"
     }
