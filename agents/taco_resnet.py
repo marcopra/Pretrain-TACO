@@ -188,41 +188,6 @@ class TACO(nn.Module):
         logits = logits - torch.max(logits, 1)[0][:, None]
         return logits
     
-    def predict_reward(self, features, task_ids, validation_mode='train'):
-        """
-        Predict rewards using task-specific networks.
-        
-        Args:
-            features: Input features (batch_size, feature_dim)
-            task_ids: Task IDs for each sample (batch_size,)
-            validation_mode: 'train' for using specific task networks, 'test' for averaging
-        
-        Returns:
-            reward_pred: Predicted rewards (batch_size, 1)
-        """
-        if validation_mode == 'train':
-            # Use task-specific networks
-            batch_size = features.shape[0]
-            reward_pred = torch.zeros(batch_size, 1, device=self.device)
-            
-            for task_id in range(self.num_tasks):
-                mask = (task_ids == task_id)
-                if mask.any():
-                    task_features = features[mask]
-                    task_rewards = self.reward_networks[task_id](task_features)
-                    reward_pred[mask] = task_rewards
-                    
-            return reward_pred
-        else:
-            # Average predictions from all task networks for test evaluation
-            all_predictions = []
-            for task_network in self.reward_networks:
-                pred = task_network(features)
-                all_predictions.append(pred)
-            
-            # Average all predictions
-            reward_pred = torch.stack(all_predictions, dim=0).mean(dim=0)
-            return reward_pred
     
 class Actor(nn.Module):
     def __init__(self, repr_dim, action_shape, feature_dim, hidden_dim):
@@ -710,16 +675,7 @@ class TACOAgent:
 
         return metrics
     
-    def evaluate_taco(self, obs, action, action_seq, next_obs, reward, task_id=None, use_test_mode=False):
-        """
-        Evaluate TACO with different reward prediction modes.
-        
-        Args:
-            obs, action, action_seq, next_obs, reward: Standard inputs
-            task_id: Task IDs for each sample
-            use_test_mode: If True, use averaged reward predictions (for test set evaluation)
-                          If False, use task-specific reward predictions (for validation split)
-        """
+    def evaluate_taco(self, obs, action, action_seq, next_obs, reward):
         with torch.no_grad():
             metrics = dict()
             metrics['batch_reward'] = reward.mean().item()
@@ -742,31 +698,19 @@ class TACOAgent:
             
             ### Compute reward prediction loss
             if self.reward:
-                features = torch.concat([z_a, action_seq_en], dim=-1)
-                
-                # Determine validation mode based on use_test_mode flag
-                if use_test_mode:
-                    # Use averaged networks for test set evaluation
-                    validation_mode = 'test'
-                else:
-                    # Use task-specific networks for training/validation split
-                    validation_mode = 'train'
-                
-                reward_pred = self.TACO.predict_reward(features, task_id.squeeze(), validation_mode)
+                reward_pred = self.TACO.reward(torch.concat([z_a, action_seq_en], dim=-1))
                 reward_loss = F.mse_loss(reward_pred, reward)
 
                 # Average percentage of reward prediction error
+                
                 metrics['avg_rew_pred_error_percentage'] = torch.mean(torch.abs(reward_pred - reward) / (reward + 1e-6)).item() 
                 error = reward_pred - reward
                 metrics['log_cosh'] = torch.mean(torch.log(torch.cosh(error + 1e-12))).item()
                 threshold = 1e-3  # puoi settarlo in base al tuo dominio
                 mask = reward.abs() > threshold
-                if mask.any():
-                    metrics['rel_error_filtered'] = torch.mean(
-                        torch.abs(reward_pred[mask] - reward[mask]) / (reward[mask] + 1e-6)
-                    ).item()
-                else:
-                    metrics['rel_error_filtered'] = 0.0
+                metrics['rel_error_filtered'] = torch.mean(
+                    torch.abs(reward_pred[mask] - reward[mask]) / (reward[mask] + 1e-6)
+                ).item()
                 numerator = torch.abs(reward_pred - reward)
                 denominator = torch.abs(reward_pred) + torch.abs(reward) + 1e-6
                 metrics['smape'] = torch.mean(2.0 * numerator / denominator).item()
@@ -787,5 +731,3 @@ class TACOAgent:
                 metrics['taco_loss']  = taco_loss.item()
                 metrics['total_loss'] = taco_loss.item() + curl_loss.item() + reward_loss.item()
             return metrics
-
-
