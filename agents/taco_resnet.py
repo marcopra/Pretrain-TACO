@@ -188,7 +188,90 @@ class TACO(nn.Module):
         logits = logits - torch.max(logits, 1)[0][:, None]
         return logits
     
-    
+    def load_checkpoint(self, state_dict):
+        """
+        Load TACO weights from checkpoint with selective loading.
+        Loads all TACO networks and reward network (if available and compatible).
+        
+        Args:
+            state_dict: The state dictionary from the checkpoint
+        """
+        loaded_components = []
+        failed_components = []
+        excluded_components = []
+        
+        # First, try to load the complete state dict with strict=False
+        missing_keys, unexpected_keys = self.load_state_dict(state_dict, strict=False)
+        
+        if unexpected_keys:
+            utils.ColorPrint.yellow(f"Warning: Unexpected keys in checkpoint: {unexpected_keys}")
+        
+        # Check what was loaded successfully
+        all_keys = set(state_dict.keys())
+        missing_keys_set = set(missing_keys)
+        loaded_keys = all_keys - missing_keys_set
+        
+        # Categorize loaded components
+        component_prefixes = ['encoder.', 'act_tok.', 'proj_s.', 'proj_sa.', 'W']
+        
+        for prefix in component_prefixes:
+            if prefix == 'W':
+                if 'W' in loaded_keys:
+                    loaded_components.append('W')
+            else:
+                component_keys = [k for k in loaded_keys if k.startswith(prefix)]
+                if component_keys:
+                    component_name = prefix.rstrip('.')
+                    loaded_components.append(component_name)
+        
+        # Special handling for reward network
+        reward_keys = [k for k in state_dict.keys() if k.startswith('reward.')]
+        if reward_keys:
+            try:
+                reward_state_dict = {k.replace('reward.', ''): v for k, v in state_dict.items() if k.startswith('reward.')}
+                
+                # Check if the reward network architecture is compatible
+                try:
+                    self.reward.load_state_dict(reward_state_dict, strict=True)
+                    loaded_components.append('reward')
+                    utils.ColorPrint.green(f"✓ Loaded reward network with {len(reward_keys)} parameters")
+                except (RuntimeError, ValueError) as e:
+                    utils.ColorPrint.yellow(f"! Reward network architecture mismatch: {e}")
+                    utils.ColorPrint.yellow("  Reinitializing reward network from scratch")
+                    self.reward.apply(utils.weight_init)
+                    failed_components.append('reward (architecture mismatch)')
+                    
+            except Exception as e:
+                utils.ColorPrint.red(f"✗ Failed to load reward network: {e}")
+                utils.ColorPrint.yellow("  Reinitializing reward network from scratch")
+                self.reward.apply(utils.weight_init)
+                failed_components.append('reward')
+        else:
+            utils.ColorPrint.yellow("! No reward network found in checkpoint, keeping initialized weights")
+        
+        # Report on missing components
+        if missing_keys:
+            missing_non_reward = [k for k in missing_keys if not k.startswith('reward.')]
+            if missing_non_reward:
+                utils.ColorPrint.red(f"✗ Missing critical TACO components: {missing_non_reward}")
+                failed_components.extend([k.split('.')[0] for k in missing_non_reward])
+        
+        # Summary
+        utils.ColorPrint.blue(f"TACO Checkpoint Loading Summary:")
+        if loaded_components:
+            utils.ColorPrint.blue(f"  ✓ Loaded: {', '.join(loaded_components)}")
+        if failed_components:
+            utils.ColorPrint.blue(f"  ✗ Failed/Reinitialized: {', '.join(failed_components)}")
+            
+        # Log successful loading for required components
+        required_components = ['encoder', 'act_tok', 'proj_s', 'proj_sa', 'W']
+        loaded_required = [c for c in required_components if c in loaded_components]
+        if len(loaded_required) == len(required_components):
+            utils.ColorPrint.green("✓ All required TACO components loaded successfully")
+        else:
+            missing_required = [c for c in required_components if c not in loaded_components]
+            utils.ColorPrint.red(f"✗ Missing required components: {', '.join(missing_required)}")
+            
 class Actor(nn.Module):
     def __init__(self, repr_dim, action_shape, feature_dim, hidden_dim):
         super().__init__()
@@ -249,7 +332,7 @@ class TACOAgent:
                  hidden_dim, critic_target_tau, num_expl_steps,
                  update_every_steps, stddev_schedule, stddev_clip, use_tb,
                  reward, multistep, latent_a_dim, curl, height = None, width = None, pretrained_path=None, 
-                 freeze_encoder=False, no_taco=False):
+                 freeze_encoder=False, no_taco=False, optimizer_type="adam"):
     
     
         self.device = device
@@ -265,6 +348,7 @@ class TACOAgent:
         self.curl = curl
         self.freeze_encoder = freeze_encoder
         self.no_taco = no_taco
+        self.optimizer_type = optimizer_type.lower()
 
         ### A heuristics to choose the dimensionality of latent actions
         if latent_a_dim == 'none':
@@ -301,11 +385,28 @@ class TACOAgent:
             parameters = itertools.chain(self.encoder.parameters(),
                                          self.act_tok.parameters(),
             )
-            self.encoder_opt = torch.optim.Adam(parameters, lr=encoder_lr)
-            self.taco_opt = torch.optim.Adam(self.TACO.parameters(), lr=encoder_lr)
+            
+            # Selezione dell'optimizer
+            if self.optimizer_type == "adam":
+                optimizer_class = torch.optim.Adam
+            elif self.optimizer_type == "sgd":
+                optimizer_class = torch.optim.SGD
+            else:
+                raise ValueError(f"Optimizer type '{self.optimizer_type}' not supported. Use 'adam' or 'sgd'.")
+            
+            self.encoder_opt = optimizer_class(parameters, lr=encoder_lr)
+            self.taco_opt = optimizer_class(self.TACO.parameters(), lr=encoder_lr)
         
-        self.actor_opt = torch.optim.Adam(self.actor.parameters(), lr=lr)
-        self.critic_opt = torch.optim.Adam(self.critic.parameters(), lr=lr)
+        # Selezione dell'optimizer per actor e critic
+        if self.optimizer_type == "adam":
+            optimizer_class = torch.optim.Adam
+        elif self.optimizer_type == "sgd":
+            optimizer_class = torch.optim.SGD
+        else:
+            raise ValueError(f"Optimizer type '{self.optimizer_type}' not supported. Use 'adam' or 'sgd'.")
+        
+        self.actor_opt = optimizer_class(self.actor.parameters(), lr=lr)
+        self.critic_opt = optimizer_class(self.critic.parameters(), lr=lr)
         
         
         self.cross_entropy_loss = nn.CrossEntropyLoss()
@@ -313,10 +414,25 @@ class TACOAgent:
         # data augmentation
         self.aug = RandomShiftsAug(pad=4)
 
-        if pretrained_path is not None:
-            print(f"Using feature extractor configuration: {pretrained_path}")
-        else:
-            print("Using default ResNet18 without pretrained weights")
+        # Handle TACO checkpoint loading separately from feature extractor
+        taco_checkpoint_path = None
+        if pretrained_path is not None and pretrained_path.lower() != 'none':
+            # Check if this is a TACO checkpoint (contains taco_ or has .pt/.pth extension with taco components)
+            if 'taco_' in pretrained_path.lower() or self._is_taco_checkpoint(pretrained_path):
+                taco_checkpoint_path = pretrained_path
+                pretrained_path = None  # Don't use for feature extractor
+        
+        # Set feature extractor path for encoder
+        if hasattr(self.encoder, 'feature_extractor'):
+            if pretrained_path is not None:
+                print(f"Using feature extractor configuration: {pretrained_path}")
+            else:
+                print("Using default ResNet18 without pretrained weights")
+        
+        # Load TACO checkpoint if provided
+        if taco_checkpoint_path is not None:
+            print(f"Loading TACO checkpoint from {taco_checkpoint_path}, freeze encoder: {freeze_encoder}")
+            self.load_pretrained(taco_checkpoint_path, None, freeze_encoder)
         
         if freeze_encoder:
             print("Encoder is frozen - no updates will be performed on encoder, TACO, and action tokenizer")
@@ -326,8 +442,175 @@ class TACOAgent:
             if hasattr(self.act_tok, 'eval'):
                 self.act_tok.eval()
         
+        self.pretrained_path = taco_checkpoint_path
         self.train()
         self.critic_target.train()
+
+    def _is_taco_checkpoint(self, path):
+        """Check if the path points to a TACO checkpoint file"""
+        if not path.endswith(('.pt', '.pth')):
+            return False
+        try:
+            checkpoint = torch.load(path, map_location='cpu', weights_only=False)
+            # Check if it has TACO components
+            return 'taco' in checkpoint or any(key.startswith(('proj_s', 'proj_sa', 'reward', 'W')) for key in checkpoint.keys())
+        except:
+            return False
+
+    def load_pretrained(self, model_path, map_location=None, freeze_encoder=False):
+        """
+        Load a pretrained TACO model from a saved checkpoint.
+        
+        Args:
+            model_path: Path to the saved model checkpoint
+            map_location: Optional device mapping for torch.load
+            freeze_encoder: Whether to freeze the loaded components
+        
+        Returns:
+            dict: The original training arguments
+        """
+        if map_location is None:
+            map_location = self.device
+            
+        utils.ColorPrint.blue(f"Loading pretrained model from: {model_path}")
+        checkpoint = torch.load(model_path, map_location=map_location, weights_only=False)
+        
+        print("Checkpoint keys:", checkpoint.keys())
+        # Use TACO's load_checkpoint method for all TACO components
+        if 'taco' in checkpoint:
+            self.TACO.load_checkpoint(checkpoint['taco'])
+        else:
+            utils.ColorPrint.yellow("! No TACO state found in checkpoint")
+        
+        # Handle freezing if requested
+        if freeze_encoder:
+            self._frozen_fingerprints = {
+                'encoder': self._get_model_fingerprint(self.encoder),
+                'taco': self._get_model_fingerprint(self.TACO),
+                'act_tok': self._get_model_fingerprint(self.act_tok)
+            }
+            
+            # Set to eval mode and disable gradients
+            self.encoder.eval()
+            self.TACO.eval()
+            if hasattr(self.act_tok, 'eval'):
+                self.act_tok.eval()
+            
+            # Disable gradients for all parameters
+            for param in self.encoder.parameters():
+                param.requires_grad = False
+            for param in self.TACO.parameters():
+                param.requires_grad = False
+            for param in self.act_tok.parameters():
+                param.requires_grad = False
+                
+            utils.ColorPrint.blue("🔒 Encoder components frozen")
+        
+        utils.ColorPrint.green("✓ Pretrained model loading completed")
+        return checkpoint.get('args', {})  # Return the saved args for reference
+    
+    def _get_model_fingerprint(self, model):
+        """Generate a unique fingerprint for model parameters"""
+        return {name: param.data.clone() for name, param in model.named_parameters()}
+        
+    def _check_frozen_models(self):
+        """Check if frozen models have been modified"""
+        if not hasattr(self, '_frozen_fingerprints'):
+            raise ValueError("No frozen fingerprints found. Did you load a pretrained model with freeze_encoder=True?")
+            
+        for model_name, fingerprint in self._frozen_fingerprints.items():
+            model = getattr(self, model_name.upper() if model_name == 'taco' else model_name)
+            current_fingerprint = self._get_model_fingerprint(model)
+            
+            for param_name, stored_param in fingerprint.items():
+                current_param = current_fingerprint[param_name]
+                assert torch.all(torch.eq(current_param, stored_param)), f"Parameter {param_name} in {model_name} has changed when it should be frozen!"
+
+    def unfreeze_encoder(self):
+        """Riattiva i gradienti per i modelli congelati"""
+        if hasattr(self, '_frozen_fingerprints'):
+            for param in self.encoder.parameters():
+                param.requires_grad = True
+            for param in self.TACO.parameters():
+                param.requires_grad = True
+            for param in self.act_tok.parameters():
+                param.requires_grad = True
+            
+            self.encoder.train()
+            self.TACO.train()
+            if hasattr(self.act_tok, 'train'):
+                self.act_tok.train()
+            
+            del self._frozen_fingerprints
+            self.freeze_encoder = False
+
+    def save(self, save_path, step):
+        """
+        Save the model state to a file.
+        
+        Args:
+            save_path: Path to save the model state
+            step: Current training step (for naming purposes)
+        """
+        state = {
+            'encoder': self.encoder.state_dict(),
+            'taco': self.TACO.state_dict(),
+            'act_tok': self.act_tok.state_dict(),
+            'actor': self.actor.state_dict(),
+            'critic': self.critic.state_dict(),
+            'critic_target': self.critic_target.state_dict(),
+            'args': {
+                'step': step,
+                'freeze_encoder': self.freeze_encoder,
+                'no_taco': self.no_taco
+            }
+        }
+        torch.save(state, save_path)
+        print(f"Model saved to {save_path}")
+
+    def change_device(self, new_device):
+        """
+        Move all model components to a new device.
+        
+        Args:
+            new_device: The target device (e.g., 'cuda:0', 'cpu')
+        """
+        # Update device attribute
+        self.device = new_device
+        
+        # Move all model components to new device
+        self.encoder = self.encoder.to(new_device)
+        self.actor = self.actor.to(new_device)
+        self.critic = self.critic.to(new_device)
+        self.critic_target = self.critic_target.to(new_device)
+        self.TACO = self.TACO.to(new_device)
+        if hasattr(self.act_tok, 'to'):
+            self.act_tok = self.act_tok.to(new_device)
+        
+        # Update TACO's internal device reference
+        self.TACO.device = new_device
+        
+        # Move optimizers' state to new device if they exist
+        optimizers = [self.actor_opt, self.critic_opt]
+        if hasattr(self, 'encoder_opt') and self.encoder_opt is not None:
+            optimizers.append(self.encoder_opt)
+        if hasattr(self, 'taco_opt') and self.taco_opt is not None:
+            optimizers.append(self.taco_opt)
+        
+        for optimizer in optimizers:
+            if optimizer.state:
+                for state in optimizer.state.values():
+                    for k, v in state.items():
+                        if torch.is_tensor(v):
+                            state[k] = v.to(new_device)
+        
+        # Update frozen fingerprints if they exist
+        if hasattr(self, '_frozen_fingerprints'):
+            for model_name, fingerprint in self._frozen_fingerprints.items():
+                for param_name, param_tensor in fingerprint.items():
+                    fingerprint[param_name] = param_tensor.to(new_device)
+        
+        print(f"All components moved to device: {new_device}")
 
     def train(self, training=True):
         self.training = training
@@ -560,7 +843,350 @@ class TACOAgent:
                 metrics['reward_loss']  = reward_loss.item()
                 metrics['curl_loss'] = curl_loss.item()
                 metrics['taco_loss']  = taco_loss.item()
+                metrics['total_loss'] = taco_loss.item() + curl_loss.item() + reward_loss.item()
             return metrics
+    def __init__(self, obs_shape, action_shape, device, lr, encoder_lr, feature_dim,
+                 hidden_dim, critic_target_tau, num_expl_steps,
+                 update_every_steps, stddev_schedule, stddev_clip, use_tb,
+                 reward, multistep, latent_a_dim, curl, height = None, width = None, pretrained_path=None, 
+                 freeze_encoder=False, no_taco=False, optimizer_type="adam"):
+    
+    
+        self.device = device
+        self.critic_target_tau = critic_target_tau
+        self.update_every_steps = update_every_steps
+        self.use_tb = use_tb
+        self.num_expl_steps = num_expl_steps
+        self.stddev_schedule = stddev_schedule
+        self.stddev_clip = stddev_clip
+        
+        self.reward = reward
+        self.multistep = multistep
+        self.curl = curl
+        self.freeze_encoder = freeze_encoder
+        self.no_taco = no_taco
+        self.optimizer_type = optimizer_type.lower()
+
+        ### A heuristics to choose the dimensionality of latent actions
+        if latent_a_dim == 'none':
+            latent_a_dim = int(action_shape[0]*1.25)+1
+        
+        ### Create action embeddings - use Identity if freezing encoder
+        if freeze_encoder:
+            self.act_tok = nn.Identity()
+            # When using Identity, latent_a_dim should match action_shape[0]
+            latent_a_dim = action_shape[0]
+        else:
+            self.act_tok = utils.ActionEncoding(action_shape[0], latent_a_dim, multistep)
+        
+        self.encoder = Encoder(obs_shape, feature_dim, width, height, pretrained_path).to(device)
+        
+        self.actor = Actor(self.encoder.repr_dim, action_shape, feature_dim,
+                           hidden_dim).to(device)
+        self.critic = Critic(self.encoder.repr_dim, latent_a_dim, feature_dim,
+                             hidden_dim).to(device)
+        self.critic_target = Critic(self.encoder.repr_dim, latent_a_dim,
+                                    feature_dim, hidden_dim).to(device)
+        self.critic_target.load_state_dict(self.critic.state_dict())
+        self.TACO = TACO(self.encoder.repr_dim, feature_dim, action_shape, latent_a_dim, hidden_dim, self.act_tok, self.encoder, multistep, device).to(device)
+        
+        ### State & Action Encoders - exclude from optimization if frozen
+        if freeze_encoder:
+            
+            self.encoder.eval()  # Set to eval mode            
+            parameters = []
+            self.encoder_opt = None
+            self.taco_opt = None
+
+        else:
+            parameters = itertools.chain(self.encoder.parameters(),
+                                         self.act_tok.parameters(),
+            )
+            
+            # Selezione dell'optimizer
+            if self.optimizer_type == "adam":
+                optimizer_class = torch.optim.Adam
+            elif self.optimizer_type == "sgd":
+                optimizer_class = torch.optim.SGD
+            else:
+                raise ValueError(f"Optimizer type '{self.optimizer_type}' not supported. Use 'adam' or 'sgd'.")
+            
+            self.encoder_opt = optimizer_class(parameters, lr=encoder_lr)
+            self.taco_opt = optimizer_class(self.TACO.parameters(), lr=encoder_lr)
+        
+        # Selezione dell'optimizer per actor e critic
+        if self.optimizer_type == "adam":
+            optimizer_class = torch.optim.Adam
+        elif self.optimizer_type == "sgd":
+            optimizer_class = torch.optim.SGD
+        else:
+            raise ValueError(f"Optimizer type '{self.optimizer_type}' not supported. Use 'adam' or 'sgd'.")
+        
+        self.actor_opt = optimizer_class(self.actor.parameters(), lr=lr)
+        self.critic_opt = optimizer_class(self.critic.parameters(), lr=lr)
+        
+        
+        self.cross_entropy_loss = nn.CrossEntropyLoss()
+        
+        # data augmentation
+        self.aug = RandomShiftsAug(pad=4)
+
+        # Handle TACO checkpoint loading separately from feature extractor
+        taco_checkpoint_path = None
+        if pretrained_path is not None and pretrained_path.lower() != 'none':
+            # Check if this is a TACO checkpoint (contains taco_ or has .pt/.pth extension with taco components)
+            if 'taco_' in pretrained_path.lower() or self._is_taco_checkpoint(pretrained_path):
+                taco_checkpoint_path = pretrained_path
+                pretrained_path = None  # Don't use for feature extractor
+        
+        # Set feature extractor path for encoder
+        if hasattr(self.encoder, 'feature_extractor'):
+            if pretrained_path is not None:
+                print(f"Using feature extractor configuration: {pretrained_path}")
+            else:
+                print("Using default ResNet18 without pretrained weights")
+        
+        # Load TACO checkpoint if provided
+        if taco_checkpoint_path is not None:
+            print(f"Loading TACO checkpoint from {taco_checkpoint_path}, freeze encoder: {freeze_encoder}")
+            self.load_pretrained(taco_checkpoint_path, None, freeze_encoder)
+        
+        if freeze_encoder:
+            print("Encoder is frozen - no updates will be performed on encoder, TACO, and action tokenizer")
+            # Set frozen models to eval mode
+            self.encoder.eval()
+            self.TACO.eval()
+            if hasattr(self.act_tok, 'eval'):
+                self.act_tok.eval()
+        
+        self.pretrained_path = taco_checkpoint_path
+        self.train()
+        self.critic_target.train()
+
+    def _is_taco_checkpoint(self, path):
+        """Check if the path points to a TACO checkpoint file"""
+        if not path.endswith(('.pt', '.pth')):
+            return False
+        try:
+            checkpoint = torch.load(path, map_location='cpu', weights_only=False)
+            # Check if it has TACO components
+            return 'taco' in checkpoint or any(key.startswith(('proj_s', 'proj_sa', 'reward', 'W')) for key in checkpoint.keys())
+        except:
+            return False
+
+    def load_pretrained(self, model_path, map_location=None, freeze_encoder=False):
+        """
+        Load a pretrained TACO model from a saved checkpoint.
+        
+        Args:
+            model_path: Path to the saved model checkpoint
+            map_location: Optional device mapping for torch.load
+            freeze_encoder: Whether to freeze the loaded components
+        
+        Returns:
+            dict: The original training arguments
+        """
+        if map_location is None:
+            map_location = self.device
+            
+        utils.ColorPrint.blue(f"Loading pretrained model from: {model_path}")
+        checkpoint = torch.load(model_path, map_location=map_location, weights_only=False)
+        
+        print("Checkpoint keys:", checkpoint.keys())
+        # Use TACO's load_checkpoint method for all TACO components
+        if 'taco' in checkpoint:
+            self.TACO.load_checkpoint(checkpoint['taco'])
+        else:
+            utils.ColorPrint.yellow("! No TACO state found in checkpoint")
+        
+        # Handle freezing if requested
+        if freeze_encoder:
+            self._frozen_fingerprints = {
+                'encoder': self._get_model_fingerprint(self.encoder),
+                'taco': self._get_model_fingerprint(self.TACO),
+                'act_tok': self._get_model_fingerprint(self.act_tok)
+            }
+            
+            # Set to eval mode and disable gradients
+            self.encoder.eval()
+            self.TACO.eval()
+            if hasattr(self.act_tok, 'eval'):
+                self.act_tok.eval()
+            
+            # Disable gradients for all parameters
+            for param in self.encoder.parameters():
+                param.requires_grad = False
+            for param in self.TACO.parameters():
+                param.requires_grad = False
+            for param in self.act_tok.parameters():
+                param.requires_grad = False
+                
+            utils.ColorPrint.blue("🔒 Encoder components frozen")
+        
+        utils.ColorPrint.green("✓ Pretrained model loading completed")
+        return checkpoint.get('args', {})  # Return the saved args for reference
+    
+    def _get_model_fingerprint(self, model):
+        """Generate a unique fingerprint for model parameters"""
+        return {name: param.data.clone() for name, param in model.named_parameters()}
+        
+    def _check_frozen_models(self):
+        """Check if frozen models have been modified"""
+        if not hasattr(self, '_frozen_fingerprints'):
+            raise ValueError("No frozen fingerprints found. Did you load a pretrained model with freeze_encoder=True?")
+            
+        for model_name, fingerprint in self._frozen_fingerprints.items():
+            model = getattr(self, model_name.upper() if model_name == 'taco' else model_name)
+            current_fingerprint = self._get_model_fingerprint(model)
+            
+            for param_name, stored_param in fingerprint.items():
+                current_param = current_fingerprint[param_name]
+                assert torch.all(torch.eq(current_param, stored_param)), f"Parameter {param_name} in {model_name} has changed when it should be frozen!"
+
+    def unfreeze_encoder(self):
+        """Riattiva i gradienti per i modelli congelati"""
+        if hasattr(self, '_frozen_fingerprints'):
+            for param in self.encoder.parameters():
+                param.requires_grad = True
+            for param in self.TACO.parameters():
+                param.requires_grad = True
+            for param in self.act_tok.parameters():
+                param.requires_grad = True
+            
+            self.encoder.train()
+            self.TACO.train()
+            if hasattr(self.act_tok, 'train'):
+                self.act_tok.train()
+            
+            del self._frozen_fingerprints
+            self.freeze_encoder = False
+
+    def save(self, save_path, step):
+        """
+        Save the model state to a file.
+        
+        Args:
+            save_path: Path to save the model state
+            step: Current training step (for naming purposes)
+        """
+        state = {
+            'encoder': self.encoder.state_dict(),
+            'taco': self.TACO.state_dict(),
+            'act_tok': self.act_tok.state_dict(),
+            'actor': self.actor.state_dict(),
+            'critic': self.critic.state_dict(),
+            'critic_target': self.critic_target.state_dict(),
+            'args': {
+                'step': step,
+                'freeze_encoder': self.freeze_encoder,
+                'no_taco': self.no_taco
+            }
+        }
+        torch.save(state, save_path)
+        print(f"Model saved to {save_path}")
+
+    def change_device(self, new_device):
+        """
+        Move all model components to a new device.
+        
+        Args:
+            new_device: The target device (e.g., 'cuda:0', 'cpu')
+        """
+        # Update device attribute
+        self.device = new_device
+        
+        # Move all model components to new device
+        self.encoder = self.encoder.to(new_device)
+        self.actor = self.actor.to(new_device)
+        self.critic = self.critic.to(new_device)
+        self.critic_target = self.critic_target.to(new_device)
+        self.TACO = self.TACO.to(new_device)
+        if hasattr(self.act_tok, 'to'):
+            self.act_tok = self.act_tok.to(new_device)
+        
+        # Update TACO's internal device reference
+        self.TACO.device = new_device
+        
+        # Move optimizers' state to new device if they exist
+        optimizers = [self.actor_opt, self.critic_opt]
+        if hasattr(self, 'encoder_opt') and self.encoder_opt is not None:
+            optimizers.append(self.encoder_opt)
+        if hasattr(self, 'taco_opt') and self.taco_opt is not None:
+            optimizers.append(self.taco_opt)
+        
+        for optimizer in optimizers:
+            if optimizer.state:
+                for state in optimizer.state.values():
+                    for k, v in state.items():
+                        if torch.is_tensor(v):
+                            state[k] = v.to(new_device)
+        
+        # Update frozen fingerprints if they exist
+        if hasattr(self, '_frozen_fingerprints'):
+            for model_name, fingerprint in self._frozen_fingerprints.items():
+                for param_name, param_tensor in fingerprint.items():
+                    fingerprint[param_name] = param_tensor.to(new_device)
+        
+        print(f"All components moved to device: {new_device}")
+
+    def train(self, training=True):
+        self.training = training
+        self.actor.train(training)
+        self.critic.train(training)
+        if not self.freeze_encoder:
+            self.encoder.train(training)
+            self.TACO.train(training)
+            if hasattr(self.act_tok, 'train'):
+                self.act_tok.train(training)
+
+    def act(self, obs, step, eval_mode):
+        obs = torch.as_tensor(obs, device=self.device, dtype=torch.float32)
+        obs = self.encoder(obs.unsqueeze(0))
+        stddev = utils.schedule(self.stddev_schedule, step)
+        dist = self.actor(obs, stddev)
+        if eval_mode:
+            action = dist.mean
+        else:
+            action = dist.sample(clip=None)
+            if step < self.num_expl_steps:
+                action.uniform_(-1.0, 1.0)
+        return action.cpu().numpy()[0]
+
+    def update_critic(self, obs, action, reward, discount, next_obs, step):
+        metrics = dict()
+
+        with torch.no_grad():
+            stddev = utils.schedule(self.stddev_schedule, step)
+            dist = self.actor(next_obs, stddev)
+            next_action = dist.sample(clip=self.stddev_clip)
+            target_Q1, target_Q2 = self.critic_target(next_obs, next_action, self.act_tok)
+            target_V = torch.min(target_Q1, target_Q2)
+            target_Q = reward + (discount * target_V)
+
+        Q1, Q2 = self.critic(obs, action, self.act_tok)
+        critic_loss = F.mse_loss(Q1, target_Q) + F.mse_loss(Q2, target_Q)
+
+        if self.use_tb:
+            metrics['critic_target_q'] = target_Q.mean().item()
+            metrics['critic_q1'] = Q1.mean().item()
+            metrics['critic_q2'] = Q2.mean().item()
+            metrics['critic_loss'] = critic_loss.item()
+
+        # optimize encoder and critic - only if encoder not frozen
+        if not self.freeze_encoder:
+            self.encoder_opt.zero_grad(set_to_none=True)
+        self.critic_opt.zero_grad(set_to_none=True)
+        critic_loss.backward()
+        self.critic_opt.step()
+        if not self.freeze_encoder:
+            self.encoder_opt.step()
+
+        return metrics
+
+    def update_actor(self, obs, step):
+        metrics = dict()
+
+        stddev = utils.schedule(self.stddev_schedule, step)
         dist = self.actor(obs, stddev)
         action = dist.sample(clip=self.stddev_clip)
         log_prob = dist.log_prob(action).sum(-1, keepdim=True)
