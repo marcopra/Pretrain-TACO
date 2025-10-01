@@ -42,6 +42,8 @@ class FeatureExtractorFactory:
             return self._create_vit_from_local(pretrained_path)
         elif self._is_mcr_local_checkpoint(pretrained_path):
             return self._create_mcr_from_local(pretrained_path)
+        elif self._is_taco_checkpoint(pretrained_path):
+            return self._create_from_taco_checkpoint(pretrained_path)
         elif os.path.exists(pretrained_path):
             return self._create_from_checkpoint(pretrained_path)
         
@@ -347,30 +349,76 @@ class FeatureExtractorFactory:
         """Check if path is a local MCR checkpoint file"""
         return (pretrained_path.lower().endswith('.pt') or pretrained_path.lower().endswith('.pth')) and ('mcr' in pretrained_path.lower())
 
-    def _create_mcr_from_local(self, checkpoint_path):
-        """Create MCR ResNet50 model from local checkpoint"""
-        print(f"Loading MCR ResNet50 model from checkpoint: {checkpoint_path}")
+    def _is_taco_checkpoint(self, pretrained_path):
+        """Check if path is a TACO checkpoint file containing complete model"""
+        if not (pretrained_path.lower().endswith('.pt') or pretrained_path.lower().endswith('.pth')):
+            return False
         
-        # Create base ResNet50
-        feature_extractor = models.resnet50(weights=None)
-        # Load checkpoint
-        checkpoint = torch.load(checkpoint_path, map_location='cpu')
-        if 'state_dict' in checkpoint:
-            state_dict = checkpoint['state_dict']
-        elif 'model' in checkpoint:
-            state_dict = checkpoint['model']
+        # Check filename for TACO indicators
+        if 'taco_' in pretrained_path.lower():
+            return True
+            
+        try:
+            checkpoint = torch.load(pretrained_path, map_location='cpu', weights_only=False)
+            # Check if it has both encoder and taco components (indicating a full TACO checkpoint)
+            has_encoder = 'encoder' in checkpoint
+            has_taco = 'taco' in checkpoint
+            
+            # Also check if encoder contains feature_extractor keys
+            if has_encoder:
+                encoder_keys = list(checkpoint['encoder'].keys())
+                has_feature_extractor = any(key.startswith('feature_extractor.') for key in encoder_keys)
+                return has_feature_extractor
+                
+            return has_encoder and has_taco
+        except:
+            return False
+
+    def _create_from_taco_checkpoint(self, checkpoint_path):
+        """Create feature extractor from a full TACO checkpoint"""
+        print(f"Loading feature extractor from TACO checkpoint: {checkpoint_path}")
+        
+        checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
+        if 'encoder' not in checkpoint:
+            raise ValueError(f"No encoder found in TACO checkpoint: {checkpoint_path}")
+        
+        encoder_state = checkpoint['encoder']
+        
+        # Extract only feature_extractor keys
+        feature_extractor_state = {}
+        for key, value in encoder_state.items():
+            if key.startswith('feature_extractor.'):
+                # Remove the 'feature_extractor.' prefix
+                new_key = key[len('feature_extractor.'):]
+                feature_extractor_state[new_key] = value
+        
+        if not feature_extractor_state:
+            raise ValueError(f"No feature_extractor keys found in TACO checkpoint: {checkpoint_path}")
+        
+        # Determine model type from checkpoint path or keys
+        if 'resnet18' in checkpoint_path.lower():
+            feature_extractor = models.resnet18(weights=None)
+            feature_extractor = self._adapt_resnet_for_input_size(feature_extractor)
+            feature_extractor = nn.Sequential(*list(feature_extractor.children())[:-1])  # Remove fc layer
+        elif 'resnet50' in checkpoint_path.lower() or any('layer4' in key for key in feature_extractor_state.keys()):
+            feature_extractor = models.resnet50(weights=None)
+            feature_extractor = nn.Sequential(*list(feature_extractor.children())[:-1])  # Remove fc layer
         else:
-            state_dict = checkpoint
+            # Default to ResNet18
+            ColorPrint.yellow("Could not determine ResNet variant from checkpoint, defaulting to ResNet18")
+            feature_extractor = models.resnet18(weights=None)
+            feature_extractor = self._adapt_resnet_for_input_size(feature_extractor)
+            feature_extractor = nn.Sequential(*list(feature_extractor.children())[:-1])  # Remove fc layer
         
-        # Load state dict
-        feature_extractor.load_state_dict(state_dict, strict=False)
+        # Load the feature extractor weights
+        msg = feature_extractor.load_state_dict(feature_extractor_state, strict=False)
+        if msg.missing_keys:
+            ColorPrint.yellow(f"Missing keys when loading feature extractor: {msg.missing_keys}")
+        if msg.unexpected_keys:
+            ColorPrint.yellow(f"Unexpected keys when loading feature extractor: {msg.unexpected_keys}")
         
-        # Remove fc layer to get features
-        feature_extractor = nn.Sequential(*list(feature_extractor.children())[:-1])
-        
-        # Use ImageNet preprocessing
         preprocess = self._get_imagenet_transform()
         
-        print("MCR ResNet50 model loaded successfully")
+        print(f"Feature extractor loaded successfully from TACO checkpoint")
         return feature_extractor, preprocess
 

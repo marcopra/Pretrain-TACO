@@ -120,7 +120,7 @@ def resnet18_conv5(checkpoint_path):
     state_dict = torch.load(checkpoint_path, map_location=torch.device('cpu'))
     if 'encoder' in state_dict:
         state_dict = state_dict['encoder']
-    msg = model.load_state_dict(state_dict, strict=True)
+    msg = model.load_state_dict(state_dict, strict=False)
     # Load weights from checkpoint
     print(f"Loaded checkpoint with missing keys: {msg.missing_keys}")
     print(f"Unexpected keys: {msg.unexpected_keys}")
