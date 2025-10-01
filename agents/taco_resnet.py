@@ -373,6 +373,14 @@ class TACOAgent:
         self.critic_target.load_state_dict(self.critic.state_dict())
         self.TACO = TACO(self.encoder.repr_dim, feature_dim, action_shape, latent_a_dim, hidden_dim, self.act_tok, self.encoder, multistep, device).to(device)
         
+        # Selezione dell'optimizer per actor e critic
+        if self.optimizer_type == "adam":
+            optimizer_class = torch.optim.Adam
+        elif self.optimizer_type == "sgd":
+            optimizer_class = torch.optim.SGD
+        else:
+            raise ValueError(f"Optimizer type '{self.optimizer_type}' not supported. Use 'adam' or 'sgd'.")
+        
         ### State & Action Encoders - exclude from optimization if frozen
         if freeze_encoder:
             
@@ -386,24 +394,9 @@ class TACOAgent:
                                          self.act_tok.parameters(),
             )
             
-            # Selezione dell'optimizer
-            if self.optimizer_type == "adam":
-                optimizer_class = torch.optim.Adam
-            elif self.optimizer_type == "sgd":
-                optimizer_class = torch.optim.SGD
-            else:
-                raise ValueError(f"Optimizer type '{self.optimizer_type}' not supported. Use 'adam' or 'sgd'.")
-            
             self.encoder_opt = optimizer_class(parameters, lr=encoder_lr)
             self.taco_opt = optimizer_class(self.TACO.parameters(), lr=encoder_lr)
-        
-        # Selezione dell'optimizer per actor e critic
-        if self.optimizer_type == "adam":
-            optimizer_class = torch.optim.Adam
-        elif self.optimizer_type == "sgd":
-            optimizer_class = torch.optim.SGD
-        else:
-            raise ValueError(f"Optimizer type '{self.optimizer_type}' not supported. Use 'adam' or 'sgd'.")
+ 
         
         self.actor_opt = optimizer_class(self.actor.parameters(), lr=lr)
         self.critic_opt = optimizer_class(self.critic.parameters(), lr=lr)
