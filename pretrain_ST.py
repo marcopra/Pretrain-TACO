@@ -178,37 +178,19 @@ if __name__ == "__main__":
     # Load saved checkpoint if provided
     saved_args = None
     if args.resume_checkpoint:
-        raise NotImplementedError("Resuming from checkpoint is not implemented in single task pretraining yet.")
-        # print(f"Loading checkpoint from {args.resume_checkpoint}")
-        # checkpoint = torch.load(args.resume_checkpoint, map_location=args.device)
-        # saved_args = checkpoint.get('args', {})
+        print(f"Loading checkpoint from {args.resume_checkpoint}")
+        checkpoint = torch.load(args.resume_checkpoint, map_location=args.device)
+        saved_args = checkpoint.get('args', {})
+        print(f"Checkpoint args: {saved_args}")
+    
         
-        # # Extract dataset config from checkpoint path
-        # checkpoint_basename = os.path.basename(args.resume_checkpoint)
-        # if "taco_MT_" in checkpoint_basename:
-        #     # Extract dataset config from path format like "taco_MT_ST50_OOD_Push_0.66_lr=0.0005_ts=100352_curl_rew.pt"
-        #     parts = checkpoint_basename.split("_")
-        #     # Find dataset and ratio parts (e.g., "ST50" and "0.66")
-        #     if len(parts) >= 4:
-        #         dataset_type = "_".join(parts[2:4])  # e.g., "ST50" or "MT50" #TODO to test
-        #         ratio = parts[5]  # e.g., "0.33" or "0.66"
-        #         expected_config = f"data_episodes/{dataset_type}/{ratio}"
-                
-        #         # Check if the dataset config matches
-        #         if not args.dataset_config.endswith(expected_config):
-        #             raise AssertionError(
-        #                 f"Dataset config mismatch! Provided: {args.dataset_config}, "
-        #                 f"Expected (based on checkpoint): {expected_config}"
-        #             )
-        #         print(f"Verified dataset config: {args.dataset_config} matches checkpoint")
-        
-        # # Set steps and epoch from checkpoint if requested
-        # if args.continue_steps and 'steps' in checkpoint:
-        #     steps = checkpoint['steps']
-        #     print(f"Resuming from step: {steps}")
-        # if 'epoch' in checkpoint:
-        #     epoch = checkpoint['epoch']
-        #     print(f"Resuming from epoch: {epoch}")
+        # Set steps and epoch from checkpoint if requested
+        if args.continue_steps and 'steps' in checkpoint:
+            steps = checkpoint['steps']
+            print(f"Resuming from step: {steps}")
+        if 'epoch' in checkpoint:
+            epoch = checkpoint['epoch']
+            print(f"Resuming from epoch: {epoch}")
 
     # Initialize wandb if enabled
     if args.use_wandb:
@@ -307,9 +289,10 @@ if __name__ == "__main__":
             curl=not args.no_curl,
             height=args.height,
             width=args.width,
-            pretrained_path=pretrained_path,
+            pretrained_path=args.resume_checkpoint if args.resume_checkpoint else pretrained_path,
             freeze_encoder=False,
-            no_taco=False
+            no_taco=False,
+            optimizer_type=args.optimizer
         )
 
     # Now that the agent is initialized with the loaded checkpoint, we're ready to continue training
