@@ -10,7 +10,7 @@ seed: 1
 exp_name: proprio_default
 
 # dataset settings
-dataset_config: /home/mprattico/Pretrain-TACO/dataset/small_random
+dataset_config: /home/mprattico/Pretrain-TACO/dataset/random_medium
 train_ratio: 0.8
 
 # training settings
@@ -24,7 +24,7 @@ nstep: 3
 discount: 0.99
 num_workers: 0
 total_steps: 100000000
-checkpoint: "500000,1000000"
+checkpoint: "1000000"
 optimizer: adam
 
 # evaluation settings
@@ -42,7 +42,7 @@ homogeneous: false
 save_path: models/maze/proprio/
 
 # wandb settings
-use_wandb: false
+use_wandb: true
 wandb_project: taco_proprio-st-pretrain
 wandb_entity: null
 wandb_run_name: null
