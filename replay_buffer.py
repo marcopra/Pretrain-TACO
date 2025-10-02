@@ -76,7 +76,7 @@ class ReplayBufferStorage:
 
 class ReplayBuffer(IterableDataset):
     def __init__(self, replay_dir, max_size, num_workers, nstep,  multistep, 
-                 discount, fetch_every, save_snapshot):
+                 discount, fetch_every, save_snapshot, observation_key='observation'):
         self._replay_dir = replay_dir
         self._size = 0
         self._max_size = max_size
@@ -89,6 +89,7 @@ class ReplayBuffer(IterableDataset):
         self._samples_since_last_fetch = fetch_every
         self._save_snapshot = save_snapshot
         self._multistep = multistep
+        self._observation_key = observation_key
         print('Loading Data into CPU Memory')
         self._preload()
 
@@ -157,11 +158,11 @@ class ReplayBuffer(IterableDataset):
         # add +1 for the first dummy transition
         n_step = max(self._nstep, self._multistep)
         idx = np.random.randint(0, episode_len(episode) - n_step + 1) + 1
-        obs = episode['observation'][idx - 1]
-        r_next_obs = episode['observation'][idx + self._multistep - 1]
+        obs = episode[self._observation_key][idx - 1]
+        r_next_obs = episode[self._observation_key][idx + self._multistep - 1]
         action = episode['action'][idx]
         action_seq = np.concatenate([episode['action'][idx+i][None, :] for i in range(self._multistep)])
-        next_obs = episode['observation'][idx + self._nstep - 1]
+        next_obs = episode[self._observation_key][idx + self._nstep - 1]
         reward = np.zeros_like(episode['reward'][idx])
         discount = np.ones_like(episode['discount'][idx])
         for i in range(self._nstep):
@@ -182,7 +183,7 @@ def _worker_init_fn(worker_id):
 
 
 def make_replay_loader(replay_dir, max_size, batch_size, num_workers,
-                       save_snapshot, nstep, multistep, discount):
+                       save_snapshot, nstep, multistep, discount, observation_key='observation'):
     max_size_per_worker = max_size // max(1, num_workers)
     
     iterable = ReplayBuffer(replay_dir,
@@ -192,7 +193,8 @@ def make_replay_loader(replay_dir, max_size, batch_size, num_workers,
                             multistep,
                             discount,
                             fetch_every=1000,
-                            save_snapshot=save_snapshot)
+                            save_snapshot=save_snapshot,
+                            observation_key=observation_key)
     print(f"Replay buffer size: {len(iterable)}")
 
     loader = torch.utils.data.DataLoader(iterable,

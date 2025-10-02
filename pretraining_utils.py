@@ -240,7 +240,7 @@ def load_unified_dataset(config_or_path, batch_size=32, num_workers=4,
 def load_single_task_dataset(config_or_path, batch_size=32, num_workers=4,
                              nstep=3, multistep=3, discount=0.99, 
                              max_episodes_per_dataset=8, max_size=None,
-                             homogeneous=False, train_ratio=0.8, use_training_split=True):
+                             homogeneous=False, train_ratio=0.8, use_training_split=True, observation_key='observation'):
     """
     Load single task dataset and split into train/validation
     
@@ -320,7 +320,8 @@ def load_single_task_dataset(config_or_path, batch_size=32, num_workers=4,
             save_snapshot=True,
             nstep=nstep,
             multistep=multistep,
-            discount=discount
+            discount=discount,
+            observation_key=observation_key
         )
         return loader
     
@@ -346,7 +347,8 @@ def load_single_task_dataset(config_or_path, batch_size=32, num_workers=4,
             save_snapshot=True,
             nstep=nstep,
             multistep=multistep,
-            discount=discount
+            discount=discount,
+            observation_key=observation_key
         )
         
         return loader

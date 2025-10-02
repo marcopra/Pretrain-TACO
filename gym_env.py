@@ -73,6 +73,8 @@ class ActionRepeatWrapper(gym.Wrapper):
         self._num_repeats = num_repeats
         self.data_collection = data_collection
         self.obs_keys = None
+        obs, info = self.env.reset()
+        self.proprio_observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=self._process_proprio_obs(obs).shape, dtype=np.float32)
 
     def _process_proprio_obs(self, obs):
         """Process proprioceptive observation, concatenating dict values if needed."""
@@ -179,6 +181,7 @@ class FrameStackWrapper(gym.Wrapper):
             shape=(channels, self.orig_obs_shape[0], self.orig_obs_shape[1]),
             dtype=np.uint8
         )
+
 
     def _transform_observation(self, time_step):
         assert len(self._frames) == self._num_frames
@@ -419,6 +422,11 @@ def observation_spec(env):
     """Get observation spec of the environment for agent initialization."""
     shape = env.observation_space.shape
     return specs.Array(shape, np.uint8, 'observation')
+
+def proprio_observation_spec(env):
+    """Get proprio observation spec of the environment for agent initialization."""
+    shape = env.proprio_observation_space.shape
+    return specs.Array(shape, np.float32, 'proprio_observation')
 
 
 def action_spec(env):

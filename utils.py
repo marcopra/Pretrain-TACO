@@ -10,6 +10,12 @@ from omegaconf import OmegaConf
 from torch import distributions as pyd
 from torch.distributions.utils import _standard_normal
 
+try:
+    from tabulate import tabulate
+except ImportError:
+    print("Warning: tabulate not installed. Install with: pip install tabulate")
+    tabulate = None
+
 
 ### input shape: (batch_size, length, action_dim)
 ### output shape: (batch_size, action_dim)
@@ -206,3 +212,71 @@ class ColorPrint:
     @staticmethod
     def red(text):
         print(f"\033[91m{text}\033[0m")
+
+def create_mlp(input_dim, output_dim, hidden_sizes, output_activation = None, hidden_activation_fn = nn.ReLU(inplace=True)):
+    layers = []
+    in_dim = input_dim
+    for h in hidden_sizes:
+        layers.append(nn.Linear(in_dim, h))
+        layers.append(hidden_activation_fn)
+        in_dim = h
+    layers.append(nn.Linear(in_dim, output_dim))
+    # add layer normalization
+    if output_activation == 'tanh':
+        layers.append(nn.Tanh())
+    elif output_activation == 'layernorm':
+        layers.append(nn.LayerNorm(output_dim))
+    elif output_activation == 'relu':
+        layers.append(nn.ReLU())
+    elif output_activation == 'layernorm_n_tanh':
+        layers.append(nn.LayerNorm(output_dim))
+        layers.append(nn.Tanh())
+    elif output_activation is None or output_activation.lower() == 'none':
+        ...
+    else:
+        raise ValueError("Invalid normalization")
+
+    model = nn.Sequential(*layers)
+    
+    # Applica inizializzazione Xavier per tutti i layer lineari
+    for m in model.modules():
+        if isinstance(m, nn.Linear):
+            nn.init.xavier_uniform(m.weight)
+            if m.bias is not None:
+                nn.init.constant_(m.bias, 0)
+    
+    return model
+
+def print_metrics_table(metrics, title="Metrics", round_digits=6):
+    """
+    Print metrics in a formatted table using tabulate.
+    
+    Args:
+        metrics (dict): Dictionary of metric names and values
+        title (str): Title for the table
+        round_digits (int): Number of decimal places to round to
+    """
+    if tabulate is None:
+        # Fallback to simple print if tabulate is not available
+        print(f"\n{title}:")
+        for key, value in metrics.items():
+            if isinstance(value, (int, float)):
+                print(f"  {key}: {value:.{round_digits}f}")
+            else:
+                print(f"  {key}: {value}")
+        print()
+        return
+    
+    # Prepare data for tabulate
+    table_data = []
+    for key, value in metrics.items():
+        if isinstance(value, (int, float)):
+            formatted_value = f"{value:.{round_digits}f}"
+        else:
+            formatted_value = str(value)
+        table_data.append([key, formatted_value])
+    
+    # Print table
+    print(f"\n{title}:")
+    print(tabulate(table_data, headers=["Metric", "Value"], tablefmt="grid"))
+    print()
