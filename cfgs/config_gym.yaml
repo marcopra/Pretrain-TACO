@@ -14,7 +14,7 @@ random_goal: false
 # train settings
 num_seed_frames: 4000
 # eval
-eval_every_frames: 10000
+eval_every_frames: 5000
 num_eval_episodes: 10
 # snapshot
 save_snapshot: false
