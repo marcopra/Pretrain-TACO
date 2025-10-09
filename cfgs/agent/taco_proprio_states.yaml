@@ -32,7 +32,7 @@ freeze_encoder: false
 no_taco: false
 observation_key: proprio_observation
 use_tb: true
-wandb_project: taco_proprio-st-pretrain
+wandb_project: taco_proprio-gym
 
 ### Encoder checkpoint parameters
 encoder_checkpoint_steps: [1500, 5000, 200000, 400000, 1000000]
