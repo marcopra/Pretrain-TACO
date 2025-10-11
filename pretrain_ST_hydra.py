@@ -166,30 +166,7 @@ def main(cfg: DictConfig):
     # Initialize wandb if enabled
     if cfg.use_wandb:
         print("Initializing Weights & Biases logging")
-        wandb_config = {
-            "learning_rate": cfg.lr,
-            "optimizer": cfg.optimizer,
-            "batch_size": cfg.batch_size,
-            "feature_dim": cfg.feature_dim,
-            "hidden_dim": cfg.hidden_dim,
-            "multistep": cfg.multistep,
-            "device": cfg.device,
-            "total_steps": cfg.total_steps,
-            "nstep": cfg.nstep,
-            "discount": cfg.discount,
-            "datasets": dataset_names,
-            "num_datasets": len(dataset_names),
-            "dataset_config": cfg.dataset_config,
-            "use_curl": not cfg.no_curl,
-            "use_reward": not cfg.no_reward,
-            "resumed_from_checkpoint": cfg.resume_checkpoint,
-            "max_episodes_per_dataset": cfg.max_episodes_per_dataset,
-            "max_size": cfg.max_size,
-            "homogeneous": cfg.homogeneous,
-            "train_ratio": cfg.train_ratio,
-            "feature_extractor": cfg.feature_extractor,
-            "pretrained_path": pretrained_path
-        }
+        wandb_config = OmegaConf.to_container(cfg, resolve=True)
 
         # Resume wandb run if ID is provided
         if cfg.resume_wandb_run:
@@ -387,8 +364,8 @@ def main(cfg: DictConfig):
     # *** Save the trained TACO agent ***
     print(f"Saving model to {cfg.save_path}")
     os.makedirs(cfg.save_path, exist_ok=True)
-    curl_str = "curl" if not cfg.no_curl else "nocurl"
-    reward_str = "rew" if not cfg.no_reward else "norew"
+    curl_str = "curl" if cfg.curl else "nocurl"
+    reward_str = "rew" if cfg.reward else "norew"
     optimizer_str = f"_{cfg.optimizer}" if cfg.optimizer != "adam" else ""
     extractor_str = f"_{cfg.feature_extractor}" if cfg.feature_extractor != "conv" else ""
     torch.save({
@@ -409,4 +386,3 @@ def main(cfg: DictConfig):
 
 if __name__ == "__main__":
     main()
-

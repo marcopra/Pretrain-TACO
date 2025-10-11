@@ -52,10 +52,6 @@ resume_checkpoint: null
 resume_wandb_run: null
 continue_steps: true
 
-# TACO loss settings
-no_curl: false
-no_reward: false
-
 # feature extractor settings
 feature_extractor: conv
 height: 84
