@@ -40,10 +40,37 @@ def load_agent_from_snapshot(snapshot_path):
         # Set weights_only=False to allow loading custom agent classes
         payload = torch.load(f, map_location='cpu', weights_only=False)
     
-    if 'agent' not in payload:
+    if 'agent' in payload:
+        return payload['agent']
+    elif 'taco' in payload:
+        return payload['taco']
+    else:    
         raise KeyError("Agent not found in snapshot file")
+
+
+def detect_agent_type(agent):
+    """
+    Detect the type of agent to handle different agent interfaces appropriately.
+    Returns a string identifying the agent type.
+    """
+    agent_type = "unknown"
+    agent_module = agent.__class__.__module__ if hasattr(agent, "__class__") else ""
     
-    return payload['agent']
+    # Check if it's a TACO agent with proprio states
+    if hasattr(agent, 'TACO') and hasattr(agent, 'encoder') and hasattr(agent, 'act_tok'):
+        if "taco_proprio_states" in agent_module or "proprio" in agent_module.lower():
+            agent_type = "taco_proprio"
+            print("Detected TACO agent with proprioceptive states")
+        else:
+            agent_type = "taco"
+            print("Detected TACO agent with image observations")
+    # Check for DrQ/DrQv2 type agents
+    elif hasattr(agent, 'encoder') and hasattr(agent, 'actor') and hasattr(agent, 'critic'):
+        agent_type = "drq"
+    # Add more agent type detections as needed
+    
+    print(f"Detected agent type: {agent_type}")
+    return agent_type
 
 
 class RandomAgent:
@@ -63,7 +90,7 @@ class RandomAgent:
     def update_meta(self, meta, global_step, time_step):
         return meta
     
-    def act(self, obs, meta, step, eval_mode=True):
+    def act(self, obs, step, eval_mode=True):
         return self.action_space.sample()
     
     def eval(self):
@@ -121,6 +148,13 @@ def collect_episodes(env, agent, num_episodes, storage, video_recorder=None, dev
     """Collect episodes using the trained agent."""
     print(f"Starting episode collection with device: {device}")
     
+    # Detect agent type to handle different agent interfaces
+    agent_type = detect_agent_type(agent)
+    is_proprio_agent = agent_type == "taco_proprio"
+    
+    if is_proprio_agent:
+        print("Using proprioceptive state TACO agent - will use proprio_observation instead of observation")
+    
     # Move agent to device if possible
     try:
         agent = agent.to(device)
@@ -144,6 +178,10 @@ def collect_episodes(env, agent, num_episodes, storage, video_recorder=None, dev
     except AttributeError:
         print("Agent doesn't have .eval() method, continuing without it...")
     
+    # Add agent device detection
+    if hasattr(agent, 'device'):
+        print(f"Agent's internal device: {agent.device}")
+    
     total_transitions = 0
     episode_rewards = []
     
@@ -152,7 +190,15 @@ def collect_episodes(env, agent, num_episodes, storage, video_recorder=None, dev
         
         # Reset environment and agent meta
         time_step = env.reset()
-        meta = agent.init_meta()
+        
+        # Initialize meta data if agent supports it
+        meta = {}
+        try:
+            if hasattr(agent, 'init_meta'):
+                meta = agent.init_meta()
+        except Exception as e:
+            print(f"Error initializing meta data: {e}")
+            meta = {}
         
         # Initialize episode storage
         episode_data = defaultdict(list)
@@ -186,14 +232,38 @@ def collect_episodes(env, agent, num_episodes, storage, video_recorder=None, dev
         while not time_step.last():
             # Sample action from agent
             with torch.no_grad():
-                if hasattr(agent, 'act'):
-                    # Direct agent action call
-                    action = agent.act(time_step.observation, meta, 0, eval_mode=True)
-                else:
-                    # Convert observation to tensor and call agent
-                    obs_tensor = torch.from_numpy(time_step.observation).float().unsqueeze(0).to(device)
-                    action = agent(obs_tensor, meta, 0, eval_mode=True)
-                
+                try:
+                    if is_proprio_agent:
+                        # For TACO agent with proprioceptive states, use proprio_observation
+                        obs = time_step.proprio_observation
+                        if isinstance(obs, np.ndarray) and obs.dtype != np.float32:
+                            obs = obs.astype(np.float32)
+                        action = agent.act(obs, 0, eval_mode=True)
+                    elif "taco" in agent_type:
+                        # For regular TACO agent, use regular observation
+                        obs = time_step.observation
+                        if isinstance(obs, np.ndarray) and obs.dtype != np.float32:
+                            obs = obs.astype(np.float32)
+                        action = agent.act(obs, 0, eval_mode=True)
+                    elif hasattr(agent, 'act'):
+                        # Direct agent action call for other agent types
+                        action = agent.act(time_step.observation, 0, eval_mode=True)
+                    else:
+                        # Convert observation to tensor and call agent
+                        obs_tensor = torch.from_numpy(time_step.observation).float().unsqueeze(0).to(device)
+                        action = agent(obs_tensor, 0, eval_mode=True)
+                except Exception as e:
+                    print(f"Error during action selection: {e}")
+                    if is_proprio_agent:
+                        print(f"Proprio observation type: {type(time_step.proprio_observation)}, "
+                              f"shape: {time_step.proprio_observation.shape}, "
+                              f"dtype: {time_step.proprio_observation.dtype}")
+                    else:
+                        print(f"Observation type: {type(time_step.observation)}, "
+                              f"shape: {time_step.observation.shape}, "
+                              f"dtype: {time_step.observation.dtype}")
+                    raise
+
                 if isinstance(action, torch.Tensor):
                     action = action.cpu().numpy()
                 if action.ndim > 1:
@@ -323,6 +393,9 @@ def main():
     sample_time_step = env.reset()
     proprio_shape = sample_time_step.proprio_observation.shape
     
+    if hasattr(sample_time_step, 'proprio_observation') and 'observation' in dir(sample_time_step) and 'achieved_goal' in dir(sample_time_step) and 'desired_goal' in dir(sample_time_step):
+        print(f"Proprio obs keys order: {list(dir(sample_time_step))[:3]}")
+    
     # Define data specs (same as in pretrain_gym.py)
     data_specs = (
         obs_spec,
@@ -333,7 +406,11 @@ def main():
     )
     
     # Get meta specs from agent
-    meta_specs = agent.get_meta_specs()
+    try:
+        meta_specs = agent.get_meta_specs()
+    except AttributeError:
+        print("Agent doesn't have get_meta_specs method, assuming no meta data.")
+        meta_specs = tuple()
     
     # Create storage
     storage = create_replay_buffer_storage(data_specs, meta_specs, args.output_dir)
@@ -344,9 +421,7 @@ def main():
         video_dir = Path(args.output_dir) / 'videos'
         video_dir.mkdir(exist_ok=True, parents=True)
         video_recorder = VideoRecorder(
-            video_dir,
-            camera_id=0 if 'quadruped' not in args.env_name else 2,
-            use_wandb=False
+            video_dir
         )
     
     # Collect episodes
