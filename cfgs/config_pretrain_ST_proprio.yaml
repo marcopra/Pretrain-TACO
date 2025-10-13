@@ -52,10 +52,10 @@ resume_checkpoint: null
 resume_wandb_run: null
 continue_steps: true
 
-# feature extractor settings
-feature_extractor: conv
-height: 84
-width: 84
+# # feature extractor settings
+# feature_extractor: conv
+# height: 84
+# width: 84
 
 # agent level parameters that override agent config
 curl: false

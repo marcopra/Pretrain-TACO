@@ -9,46 +9,8 @@ import utils
 import wandb
 import json
 from pathlib import Path
-from pretraining_utils import load_single_task_dataset
+from pretraining_utils import *
 
-
-def format_pretrained_path(feature_extractor):
-    """Format pretrained_path based on feature extractor type"""
-    if feature_extractor == "conv":
-        return None
-    
-    # Map feature extractor names to formatted paths
-    extractor_map = {
-        "vit_s": "vit_s_scratch",
-        "vit_b": "vit_b_scratch",
-        "vit_l": "vit_l_scratch", 
-        "resnet18": "resnet18_l5_scratch",
-        "resnet18p": "resnet18_l5_pretrained",
-        "resnet50": "resnet50_l5_scratch",
-        "resnet50p": "resnet50_l5_pretrained",
-        "r3m": "r3m",
-        "mvp": "mvp"
-    }
-    
-    return extractor_map.get(feature_extractor, f"{feature_extractor}_scratch")
-
-
-def extract_task_name_from_path(dataset_path):
-    """Extract task name from dataset path (same logic as generate_config.py)"""
-    dataset_path = Path(dataset_path)
-    folder_name = dataset_path.name
-    
-    # Extract task name from folder name 
-    parts = folder_name.split('_')
-    if parts:
-        # Take the first part which should contain the task name
-        task_part = parts[0]
-        # Remove version suffixes like -v2, -v3
-        task_name = task_part.replace('-v2', '').replace('-v3', '')
-        return task_name
-    
-    # Fallback to using the full folder name if parsing fails
-    return folder_name
 
 
 def make_agent(obs_shape, action_shape, cfg):

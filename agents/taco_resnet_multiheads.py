@@ -10,7 +10,7 @@ import torch.nn.functional as F
 import torchvision.models as models
 from torchvision.models import ResNet18_Weights, ResNet50_Weights
 import torchvision.transforms as transforms
-from agents.feature_extractor_utils import FeatureExtractorFactory
+from backbones.feature_extractor_utils import FeatureExtractorFactory
 
 
 class RandomShiftsAug(nn.Module):

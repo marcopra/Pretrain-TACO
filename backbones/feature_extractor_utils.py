@@ -3,9 +3,9 @@ import torch.nn as nn
 import torchvision.models as models
 from torchvision.models import ResNet18_Weights, ResNet50_Weights, ViT_B_16_Weights, ViT_L_16_Weights
 import torchvision.transforms as T
-from agents.resnet_models import resnet_conv3_compressed, resnet_conv4_compressed, resnet_conv5, resnet18_conv5
-from agents.moco_models import moco_conv5, moco_conv3_compressed, moco_conv4_compressed
-from agents.vit_models import vit_s16, vit_b16, vit_l16
+from backbones.resnet_models import resnet_conv3_compressed, resnet_conv4_compressed, resnet_conv5, resnet18_conv5
+from backbones.moco_models import moco_conv5, moco_conv3_compressed, moco_conv4_compressed
+from backbones.vit_models import vit_s16, vit_b16, vit_l16
 import mvp
 from r3m import load_r3m
 import re
