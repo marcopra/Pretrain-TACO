@@ -527,7 +527,6 @@ class TACOAgent:
             return metrics
             
         metrics.update(self.update_taco(obs, action, action_seq, r_next_obs, reward))       
-        self._check_frozen_models()
         
         # # save model periodically
         # if step % 10000 == 0:
